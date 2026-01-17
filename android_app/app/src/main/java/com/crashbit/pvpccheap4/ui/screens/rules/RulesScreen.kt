@@ -42,6 +42,7 @@ import com.crashbit.pvpccheap4.data.model.Rule
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RulesScreen(
+    onAddRule: () -> Unit = {},
     viewModel: RulesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -57,7 +58,7 @@ fun RulesScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { /* TODO: Create rule */ },
+                onClick = onAddRule,
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Afegir regla")

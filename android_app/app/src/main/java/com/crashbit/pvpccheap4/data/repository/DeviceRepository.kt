@@ -1,10 +1,14 @@
 package com.crashbit.pvpccheap4.data.repository
 
 import com.crashbit.pvpccheap4.data.api.ApiService
+import com.crashbit.pvpccheap4.data.model.AddIntegrationRequest
+import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
 import com.crashbit.pvpccheap4.data.model.Integration
 import com.crashbit.pvpccheap4.data.model.Rule
+import com.crashbit.pvpccheap4.data.model.SyncDevicesRequest
+import com.crashbit.pvpccheap4.data.model.SyncDevicesResponse
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,20 +30,21 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun createIntegration(integration: Integration): Result<Integration> {
+    suspend fun createIntegration(provider: String, credentials: Map<String, String>): Result<Integration> {
         return try {
-            val response = apiService.createIntegration(integration)
+            val request = AddIntegrationRequest(provider, credentials)
+            val response = apiService.createIntegration(request)
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to create integration", response.code())
+                Result.Error("Failed to create integration: ${response.message()}", response.code())
             }
         } catch (e: Exception) {
             Result.Error(e.message ?: "Network error")
         }
     }
 
-    suspend fun deleteIntegration(id: String): Result<Unit> {
+    suspend fun deleteIntegration(id: Int): Result<Unit> {
         return try {
             val response = apiService.deleteIntegration(id)
             if (response.isSuccessful) {
@@ -66,30 +71,40 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun turnOnDevice(id: String): Result<DeviceActionResponse> {
+    suspend fun syncDevices(integrationId: Int): Result<SyncDevicesResponse> {
         return try {
-            val response = apiService.turnOnDevice(id)
+            val request = SyncDevicesRequest(integrationId)
+            val response = apiService.syncDevices(request)
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to turn on device", response.code())
+                Result.Error("Failed to sync devices: ${response.message()}", response.code())
             }
         } catch (e: Exception) {
             Result.Error(e.message ?: "Network error")
         }
     }
 
-    suspend fun turnOffDevice(id: String): Result<DeviceActionResponse> {
+    suspend fun controlDevice(id: String, action: String): Result<DeviceActionResponse> {
         return try {
-            val response = apiService.turnOffDevice(id)
+            val request = ControlDeviceRequest(action)
+            val response = apiService.controlDevice(id, request)
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to turn off device", response.code())
+                Result.Error("Failed to control device", response.code())
             }
         } catch (e: Exception) {
             Result.Error(e.message ?: "Network error")
         }
+    }
+
+    suspend fun turnOnDevice(id: String): Result<DeviceActionResponse> {
+        return controlDevice(id, "turn_on")
+    }
+
+    suspend fun turnOffDevice(id: String): Result<DeviceActionResponse> {
+        return controlDevice(id, "turn_off")
     }
 
     suspend fun getDeviceState(id: String): Result<DeviceActionResponse> {
@@ -152,6 +167,19 @@ class DeviceRepository @Inject constructor(
                 Result.Success(Unit)
             } else {
                 Result.Error("Failed to delete rule", response.code())
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Network error")
+        }
+    }
+
+    suspend fun toggleRule(id: String): Result<Rule> {
+        return try {
+            val response = apiService.toggleRule(id)
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("Failed to toggle rule", response.code())
             }
         } catch (e: Exception) {
             Result.Error(e.message ?: "Network error")

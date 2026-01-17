@@ -24,8 +24,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.crashbit.pvpccheap4.ui.screens.devices.AddIntegrationScreen
 import com.crashbit.pvpccheap4.ui.screens.devices.DevicesScreen
 import com.crashbit.pvpccheap4.ui.screens.prices.PricesScreen
+import com.crashbit.pvpccheap4.ui.screens.rules.AddRuleScreen
 import com.crashbit.pvpccheap4.ui.screens.rules.RulesScreen
 import com.crashbit.pvpccheap4.ui.screens.schedule.ScheduleScreen
 
@@ -87,10 +89,31 @@ fun MainScreen(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(BottomNavItem.Devices.route) {
-                DevicesScreen(onLogout = onLogout)
+                DevicesScreen(
+                    onLogout = onLogout,
+                    onAddIntegration = {
+                        navController.navigate("add_integration")
+                    }
+                )
+            }
+            composable("add_integration") {
+                AddIntegrationScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onSuccess = { navController.popBackStack() }
+                )
             }
             composable(BottomNavItem.Rules.route) {
-                RulesScreen()
+                RulesScreen(
+                    onAddRule = {
+                        navController.navigate("add_rule")
+                    }
+                )
+            }
+            composable("add_rule") {
+                AddRuleScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onSuccess = { navController.popBackStack() }
+                )
             }
             composable(BottomNavItem.Schedule.route) {
                 ScheduleScreen()

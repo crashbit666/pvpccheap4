@@ -54,9 +54,8 @@ class RulesViewModel @Inject constructor(
 
     fun toggleRule(rule: Rule) {
         viewModelScope.launch {
-            val updatedRule = rule.copy(isEnabled = !rule.isEnabled)
             rule.id?.let { id ->
-                when (val result = deviceRepository.updateRule(id, updatedRule)) {
+                when (val result = deviceRepository.toggleRule(id)) {
                     is Result.Success -> {
                         loadRules()
                     }

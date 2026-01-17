@@ -1,6 +1,8 @@
 package com.crashbit.pvpccheap4.data.api
 
+import com.crashbit.pvpccheap4.data.model.AddIntegrationRequest
 import com.crashbit.pvpccheap4.data.model.AuthResponse
+import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
 import com.crashbit.pvpccheap4.data.model.Integration
@@ -8,6 +10,8 @@ import com.crashbit.pvpccheap4.data.model.LoginRequest
 import com.crashbit.pvpccheap4.data.model.PriceData
 import com.crashbit.pvpccheap4.data.model.RegisterRequest
 import com.crashbit.pvpccheap4.data.model.Rule
+import com.crashbit.pvpccheap4.data.model.SyncDevicesRequest
+import com.crashbit.pvpccheap4.data.model.SyncDevicesResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -47,20 +51,23 @@ interface ApiService {
     suspend fun getIntegrations(): Response<List<Integration>>
 
     @POST("api/integrations")
-    suspend fun createIntegration(@Body integration: Integration): Response<Integration>
+    suspend fun createIntegration(@Body request: AddIntegrationRequest): Response<Integration>
 
     @DELETE("api/integrations/{id}")
-    suspend fun deleteIntegration(@Path("id") id: String): Response<Unit>
+    suspend fun deleteIntegration(@Path("id") id: Int): Response<Unit>
 
     // Devices endpoints
     @GET("api/devices")
     suspend fun getDevices(): Response<List<Device>>
 
-    @POST("api/devices/{id}/turn-on")
-    suspend fun turnOnDevice(@Path("id") id: String): Response<DeviceActionResponse>
+    @POST("api/devices/sync")
+    suspend fun syncDevices(@Body request: SyncDevicesRequest): Response<SyncDevicesResponse>
 
-    @POST("api/devices/{id}/turn-off")
-    suspend fun turnOffDevice(@Path("id") id: String): Response<DeviceActionResponse>
+    @POST("api/devices/{id}/control")
+    suspend fun controlDevice(
+        @Path("id") id: String,
+        @Body request: ControlDeviceRequest
+    ): Response<DeviceActionResponse>
 
     @GET("api/devices/{id}/state")
     suspend fun getDeviceState(@Path("id") id: String): Response<DeviceActionResponse>
@@ -77,4 +84,7 @@ interface ApiService {
 
     @DELETE("api/rules/{id}")
     suspend fun deleteRule(@Path("id") id: String): Response<Unit>
+
+    @POST("api/rules/{id}/toggle")
+    suspend fun toggleRule(@Path("id") id: String): Response<Rule>
 }

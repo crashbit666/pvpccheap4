@@ -31,14 +31,37 @@ data class PriceData(
 
 // Integration models
 data class Integration(
-    val id: String? = null,
+    val id: Int? = null,
+    @SerializedName("user_id")
+    val userId: Int? = null,
     @SerializedName("provider_name")
     val providerName: String,
-    val credentials: Map<String, String>,
+    @SerializedName("credentials_json")
+    val credentialsJson: String? = null,
     @SerializedName("is_active")
     val isActive: Boolean = true,
     @SerializedName("created_at")
     val createdAt: String? = null
+)
+
+data class AddIntegrationRequest(
+    val provider: String,
+    val credentials: Map<String, String>
+)
+
+data class SyncDevicesRequest(
+    @SerializedName("integration_id")
+    val integrationId: Int
+)
+
+data class SyncDevicesResponse(
+    val synced: Int,
+    val new: Int,
+    val message: String
+)
+
+data class ControlDeviceRequest(
+    val action: String // "turn_on" or "turn_off"
 )
 
 // Device models
