@@ -16,7 +16,7 @@ services:
     restart: unless-stopped
 
   backend:
-    ports: !override []
+    ports: []
     expose:
       - "8080"
 
