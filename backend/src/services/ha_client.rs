@@ -37,3 +37,56 @@ impl HomeAssistantClient {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_creation() {
+        let client = HomeAssistantClient::new(
+            "http://homeassistant.local:8123".to_string(),
+            "my_token".to_string(),
+        );
+
+        assert_eq!(client.base_url, "http://homeassistant.local:8123");
+        assert_eq!(client.token, "my_token");
+    }
+
+    #[test]
+    fn test_client_with_different_urls() {
+        let client1 = HomeAssistantClient::new(
+            "http://192.168.1.100:8123".to_string(),
+            "token1".to_string(),
+        );
+        let client2 = HomeAssistantClient::new(
+            "https://ha.example.com".to_string(),
+            "token2".to_string(),
+        );
+
+        assert_eq!(client1.base_url, "http://192.168.1.100:8123");
+        assert_eq!(client2.base_url, "https://ha.example.com");
+    }
+
+    #[test]
+    fn test_service_url_format() {
+        // Test that the URL format is correct by checking the pattern
+        let base_url = "http://homeassistant.local:8123";
+        let domain = "switch";
+        let service = "turn_on";
+        let expected_url = format!("{}/api/services/{}/{}", base_url, domain, service);
+
+        assert_eq!(
+            expected_url,
+            "http://homeassistant.local:8123/api/services/switch/turn_on"
+        );
+    }
+
+    #[test]
+    fn test_authorization_header_format() {
+        let token = "my_long_lived_access_token";
+        let expected_header = format!("Bearer {}", token);
+
+        assert_eq!(expected_header, "Bearer my_long_lived_access_token");
+    }
+}

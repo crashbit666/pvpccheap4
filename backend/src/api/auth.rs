@@ -61,3 +61,66 @@ pub async fn login(pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> imp
         Err(_) => HttpResponse::Unauthorized().body("Invalid credentials"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_auth_request_deserialization() {
+        let json = r#"{"username": "testuser", "password": "testpass"}"#;
+        let request: AuthRequest = serde_json::from_str(json).unwrap();
+
+        assert_eq!(request.username, "testuser");
+        assert_eq!(request.password, "testpass");
+    }
+
+    #[test]
+    fn test_auth_request_with_special_characters() {
+        let json = r#"{"username": "user@example.com", "password": "p@ss!w0rd#123"}"#;
+        let request: AuthRequest = serde_json::from_str(json).unwrap();
+
+        assert_eq!(request.username, "user@example.com");
+        assert_eq!(request.password, "p@ss!w0rd#123");
+    }
+
+    #[test]
+    fn test_auth_request_with_unicode() {
+        let json = r#"{"username": "usuari_català", "password": "contraseña123"}"#;
+        let request: AuthRequest = serde_json::from_str(json).unwrap();
+
+        assert_eq!(request.username, "usuari_català");
+        assert_eq!(request.password, "contraseña123");
+    }
+
+    #[test]
+    fn test_auth_request_missing_field_fails() {
+        let json = r#"{"username": "testuser"}"#;
+        let result: Result<AuthRequest, _> = serde_json::from_str(json);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_auth_request_empty_strings() {
+        let json = r#"{"username": "", "password": ""}"#;
+        let request: AuthRequest = serde_json::from_str(json).unwrap();
+
+        assert_eq!(request.username, "");
+        assert_eq!(request.password, "");
+    }
+
+    #[test]
+    fn test_auth_request_long_values() {
+        let long_username = "a".repeat(255);
+        let long_password = "b".repeat(1000);
+        let json = format!(
+            r#"{{"username": "{}", "password": "{}"}}"#,
+            long_username, long_password
+        );
+        let request: AuthRequest = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(request.username.len(), 255);
+        assert_eq!(request.password.len(), 1000);
+    }
+}
