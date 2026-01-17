@@ -8,13 +8,13 @@ plugins {
 }
 
 android {
-    namespace = "com.crashbit.pvpvvheap4"
+    namespace = "com.crashbit.pvpccheap4"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.crashbit.pvpvvheap4"
+        applicationId = "com.crashbit.pvpccheap4"
         minSdk = 34
         targetSdk = 36
         versionCode = 1

@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "pvpvvheap4"
+rootProject.name = "pvpccheap4"
 include(":app")
