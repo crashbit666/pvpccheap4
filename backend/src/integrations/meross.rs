@@ -145,7 +145,7 @@ impl MerossProvider {
         email: &str,
         password: &str,
     ) -> Result<MerossLoginData, ProviderError> {
-        let url = format!("{}/v1/Auth/Login", base_url);
+        let url = format!("{}/v1/Auth/signIn", base_url);
 
         #[derive(Serialize)]
         struct LoginParams {
