@@ -1,5 +1,6 @@
 package com.crashbit.pvpvvheap4.di
 
+import com.crashbit.pvpvvheap4.BuildConfig
 import com.crashbit.pvpvvheap4.data.api.ApiService
 import com.crashbit.pvpvvheap4.data.api.AuthInterceptor
 import dagger.Module
@@ -16,9 +17,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-
-    // TODO: Move to BuildConfig or environment variable
-    private const val BASE_URL = "http://10.0.2.2:8080/"
 
     @Provides
     @Singleton
@@ -47,7 +45,7 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(BuildConfig.BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

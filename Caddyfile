@@ -1,0 +1,16 @@
+# Canvia pvpc.example.com pel teu domini real
+pvpc.example.com {
+    reverse_proxy backend:8080
+
+    # CORS headers per l'app Android
+    header {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Authorization, Content-Type"
+    }
+
+    # Logging
+    log {
+        output file /data/access.log
+    }
+}

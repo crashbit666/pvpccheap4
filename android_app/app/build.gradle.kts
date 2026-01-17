@@ -41,6 +41,22 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080/\"")
+        }
+        create("prod") {
+            dimension = "environment"
+            // TODO: Canvia això per la teva URL del VPS
+            buildConfigField("String", "BASE_URL", "\"https://pvpc.example.com/\"")
+        }
     }
 }
 

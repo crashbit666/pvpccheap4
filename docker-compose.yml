@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pvpc
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: pvpc_cheap
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pvpc -d pvpc_cheap"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgres://pvpc:${DB_PASSWORD:-changeme}@db:5432/pvpc_cheap
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      RUST_LOG: info
+      HOST: 0.0.0.0
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Cron runner for scheduled tasks (price fetching, automation)
+  cron:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["cron_runner"]
+    environment:
+      DATABASE_URL: postgres://pvpc:${DB_PASSWORD:-changeme}@db:5432/pvpc_cheap
+      RUST_LOG: info
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
