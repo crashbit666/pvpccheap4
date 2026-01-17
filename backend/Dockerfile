@@ -1,5 +1,5 @@
 # Use the official Rust image as a builder
-FROM rust:1.92 AS builder
+FROM docker.io/library/rust:1.92 AS builder
 
 # Create a new empty shell project
 WORKDIR /usr/src/app
@@ -26,7 +26,7 @@ RUN touch backend/src/main.rs && \
     cargo build --release --bin backend --bin cron_runner
 
 # Runtime image
-FROM debian:trixie-slim
+FROM docker.io/library/debian:trixie-slim
 
 RUN apt-get update && \
     apt-get install -y libpq-dev ca-certificates && \
