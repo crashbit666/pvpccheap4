@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.crashbit.pvpccheap4.ui.screens.auth.AuthViewModel
 import com.crashbit.pvpccheap4.ui.screens.auth.LoginScreen
+import com.crashbit.pvpccheap4.ui.screens.auth.RegisterScreen
 import com.crashbit.pvpccheap4.ui.screens.dashboard.DashboardScreen
 
 sealed class Screen(val route: String) {
@@ -47,6 +48,19 @@ fun AppNavigation(
             )
         }
 
+        composable(Screen.Register.route) {
+            RegisterScreen(
+                onRegisterSuccess = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Register.route) { inclusive = true }
+                    }
+                },
+                onNavigateToLogin = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
         composable(Screen.Dashboard.route) {
             DashboardScreen(
                 onNavigateToDevices = {
@@ -60,7 +74,5 @@ fun AppNavigation(
                 }
             )
         }
-
-        // TODO: Add more screens
     }
 }
