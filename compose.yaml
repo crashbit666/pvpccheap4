@@ -17,14 +17,31 @@ services:
     restart: unless-stopped
 
   backend:
-    build: 
+    build:
       context: .
       dockerfile: backend/Dockerfile
     ports:
       - "8080:8080"
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      RUST_LOG: ${RUST_LOG}
+      JWT_SECRET: ${JWT_SECRET}
+      RUST_LOG: ${RUST_LOG:-info}
+      HOST: 0.0.0.0
+      PORT: 8080
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Cron runner per tasques programades (preus, automatització)
+  cron:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["cron_runner"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      RUST_LOG: ${RUST_LOG:-info}
     depends_on:
       db:
         condition: service_healthy

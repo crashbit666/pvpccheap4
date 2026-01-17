@@ -1,5 +1,5 @@
-# Production docker-compose with HTTPS via Caddy
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Producció amb HTTPS via Caddy
+# Ús: podman-compose -f compose.yaml -f compose.prod.yaml up -d
 
 services:
   caddy:
@@ -16,7 +16,7 @@ services:
     restart: unless-stopped
 
   backend:
-    ports: !override []  # Remove direct port exposure in prod
+    ports: !override []
     expose:
       - "8080"
 

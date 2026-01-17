@@ -1,5 +1,5 @@
 # Canvia pvpc.example.com pel teu domini real
-pvpc.example.com {
+pvpccheap.crashbit.cat {
     reverse_proxy backend:8080
 
     # CORS headers per l'app Android
