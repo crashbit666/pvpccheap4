@@ -40,6 +40,15 @@ async fn main() {
     let args: Vec<String> = env::args().collect();
     let command = args.get(1).map(|s| s.as_str()).unwrap_or("all");
 
+    // Check for daemon mode (run in loop)
+    let daemon_mode = args.iter().any(|a| a == "--daemon" || a == "-d");
+
+    // Interval in seconds (default: 1 hour = 3600 seconds)
+    let interval_secs: u64 = env::var("CRON_INTERVAL_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3600);
+
     // Initialize database pool
     let database_url = match env::var("DATABASE_URL") {
         Ok(url) => url,
@@ -51,6 +60,20 @@ async fn main() {
 
     let pool = db::init_pool(&database_url);
 
+    if daemon_mode {
+        log::info!("Starting cron runner in daemon mode (interval: {} seconds)", interval_secs);
+        loop {
+            run_tasks(&pool, command).await;
+            log::info!("Sleeping for {} seconds until next run...", interval_secs);
+            tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
+        }
+    } else {
+        run_tasks(&pool, command).await;
+        log::info!("Cron runner completed successfully");
+    }
+}
+
+async fn run_tasks(pool: &db::DbPool, command: &str) {
     match command {
         "sync-prices" => {
             log::info!("Running: sync-prices");
@@ -60,18 +83,12 @@ async fn main() {
             log::info!("Running: run-automation");
             run_automation(pool.clone()).await;
         }
-        "all" => {
+        "all" | _ => {
             log::info!("Running: all tasks");
             sync_prices(pool.clone()).await;
             run_automation(pool.clone()).await;
         }
-        _ => {
-            log::error!("Unknown command: {}. Use: sync-prices, run-automation, or all", command);
-            std::process::exit(1);
-        }
     }
-
-    log::info!("Cron runner completed successfully");
 }
 
 async fn sync_prices(pool: db::DbPool) {

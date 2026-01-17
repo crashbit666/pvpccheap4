@@ -38,10 +38,11 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: ["cron_runner"]
+    command: ["cron_runner", "--daemon"]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       ESIOS_TOKEN: ${ESIOS_TOKEN}
+      CRON_INTERVAL_SECS: ${CRON_INTERVAL_SECS:-3600}
       RUST_LOG: ${RUST_LOG:-info}
     depends_on:
       db:

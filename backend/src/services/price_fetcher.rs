@@ -227,7 +227,7 @@ pub async fn fetch_pvpc_prices(date: NaiveDate, token: &str) -> Result<Vec<Price
     let client = reqwest::Client::new();
     let resp = client
         .get(&url)
-        .header("Authorization", format!("Token token=\"{}\"", token))
+        .header("x-api-key", token)
         .header("Accept", "application/json")
         .header("Content-Type", "application/json")
         .send()
