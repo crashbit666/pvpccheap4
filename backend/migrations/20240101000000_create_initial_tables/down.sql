@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS schedules;
+DROP TABLE IF EXISTS devices;
+DROP TABLE IF EXISTS user_integrations;
+DROP TABLE IF EXISTS prices;
+DROP TABLE IF EXISTS users;
