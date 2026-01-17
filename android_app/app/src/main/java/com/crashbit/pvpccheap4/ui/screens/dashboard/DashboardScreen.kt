@@ -80,7 +80,7 @@ fun DashboardScreen(
 
             // Current price summary
             uiState.currentPrice?.let { current ->
-                CurrentPriceCard(current)
+                CurrentPriceCard(current, uiState.cheapestHours)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -103,14 +103,15 @@ fun DashboardScreen(
 }
 
 @Composable
-fun CurrentPriceCard(price: PriceData) {
+fun CurrentPriceCard(price: PriceData, cheapestHours: List<PriceData>) {
+    val isCheap = cheapestHours.any { it.hour == price.hour }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = when {
-                price.isCheap -> Color(0xFF4CAF50).copy(alpha = 0.2f)
-                price.isExpensive -> Color(0xFFF44336).copy(alpha = 0.2f)
-                else -> MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (isCheap) {
+                Color(0xFF4CAF50).copy(alpha = 0.2f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
             }
         )
     ) {
@@ -123,12 +124,12 @@ fun CurrentPriceCard(price: PriceData) {
                 style = MaterialTheme.typography.labelMedium
             )
             Text(
-                text = String.format("%.4f €/kWh", price.price),
+                text = price.priceFormatted,
                 style = MaterialTheme.typography.headlineMedium,
-                color = when {
-                    price.isCheap -> Color(0xFF4CAF50)
-                    price.isExpensive -> Color(0xFFF44336)
-                    else -> MaterialTheme.colorScheme.onSurface
+                color = if (isCheap) {
+                    Color(0xFF4CAF50)
+                } else {
+                    MaterialTheme.colorScheme.onSurface
                 }
             )
             Text(
@@ -153,7 +154,7 @@ fun PriceItem(price: PriceData) {
             style = MaterialTheme.typography.bodyMedium
         )
         Text(
-            text = String.format("%.4f €/kWh", price.price),
+            text = price.priceFormatted,
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFF4CAF50)
         )

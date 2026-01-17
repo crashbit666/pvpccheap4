@@ -65,7 +65,7 @@ class DashboardViewModel @Inject constructor(
             }
 
             // Load cheapest hours
-            when (val result = priceRepository.getCheapestHours(hours = 5)) {
+            when (val result = priceRepository.getCheapestHours(count = 5)) {
                 is Result.Success -> {
                     _uiState.value = _uiState.value.copy(
                         cheapestHours = result.data

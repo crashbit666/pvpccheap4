@@ -22,13 +22,11 @@ data class AuthResponse(
 
 // Price models
 data class PriceData(
+    val timestamp: String,
     val hour: Int,
     val price: Double,
-    val date: String,
-    @SerializedName("is_cheap")
-    val isCheap: Boolean = false,
-    @SerializedName("is_expensive")
-    val isExpensive: Boolean = false
+    @SerializedName("price_formatted")
+    val priceFormatted: String
 )
 
 // Integration models

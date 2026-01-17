@@ -30,15 +30,15 @@ interface ApiService {
     suspend fun getCurrentUser(): Response<AuthResponse>
 
     // Prices endpoints
-    @GET("api/prices/today")
+    @GET("api/prices")
     suspend fun getPricesToday(): Response<List<PriceData>>
 
-    @GET("api/prices/tomorrow")
-    suspend fun getPricesTomorrow(): Response<List<PriceData>>
+    @GET("api/prices")
+    suspend fun getPricesTomorrow(@Query("date") date: String): Response<List<PriceData>>
 
     @GET("api/prices/cheapest")
     suspend fun getCheapestHours(
-        @Query("hours") hours: Int = 3,
+        @Query("count") count: Int = 3,
         @Query("date") date: String? = null
     ): Response<List<PriceData>>
 

@@ -2,6 +2,8 @@ package com.crashbit.pvpccheap4.data.repository
 
 import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.model.PriceData
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -9,6 +11,8 @@ import javax.inject.Singleton
 class PriceRepository @Inject constructor(
     private val apiService: ApiService
 ) {
+    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+
     suspend fun getPricesToday(): Result<List<PriceData>> {
         return try {
             val response = apiService.getPricesToday()
@@ -24,7 +28,8 @@ class PriceRepository @Inject constructor(
 
     suspend fun getPricesTomorrow(): Result<List<PriceData>> {
         return try {
-            val response = apiService.getPricesTomorrow()
+            val tomorrow = LocalDate.now().plusDays(1).format(dateFormatter)
+            val response = apiService.getPricesTomorrow(tomorrow)
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
@@ -35,9 +40,9 @@ class PriceRepository @Inject constructor(
         }
     }
 
-    suspend fun getCheapestHours(hours: Int = 3, date: String? = null): Result<List<PriceData>> {
+    suspend fun getCheapestHours(count: Int = 3, date: String? = null): Result<List<PriceData>> {
         return try {
-            val response = apiService.getCheapestHours(hours, date)
+            val response = apiService.getCheapestHours(count, date)
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
