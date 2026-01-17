@@ -328,6 +328,16 @@ impl SmartHomeProvider for MerossProvider {
     }
 
     async fn login(&self, credentials: &Value) -> Result<Value, ProviderError> {
+        // Check if we already have valid session credentials (token, key, user_id)
+        // If so, return them directly without re-authenticating
+        if credentials.get("token").and_then(|v| v.as_str()).is_some()
+            && credentials.get("key").and_then(|v| v.as_str()).is_some()
+            && credentials.get("user_id").and_then(|v| v.as_str()).is_some()
+        {
+            debug!("Meross: Using existing session credentials");
+            return Ok(credentials.clone());
+        }
+
         let email = credentials
             .get("email")
             .and_then(|v| v.as_str())
