@@ -196,10 +196,16 @@ impl MerossProvider {
             )));
         }
 
-        let meross_response: MerossResponse<MerossLoginData> = response
-            .json()
+        // Get raw response text for debugging
+        let response_text = response
+            .text()
             .await
-            .map_err(|e| ProviderError::Unknown(format!("Failed to parse response: {}", e)))?;
+            .map_err(|e| ProviderError::Unknown(format!("Failed to read response: {}", e)))?;
+
+        debug!("Meross login response: {}", response_text);
+
+        let meross_response: MerossResponse<MerossLoginData> = serde_json::from_str(&response_text)
+            .map_err(|e| ProviderError::Unknown(format!("Failed to parse response: {}. Body: {}", e, response_text)))?;
 
         // Meross uses api_status 0 for success
         if meross_response.api_status != 0 {
