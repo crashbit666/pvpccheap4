@@ -1,29 +1,14 @@
 # Use the official Rust image as a builder
 FROM docker.io/library/rust:1.92 AS builder
 
-# Create a new empty shell project
 WORKDIR /usr/src/app
 
-# Copy manifests
+# Copy everything needed for build
 COPY Cargo.toml ./
-COPY backend/Cargo.toml ./backend/Cargo.toml
+COPY backend ./backend
 
-# Create dummy main.rs and lib.rs for dependency caching
-RUN mkdir -p backend/src/bin && \
-    echo "fn main() {}" > backend/src/main.rs && \
-    echo "" > backend/src/lib.rs && \
-    echo "fn main() {}" > backend/src/bin/cron_runner.rs
-
-# Build dependencies only (this layer will be cached)
-RUN cargo build --release --bin backend && \
-    rm -rf backend/src
-
-# Copy actual source code
-COPY backend/src ./backend/src
-
-# Touch to invalidate cache and rebuild with actual source
-RUN touch backend/src/main.rs backend/src/lib.rs && \
-    cargo build --release --bin backend --bin cron_runner
+# Build release binaries
+RUN cargo build --release --bin backend --bin cron_runner
 
 # Runtime image
 FROM docker.io/library/debian:trixie-slim
