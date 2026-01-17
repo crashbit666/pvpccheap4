@@ -144,13 +144,21 @@ pub async fn sync_devices(
 
     // Update stored credentials with session data (contains user_id, key, mqtt_domain needed for MQTT)
     let updated_credentials = session.to_string();
-    if let Err(e) = diesel::update(
+    log::info!(
+        "Updating credentials for integration {}: has user_id={}, has key={}, has mqtt_domain={}",
+        integration.id,
+        session.get("user_id").is_some(),
+        session.get("key").is_some(),
+        session.get("mqtt_domain").is_some()
+    );
+    match diesel::update(
         user_integrations::table.filter(user_integrations::id.eq(integration.id)),
     )
     .set(user_integrations::credentials_json.eq(&updated_credentials))
     .execute(&mut conn)
     {
-        log::warn!("Failed to update credentials with session data: {}", e);
+        Ok(rows) => log::info!("Updated {} rows with new credentials", rows),
+        Err(e) => log::error!("Failed to update credentials with session data: {}", e),
     }
 
     // List devices from the provider

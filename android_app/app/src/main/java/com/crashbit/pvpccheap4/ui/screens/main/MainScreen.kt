@@ -88,18 +88,29 @@ fun MainScreen(
             startDestination = BottomNavItem.Devices.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(BottomNavItem.Devices.route) {
+            composable(BottomNavItem.Devices.route) { backStackEntry ->
+                // Listen for refresh signal from AddIntegrationScreen
+                val shouldRefresh = backStackEntry.savedStateHandle.get<Boolean>("refresh") == true
+
                 DevicesScreen(
                     onLogout = onLogout,
                     onAddIntegration = {
                         navController.navigate("add_integration")
+                    },
+                    shouldRefresh = shouldRefresh,
+                    onRefreshConsumed = {
+                        backStackEntry.savedStateHandle.remove<Boolean>("refresh")
                     }
                 )
             }
             composable("add_integration") {
                 AddIntegrationScreen(
                     onNavigateBack = { navController.popBackStack() },
-                    onSuccess = { navController.popBackStack() }
+                    onSuccess = {
+                        // Set a flag to indicate refresh is needed, then navigate back
+                        navController.previousBackStackEntry?.savedStateHandle?.set("refresh", true)
+                        navController.popBackStack()
+                    }
                 )
             }
             composable(BottomNavItem.Rules.route) {

@@ -54,6 +54,8 @@ import com.crashbit.pvpccheap4.data.model.Integration
 fun DevicesScreen(
     onLogout: () -> Unit,
     onAddIntegration: () -> Unit = {},
+    shouldRefresh: Boolean = false,
+    onRefreshConsumed: () -> Unit = {},
     viewModel: DevicesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -62,6 +64,14 @@ fun DevicesScreen(
     // Refresh data when screen becomes visible (e.g., returning from AddIntegrationScreen)
     LaunchedEffect(Unit) {
         viewModel.refresh()
+    }
+
+    // Handle refresh signal from navigation
+    LaunchedEffect(shouldRefresh) {
+        if (shouldRefresh) {
+            viewModel.refresh()
+            onRefreshConsumed()
+        }
     }
 
     LaunchedEffect(uiState.error) {
