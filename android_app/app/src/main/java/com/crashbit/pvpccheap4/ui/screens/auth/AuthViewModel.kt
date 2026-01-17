@@ -30,11 +30,11 @@ class AuthViewModel @Inject constructor(
     val userEmail: Flow<String?> = authRepository.userEmail
     val userName: Flow<String?> = authRepository.userName
 
-    fun login(email: String, password: String) {
+    fun login(username: String, password: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState(isLoading = true)
 
-            when (val result = authRepository.login(email, password)) {
+            when (val result = authRepository.login(username, password)) {
                 is Result.Success -> {
                     _uiState.value = AuthUiState(isSuccess = true)
                 }
@@ -48,11 +48,11 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun register(email: String, password: String, name: String) {
+    fun register(username: String, password: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState(isLoading = true)
 
-            when (val result = authRepository.register(email, password, name)) {
+            when (val result = authRepository.register(username, password)) {
                 is Result.Success -> {
                     _uiState.value = AuthUiState(isSuccess = true)
                 }

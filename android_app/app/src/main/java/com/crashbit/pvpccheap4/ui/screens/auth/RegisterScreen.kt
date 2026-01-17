@@ -41,8 +41,7 @@ fun RegisterScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
 
@@ -85,26 +84,12 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(48.dp))
 
             OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Nom") },
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Usuari") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
-                    imeAction = ImeAction.Next
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Next
                 ),
                 modifier = Modifier.fillMaxWidth()
@@ -147,10 +132,9 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { viewModel.register(email, password, name) },
+                onClick = { viewModel.register(username, password) },
                 enabled = !uiState.isLoading &&
-                        name.isNotBlank() &&
-                        email.isNotBlank() &&
+                        username.isNotBlank() &&
                         password.isNotBlank() &&
                         password == confirmPassword,
                 modifier = Modifier.fillMaxWidth()

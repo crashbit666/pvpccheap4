@@ -24,17 +24,14 @@ class AuthRepository @Inject constructor(
     val userEmail: Flow<String?> = tokenManager.userEmail
     val userName: Flow<String?> = tokenManager.userName
 
-    suspend fun login(email: String, password: String): Result<AuthResponse> {
+    suspend fun login(username: String, password: String): Result<AuthResponse> {
         return try {
-            val response = apiService.login(LoginRequest(email, password))
+            val response = apiService.login(LoginRequest(username, password))
             if (response.isSuccessful && response.body() != null) {
                 val authResponse = response.body()!!
-                if (authResponse.token != null && authResponse.user != null) {
+                if (authResponse.token != null) {
                     tokenManager.saveToken(authResponse.token)
-                    tokenManager.saveUserInfo(
-                        authResponse.user.email,
-                        authResponse.user.name
-                    )
+                    tokenManager.saveUserInfo(username, username)
                     Result.Success(authResponse)
                 } else {
                     Result.Error(authResponse.error ?: "Login failed")
@@ -47,21 +44,13 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    suspend fun register(email: String, password: String, name: String): Result<AuthResponse> {
+    suspend fun register(username: String, password: String): Result<AuthResponse> {
         return try {
-            val response = apiService.register(RegisterRequest(email, password, name))
+            val response = apiService.register(RegisterRequest(username, password))
             if (response.isSuccessful && response.body() != null) {
                 val authResponse = response.body()!!
-                if (authResponse.token != null && authResponse.user != null) {
-                    tokenManager.saveToken(authResponse.token)
-                    tokenManager.saveUserInfo(
-                        authResponse.user.email,
-                        authResponse.user.name
-                    )
-                    Result.Success(authResponse)
-                } else {
-                    Result.Error(authResponse.error ?: "Registration failed")
-                }
+                // Registration successful, now login
+                return login(username, password)
             } else {
                 Result.Error("Registration failed: ${response.message()}", response.code())
             }

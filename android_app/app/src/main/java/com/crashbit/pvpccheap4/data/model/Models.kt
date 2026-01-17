@@ -4,28 +4,20 @@ import com.google.gson.annotations.SerializedName
 
 // Auth models
 data class LoginRequest(
-    val email: String,
+    val username: String,
     val password: String
 )
 
 data class RegisterRequest(
-    val email: String,
-    val password: String,
-    val name: String
+    val username: String,
+    val password: String
 )
 
 data class AuthResponse(
     val token: String? = null,
-    val user: User? = null,
+    val id: Int? = null,
+    val username: String? = null,
     val error: String? = null
-)
-
-data class User(
-    val id: String,
-    val email: String,
-    val name: String,
-    @SerializedName("created_at")
-    val createdAt: String? = null
 )
 
 // Price models

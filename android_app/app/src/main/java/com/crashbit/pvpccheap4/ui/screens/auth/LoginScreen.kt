@@ -41,7 +41,7 @@ fun LoginScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var email by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
     LaunchedEffect(uiState.isSuccess) {
@@ -83,12 +83,12 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(48.dp))
 
             OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Usuari") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
+                    keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Next
                 ),
                 modifier = Modifier.fillMaxWidth()
@@ -112,8 +112,8 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { viewModel.login(email, password) },
-                enabled = !uiState.isLoading && email.isNotBlank() && password.isNotBlank(),
+                onClick = { viewModel.login(username, password) },
+                enabled = !uiState.isLoading && username.isNotBlank() && password.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (uiState.isLoading) {
