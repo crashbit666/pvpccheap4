@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub mod meross;
+pub mod meross_mqtt;
+pub mod mqtt;
 
 // Re-export providers
 pub use meross::MerossProvider;
@@ -144,9 +146,9 @@ impl ProviderRegistry {
         };
 
         // Register all available providers
-        registry.register(Arc::new(MerossProvider));
-        // Future: registry.register(Arc::new(TuyaProvider));
-        // Future: registry.register(Arc::new(ShellyProvider));
+        registry.register(Arc::new(MerossProvider::new()));
+        // Future: registry.register(Arc::new(TuyaProvider::new()));
+        // Future: registry.register(Arc::new(ShellyProvider::new()));
 
         registry
     }

@@ -19,8 +19,13 @@ path = "src/bin/cron_runner.rs"
 actix-web = "4"
 actix-cors = "0.7.1"
 async-trait = "0.1"
-diesel = { version = "2.1.0", features = ["postgres", "chrono", "r2d2", "serde_json"] }
-diesel_migrations = "2.1.0"                                               # Auto-run migrations
+diesel = { version = "2.1.0", features = [
+    "postgres",
+    "chrono",
+    "r2d2",
+    "serde_json",
+] }
+diesel_migrations = "2.1.0" # Auto-run migrations
 dotenvy = "0.15"
 reqwest = { version = "0.13.1", features = ["json", "blocking"] }
 tokio = { version = "1", features = ["full"] }
@@ -35,6 +40,9 @@ md5 = "0.8.0"
 uuid = { version = "1.6", features = ["v4", "serde"] }
 log = "0.4"
 env_logger = "0.11.8"
+# MQTT for smart home device control
+rumqttc = "0.25"
+rand = "0.9"
 
 [dev-dependencies]
 actix-rt = "2.11.0"
