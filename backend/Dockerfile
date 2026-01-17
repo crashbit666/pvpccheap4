@@ -22,7 +22,7 @@ RUN cargo build --release --bin backend && \
 COPY backend/src ./backend/src
 
 # Touch to invalidate cache and rebuild with actual source
-RUN touch backend/src/main.rs && \
+RUN touch backend/src/main.rs backend/src/lib.rs && \
     cargo build --release --bin backend --bin cron_runner
 
 # Runtime image
