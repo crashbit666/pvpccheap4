@@ -54,8 +54,7 @@ android {
         }
         create("prod") {
             dimension = "environment"
-            // TODO: Canvia això per la teva URL del VPS
-            buildConfigField("String", "BASE_URL", "\"https://pvpc.example.com/\"")
+            buildConfigField("String", "BASE_URL", "\"https://pvpccheap.crashbit.cat/\"")
         }
     }
 }
