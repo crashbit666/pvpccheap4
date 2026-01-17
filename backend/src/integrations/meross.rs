@@ -41,8 +41,10 @@ struct MerossLoginData {
     email: String,
     token: String,
     key: String,
-    #[serde(rename = "mqttDomain")]
+    #[serde(rename = "mqttDomain", default)]
     mqtt_domain: Option<String>,
+    #[serde(flatten)]
+    _extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -52,18 +54,29 @@ struct MerossDeviceData {
     dev_name: String,
     #[serde(rename = "deviceType")]
     device_type: String,
-    #[serde(rename = "onlineStatus")]
-    online_status: i32,
+    // onlineStatus can be int (0/1/2) or string ("ONLINE"/"OFFLINE") depending on API version
+    #[serde(default, rename = "onlineStatus")]
+    online_status: serde_json::Value,
+    #[serde(default)]
     channels: Option<Vec<MerossChannel>>,
+    #[serde(default)]
+    domain: Option<String>,
+    #[serde(default)]
+    region: Option<String>,
+    // Allow any other fields we don't care about
+    #[serde(flatten)]
+    _extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 struct MerossChannel {
     channel: i32,
-    #[serde(rename = "devName")]
+    #[serde(rename = "devName", default)]
     dev_name: Option<String>,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default)]
     channel_type: Option<String>,
+    #[serde(flatten)]
+    _extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 pub struct MerossProvider {
@@ -234,10 +247,16 @@ impl MerossProvider {
             )));
         }
 
-        let meross_response: MerossResponse<Vec<MerossDeviceData>> = response
-            .json()
+        // Get raw response text for debugging
+        let response_text = response
+            .text()
             .await
-            .map_err(|e| ProviderError::Unknown(format!("Failed to parse response: {}", e)))?;
+            .map_err(|e| ProviderError::Unknown(format!("Failed to read response: {}", e)))?;
+
+        debug!("Meross devList response: {}", response_text);
+
+        let meross_response: MerossResponse<Vec<MerossDeviceData>> = serde_json::from_str(&response_text)
+            .map_err(|e| ProviderError::Unknown(format!("Failed to parse response: {}. Body: {}", e, response_text)))?;
 
         if meross_response.api_status != 0 {
             let error_msg = meross_response.info.unwrap_or_else(|| "Unknown error".to_string());
