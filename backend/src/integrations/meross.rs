@@ -70,7 +70,8 @@ struct MerossDeviceData {
 
 #[derive(Deserialize, Debug, Clone)]
 struct MerossChannel {
-    channel: i32,
+    #[serde(default)]
+    channel: Option<i32>,
     #[serde(rename = "devName", default)]
     dev_name: Option<String>,
     #[serde(rename = "type", default)]
