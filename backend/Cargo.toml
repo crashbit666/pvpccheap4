@@ -41,7 +41,9 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 log = "0.4"
 env_logger = "0.11.8"
 # MQTT for smart home device control
-rumqttc = "0.25.1"
+rumqttc = { version = "0.25.1", features = ["use-rustls"] }
+tokio-rustls = "0.26.4"
+rustls-native-certs = "0.8.3"
 rand = "0.9.2"
 tokio-cron-scheduler = "0.15.1"
 

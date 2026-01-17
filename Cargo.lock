@@ -368,10 +368,12 @@ dependencies = [
  "rand 0.9.2",
  "reqwest",
  "rumqttc",
+ "rustls-native-certs",
  "serde",
  "serde_json",
  "tokio",
  "tokio-cron-scheduler",
+ "tokio-rustls",
  "uuid",
 ]
 

@@ -4,12 +4,13 @@
 //! different smart home providers (Meross, Tuya, Shelly, etc.)
 
 use log::{debug, error, info, warn};
-use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS, TlsConfiguration, Transport};
+use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS, Transport};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{oneshot, Mutex};
 use tokio::time::timeout;
+use tokio_rustls::rustls::ClientConfig;
 
 /// Configuration for MQTT connection
 #[derive(Debug, Clone)]
@@ -111,8 +112,24 @@ impl MqttConnection {
         }
 
         if config.use_tls {
-            let tls_config = TlsConfiguration::default();
-            mqtt_options.set_transport(Transport::tls_with_config(tls_config.into()));
+            // Load native root certificates from the operating system
+            let mut root_cert_store = tokio_rustls::rustls::RootCertStore::empty();
+
+            let cert_result = rustls_native_certs::load_native_certs();
+
+            // Log any errors encountered while loading certs
+            for err in &cert_result.errors {
+                warn!("Error loading native cert: {}", err);
+            }
+
+            let (added, _ignored) = root_cert_store.add_parsable_certificates(cert_result.certs);
+            debug!("Loaded {} native root certificates for TLS", added);
+
+            let client_config = ClientConfig::builder()
+                .with_root_certificates(root_cert_store)
+                .with_no_client_auth();
+
+            mqtt_options.set_transport(Transport::tls_with_config(client_config.into()));
         }
 
         let (client, eventloop) = AsyncClient::new(mqtt_options, 100);
