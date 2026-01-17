@@ -15,7 +15,7 @@ COPY backend/src ./backend/src
 RUN cargo build --release --bin backend
 
 # Runtime image
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y libpq-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/src/app/target/release/backend /usr/local/bin/backend
 
