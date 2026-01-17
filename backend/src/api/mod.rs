@@ -4,6 +4,7 @@ pub mod auth;
 pub mod automation;
 pub mod devices;
 pub mod integrations;
+pub mod prices;
 pub mod rules;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -48,5 +49,17 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/automation")
             .service(automation::run_automation),
+    );
+
+    // Price routes (public - no auth required for price info)
+    cfg.service(
+        web::scope("/api/prices")
+            .service(prices::get_prices)
+            .service(prices::get_current_price)
+            .service(prices::get_price_summary)
+            .service(prices::get_cheapest_hours)
+            .service(prices::get_expensive_hours)
+            .service(prices::sync_prices)
+            .service(prices::sync_prices_for_date),
     );
 }
