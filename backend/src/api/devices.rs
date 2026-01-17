@@ -142,6 +142,17 @@ pub async fn sync_devices(
         }
     };
 
+    // Update stored credentials with session data (contains user_id, key, mqtt_domain needed for MQTT)
+    let updated_credentials = session.to_string();
+    if let Err(e) = diesel::update(
+        user_integrations::table.filter(user_integrations::id.eq(integration.id)),
+    )
+    .set(user_integrations::credentials_json.eq(&updated_credentials))
+    .execute(&mut conn)
+    {
+        log::warn!("Failed to update credentials with session data: {}", e);
+    }
+
     // List devices from the provider
     let discovered = match provider.list_devices(&session).await {
         Ok(d) => d,
