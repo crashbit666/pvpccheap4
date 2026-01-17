@@ -8,7 +8,7 @@ use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS, Transport
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{broadcast, oneshot, Mutex};
 use tokio::time::timeout;
 use tokio_rustls::rustls::ClientConfig;
 
@@ -93,6 +93,7 @@ struct PendingRequest {
 pub struct MqttConnection {
     client: AsyncClient,
     pending_requests: Arc<Mutex<Vec<PendingRequest>>>,
+    connected: Arc<Mutex<bool>>,
     _event_handle: tokio::task::JoinHandle<()>,
 }
 
@@ -134,21 +135,44 @@ impl MqttConnection {
 
         let (client, eventloop) = AsyncClient::new(mqtt_options, 100);
         let pending_requests: Arc<Mutex<Vec<PendingRequest>>> = Arc::new(Mutex::new(Vec::new()));
+        let connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+
+        // Create channel to signal when connection is established
+        let (conn_tx, mut conn_rx) = broadcast::channel::<Result<(), String>>(1);
 
         // Spawn event loop handler
         let pending_clone = pending_requests.clone();
+        let connected_clone = connected.clone();
         let event_handle = tokio::spawn(async move {
-            Self::run_event_loop(eventloop, pending_clone).await;
+            Self::run_event_loop(eventloop, pending_clone, connected_clone, Some(conn_tx)).await;
         });
 
-        // Wait a bit for connection to establish
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        info!("MQTT connected to {}:{}", config.broker_host, config.broker_port);
+        // Wait for connection to be established (with timeout)
+        let broker_host = config.broker_host.clone();
+        let broker_port = config.broker_port;
+        match timeout(Duration::from_secs(10), conn_rx.recv()).await {
+            Ok(Ok(Ok(()))) => {
+                info!("MQTT connected to {}:{}", broker_host, broker_port);
+            }
+            Ok(Ok(Err(e))) => {
+                return Err(MqttError::ConnectionFailed(e));
+            }
+            Ok(Err(_)) => {
+                return Err(MqttError::ConnectionFailed(
+                    "Connection channel closed unexpectedly".to_string(),
+                ));
+            }
+            Err(_) => {
+                return Err(MqttError::ConnectionFailed(
+                    "Connection timeout - no ConnAck received".to_string(),
+                ));
+            }
+        }
 
         Ok(Self {
             client,
             pending_requests,
+            connected,
             _event_handle: event_handle,
         })
     }
@@ -157,7 +181,11 @@ impl MqttConnection {
     async fn run_event_loop(
         mut eventloop: EventLoop,
         pending_requests: Arc<Mutex<Vec<PendingRequest>>>,
+        connected: Arc<Mutex<bool>>,
+        conn_signal: Option<broadcast::Sender<Result<(), String>>>,
     ) {
+        let mut conn_signal = conn_signal;
+
         loop {
             match eventloop.poll().await {
                 Ok(Event::Incoming(Packet::Publish(publish))) => {
@@ -183,8 +211,19 @@ impl MqttConnection {
                         let _ = req.response_tx.send(msg);
                     }
                 }
-                Ok(Event::Incoming(Packet::ConnAck(_))) => {
-                    info!("MQTT connection acknowledged");
+                Ok(Event::Incoming(Packet::ConnAck(connack))) => {
+                    info!("MQTT connection acknowledged: {:?}", connack.code);
+                    if connack.code == rumqttc::ConnectReturnCode::Success {
+                        *connected.lock().await = true;
+                        if let Some(tx) = conn_signal.take() {
+                            let _ = tx.send(Ok(()));
+                        }
+                    } else {
+                        if let Some(tx) = conn_signal.take() {
+                            let _ = tx.send(Err(format!("Connection rejected: {:?}", connack.code)));
+                        }
+                        break;
+                    }
                 }
                 Ok(Event::Incoming(Packet::SubAck(_))) => {
                     debug!("MQTT subscription acknowledged");
@@ -192,6 +231,11 @@ impl MqttConnection {
                 Ok(_) => {}
                 Err(e) => {
                     error!("MQTT event loop error: {}", e);
+                    *connected.lock().await = false;
+                    // Signal connection failure if we haven't signaled yet
+                    if let Some(tx) = conn_signal.take() {
+                        let _ = tx.send(Err(e.to_string()));
+                    }
                     // Clear all pending requests on error
                     pending_requests.lock().await.clear();
                     break;
@@ -223,6 +267,11 @@ impl MqttConnection {
         self.publish(topic, &json).await
     }
 
+    /// Check if the connection is still active
+    pub async fn is_connected(&self) -> bool {
+        *self.connected.lock().await
+    }
+
     /// Send a request and wait for response
     pub async fn request(
         &self,
@@ -231,6 +280,11 @@ impl MqttConnection {
         response_topic_filter: &str,
         timeout_secs: u64,
     ) -> Result<MqttMessage, MqttError> {
+        // Check if still connected
+        if !self.is_connected().await {
+            return Err(MqttError::Disconnected);
+        }
+
         // Create response channel
         let (tx, rx) = oneshot::channel();
 

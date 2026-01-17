@@ -455,6 +455,8 @@ impl SmartHomeProvider for MerossProvider {
         credentials: &Value,
         external_id: &str,
     ) -> Result<DeviceActionResult, ProviderError> {
+        info!("Meross turn_on called for device: {}", external_id);
+
         // Validate we have required credentials
         credentials
             .get("token")
@@ -463,12 +465,21 @@ impl SmartHomeProvider for MerossProvider {
                 "No token provided".to_string(),
             ))?;
 
+        let mqtt_domain = credentials
+            .get("mqtt_domain")
+            .and_then(|v| v.as_str())
+            .unwrap_or("eu-iotx.meross.com");
+        info!("Meross MQTT domain: {}", mqtt_domain);
+
         // Create MQTT client and connect
         let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
+        info!("Meross MQTT client created, attempting to connect...");
 
         match mqtt_client.connect().await {
             Ok(()) => {
+                info!("Meross MQTT connected successfully, sending turn_on command...");
                 let result = mqtt_client.turn_on(external_id, 0).await;
+                info!("Meross turn_on result: {:?}", result);
                 let _ = mqtt_client.disconnect().await;
                 result
             }
@@ -488,6 +499,8 @@ impl SmartHomeProvider for MerossProvider {
         credentials: &Value,
         external_id: &str,
     ) -> Result<DeviceActionResult, ProviderError> {
+        info!("Meross turn_off called for device: {}", external_id);
+
         // Validate we have required credentials
         credentials
             .get("token")
@@ -496,12 +509,21 @@ impl SmartHomeProvider for MerossProvider {
                 "No token provided".to_string(),
             ))?;
 
+        let mqtt_domain = credentials
+            .get("mqtt_domain")
+            .and_then(|v| v.as_str())
+            .unwrap_or("eu-iotx.meross.com");
+        info!("Meross MQTT domain: {}", mqtt_domain);
+
         // Create MQTT client and connect
         let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
+        info!("Meross MQTT client created, attempting to connect...");
 
         match mqtt_client.connect().await {
             Ok(()) => {
+                info!("Meross MQTT connected successfully, sending turn_off command...");
                 let result = mqtt_client.turn_off(external_id, 0).await;
+                info!("Meross turn_off result: {:?}", result);
                 let _ = mqtt_client.disconnect().await;
                 result
             }
