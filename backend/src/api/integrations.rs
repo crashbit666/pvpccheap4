@@ -1,7 +1,7 @@
 use crate::{
-    db::DbPool, models::UserIntegration, schema::user_integrations, services::auth::Claims,
+    db::DbPool, models::UserIntegration, schema::{devices, user_integrations}, services::auth::Claims,
 };
-use actix_web::{HttpResponse, Responder, get, post, web};
+use actix_web::{HttpResponse, Responder, delete, get, post, web};
 use diesel::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
@@ -48,6 +48,52 @@ pub async fn list_integrations(pool: web::Data<DbPool>, claims: Claims) -> impl 
     match results {
         Ok(list) => HttpResponse::Ok().json(list),
         Err(_) => HttpResponse::InternalServerError().body("Error fetching integrations"),
+    }
+}
+
+#[delete("/{id}")]
+pub async fn delete_integration(
+    pool: web::Data<DbPool>,
+    claims: Claims,
+    path: web::Path<i32>,
+) -> impl Responder {
+    let integration_id = path.into_inner();
+    let mut conn = match pool.get() {
+        Ok(c) => c,
+        Err(_) => return HttpResponse::InternalServerError().body("Database connection error"),
+    };
+
+    let user_id: i32 = match claims.sub.parse() {
+        Ok(id) => id,
+        Err(_) => return HttpResponse::BadRequest().body("Invalid user ID"),
+    };
+
+    // Verify the integration belongs to this user
+    let integration_exists = user_integrations::table
+        .filter(user_integrations::id.eq(integration_id))
+        .filter(user_integrations::user_id.eq(user_id))
+        .select(user_integrations::id)
+        .first::<i32>(&mut conn)
+        .is_ok();
+
+    if !integration_exists {
+        return HttpResponse::NotFound().body("Integration not found");
+    }
+
+    // Delete associated devices first
+    let _ = diesel::delete(devices::table.filter(devices::integration_id.eq(integration_id)))
+        .execute(&mut conn);
+
+    // Delete the integration
+    match diesel::delete(
+        user_integrations::table
+            .filter(user_integrations::id.eq(integration_id))
+            .filter(user_integrations::user_id.eq(user_id)),
+    )
+    .execute(&mut conn)
+    {
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({"deleted": true})),
+        Err(_) => HttpResponse::InternalServerError().body("Failed to delete integration"),
     }
 }
 

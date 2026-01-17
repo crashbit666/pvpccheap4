@@ -19,7 +19,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/integrations")
             .service(integrations::add_integration)
-            .service(integrations::list_integrations),
+            .service(integrations::list_integrations)
+            .service(integrations::delete_integration),
     );
 
     // Device routes (protected)
