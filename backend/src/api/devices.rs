@@ -88,7 +88,7 @@ pub async fn list_devices(pool: web::Data<DbPool>, claims: Claims) -> impl Respo
             device_type: device.device_type,
             is_managed: device.is_managed,
             provider_name,
-            is_on: false, // Default to false - real state requires MQTT query
+            is_on: device.is_on, // Use cached state from database
         })
         .collect();
 
@@ -281,7 +281,18 @@ pub async fn control_device(
     };
 
     match result {
-        Ok(action_result) => HttpResponse::Ok().json(action_result),
+        Ok(action_result) => {
+            // Update cached is_on state in database if action was successful
+            if action_result.success {
+                if let Some(ref new_state) = action_result.new_state {
+                    let _ = diesel::update(devices::table.filter(devices::id.eq(device_id)))
+                        .set(devices::is_on.eq(new_state.is_on))
+                        .execute(&mut conn);
+                    log::info!("Updated device {} is_on state to {}", device_id, new_state.is_on);
+                }
+            }
+            HttpResponse::Ok().json(action_result)
+        }
         Err(e) => HttpResponse::InternalServerError().body(format!("Action failed: {}", e)),
     }
 }

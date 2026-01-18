@@ -63,6 +63,7 @@ pub struct Device {
     pub name: String,
     pub device_type: String,
     pub is_managed: bool,
+    pub is_on: bool,
 }
 
 #[derive(Insertable, Debug)]
