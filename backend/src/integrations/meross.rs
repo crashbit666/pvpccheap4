@@ -465,11 +465,12 @@ impl SmartHomeProvider for MerossProvider {
                 "No token provided".to_string(),
             ))?;
 
+        // mqtt_domain from API is like "mqtt-eu-5.meross.com", port 8883 with TLS
         let mqtt_domain = credentials
             .get("mqtt_domain")
             .and_then(|v| v.as_str())
-            .unwrap_or("eu-iotx.meross.com");
-        info!("Meross MQTT domain: {}", mqtt_domain);
+            .unwrap_or("mqtt-eu-5.meross.com");
+        info!("Meross MQTT domain: {} (port 8883 TLS)", mqtt_domain);
 
         // Create MQTT client and connect
         let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
@@ -509,11 +510,12 @@ impl SmartHomeProvider for MerossProvider {
                 "No token provided".to_string(),
             ))?;
 
+        // mqtt_domain from API is like "mqtt-eu-5.meross.com", port 8883 with TLS
         let mqtt_domain = credentials
             .get("mqtt_domain")
             .and_then(|v| v.as_str())
-            .unwrap_or("eu-iotx.meross.com");
-        info!("Meross MQTT domain: {}", mqtt_domain);
+            .unwrap_or("mqtt-eu-5.meross.com");
+        info!("Meross MQTT domain: {} (port 8883 TLS)", mqtt_domain);
 
         // Create MQTT client and connect
         let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;

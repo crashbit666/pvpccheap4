@@ -115,10 +115,12 @@ impl MerossMqttClient {
                 "Missing key in credentials".to_string(),
             ))?;
 
+        // mqtt_domain from API is usually like "mqtt-eu-5.meross.com"
+        // The MQTT broker runs on port 8883 with TLS
         let mqtt_domain = credentials
             .get("mqtt_domain")
             .and_then(|v| v.as_str())
-            .unwrap_or("eu-iotx.meross.com");
+            .unwrap_or("mqtt-eu-5.meross.com");
 
         Ok(Self::new(
             user_id.to_string(),
@@ -177,15 +179,18 @@ impl MerossMqttClient {
         let client_topic = self.build_client_topic();
 
         // Parse domain - remove port if present
+        // Meross MQTT uses standard TLS TCP on port 8883, NOT WebSocket
         let (host, port) = if self.mqtt_domain.contains(':') {
             let parts: Vec<&str> = self.mqtt_domain.split(':').collect();
             (
                 parts[0].to_string(),
-                parts.get(1).and_then(|p| p.parse().ok()).unwrap_or(443),
+                parts.get(1).and_then(|p| p.parse().ok()).unwrap_or(8883),
             )
         } else {
-            (self.mqtt_domain.clone(), 443)
+            (self.mqtt_domain.clone(), 8883)
         };
+
+        info!("Meross MQTT connecting to {}:{} (TLS TCP)", host, port);
 
         let config = MqttConfig {
             broker_host: host,
@@ -194,7 +199,7 @@ impl MerossMqttClient {
             username: Some(self.user_id.clone()),
             password: Some(self.key.clone()),
             use_tls: true,
-            use_websocket: true, // Meross uses MQTT over WebSocket on port 443
+            use_websocket: false, // Meross uses standard MQTT over TLS TCP, NOT WebSocket
             keep_alive_secs: 30,
         };
 
