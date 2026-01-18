@@ -105,15 +105,38 @@ impl MqttConnection {
         // Build the appropriate URL based on transport configuration
         let mut mqtt_options = if config.use_websocket {
             // Use WebSocket transport (wss:// for TLS, ws:// for plain)
+            // First create MqttOptions with standard constructor, then set WebSocket transport
             let scheme = if config.use_tls { "wss" } else { "ws" };
             let url = format!(
-                "{}://{}:{}?client_id={}",
-                scheme, config.broker_host, config.broker_port, config.client_id
+                "{}://{}:{}",
+                scheme, config.broker_host, config.broker_port
             );
-            info!("Setting up WebSocket MQTT connection: {}", url);
+            info!("Setting up WebSocket MQTT connection to: {}", url);
 
-            MqttOptions::parse_url(&url)
-                .map_err(|e| MqttError::ConnectionFailed(format!("Invalid MQTT URL: {}", e)))?
+            // Create options with client_id, then parse URL just for transport config
+            let mut opts = MqttOptions::new(&config.client_id, &config.broker_host, config.broker_port);
+
+            // Set WebSocket transport with TLS
+            if config.use_tls {
+                // Load native root certificates
+                let mut root_cert_store = tokio_rustls::rustls::RootCertStore::empty();
+                let cert_result = rustls_native_certs::load_native_certs();
+                for err in &cert_result.errors {
+                    warn!("Error loading native cert: {}", err);
+                }
+                let (added, _ignored) = root_cert_store.add_parsable_certificates(cert_result.certs);
+                info!("Loaded {} native root certificates for WebSocket TLS", added);
+
+                let client_config = ClientConfig::builder()
+                    .with_root_certificates(root_cert_store)
+                    .with_no_client_auth();
+
+                opts.set_transport(Transport::wss_with_config(client_config.into()));
+            } else {
+                opts.set_transport(Transport::Ws);
+            }
+
+            opts
         } else {
             // Use standard MQTT TCP transport
             MqttOptions::new(&config.client_id, &config.broker_host, config.broker_port)
