@@ -70,6 +70,9 @@ pub async fn get_schedule(
     let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
     let _ = schedule_service.compute_schedule_for_date(date);
 
+    // Mark any past hours as missed (important for displaying correct status)
+    let _ = schedule_service.mark_missed_hours();
+
     // Get scheduled executions for this user's rules on the given date
     let start_of_day = date.and_hms_opt(0, 0, 0).unwrap();
     let end_of_day = date.and_hms_opt(23, 59, 59).unwrap();
