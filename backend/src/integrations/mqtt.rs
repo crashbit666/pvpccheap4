@@ -254,11 +254,19 @@ impl MqttConnection {
                     debug!("MQTT received on {}: {} bytes", topic, payload.len());
 
                     // Check if any pending request matches
+                    // For Meross protocol, the message_id is inside the JSON payload header
                     let mut pending = pending_requests.lock().await;
                     let mut matched_idx = None;
 
+                    // Try to get payload as string for matching
+                    let payload_str = String::from_utf8_lossy(&payload);
+
                     for (idx, req) in pending.iter().enumerate() {
-                        if topic.contains(&req.topic_filter) || req.topic_filter == "*" {
+                        // Match either by topic containing filter, or payload containing filter (for Meross message_id)
+                        if topic.contains(&req.topic_filter)
+                            || payload_str.contains(&req.topic_filter)
+                            || req.topic_filter == "*" {
+                            debug!("MQTT message matched filter: {}", req.topic_filter);
                             matched_idx = Some(idx);
                             break;
                         }
@@ -268,6 +276,8 @@ impl MqttConnection {
                         let req = pending.remove(idx);
                         let msg = MqttMessage { topic, payload };
                         let _ = req.response_tx.send(msg);
+                    } else {
+                        debug!("MQTT message not matched, payload preview: {:.200}", payload_str);
                     }
                 }
                 Ok(Event::Incoming(Packet::ConnAck(connack))) => {

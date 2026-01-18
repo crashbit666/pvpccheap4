@@ -123,6 +123,14 @@ class DevicesViewModel @Inject constructor(
 
     fun toggleDevice(device: Device) {
         viewModelScope.launch {
+            val newState = !device.isOn
+
+            // Optimistic update - update UI immediately
+            val updatedDevices = _uiState.value.devices.map {
+                if (it.id == device.id) it.copy(isOn = newState) else it
+            }
+            _uiState.value = _uiState.value.copy(devices = updatedDevices)
+
             val result = if (device.isOn) {
                 deviceRepository.turnOffDevice(device.id)
             } else {
@@ -131,11 +139,35 @@ class DevicesViewModel @Inject constructor(
 
             when (result) {
                 is Result.Success -> {
-                    // Refresh devices list
-                    loadAll()
+                    // Check if the action was successful
+                    if (result.data.success) {
+                        // State already updated optimistically, update with actual state if provided
+                        result.data.newState?.let { actualState ->
+                            val devicesWithActualState = _uiState.value.devices.map {
+                                if (it.id == device.id) it.copy(isOn = actualState.isOn) else it
+                            }
+                            _uiState.value = _uiState.value.copy(devices = devicesWithActualState)
+                        }
+                    } else {
+                        // Action failed - revert optimistic update
+                        val revertedDevices = _uiState.value.devices.map {
+                            if (it.id == device.id) it.copy(isOn = device.isOn) else it
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            devices = revertedDevices,
+                            error = result.data.message ?: "Error controlling device"
+                        )
+                    }
                 }
                 is Result.Error -> {
-                    _uiState.value = _uiState.value.copy(error = result.message)
+                    // Revert optimistic update on error
+                    val revertedDevices = _uiState.value.devices.map {
+                        if (it.id == device.id) it.copy(isOn = device.isOn) else it
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        devices = revertedDevices,
+                        error = result.message
+                    )
                 }
                 is Result.Loading -> {}
             }

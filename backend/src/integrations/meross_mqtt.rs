@@ -86,6 +86,8 @@ pub struct MerossMqttClient {
     user_id: String,
     key: String,
     mqtt_domain: String,
+    /// App ID must be consistent between subscription topic and message headers
+    app_id: String,
 }
 
 impl MerossMqttClient {
@@ -96,6 +98,7 @@ impl MerossMqttClient {
             user_id,
             key,
             mqtt_domain,
+            app_id: Self::generate_app_id(), // Generate once and reuse
         }
     }
 
@@ -151,12 +154,12 @@ impl MerossMqttClient {
         format!("{:x}", digest)
     }
 
-    /// Build the client app ID
+    /// Build the client app ID for MQTT client_id
     fn build_client_id(&self) -> String {
-        format!("app:{}", Self::generate_app_id())
+        format!("app:{}", self.app_id)
     }
 
-    /// Generate app ID
+    /// Generate app ID (called once during construction)
     fn generate_app_id() -> String {
         let mut rng = rand::rng();
         let random: u64 = rng.random();
@@ -168,9 +171,9 @@ impl MerossMqttClient {
         format!("/appliance/{}/subscribe", device_uuid)
     }
 
-    /// Build response topic for client
+    /// Build response topic for client - uses the stored app_id for consistency
     fn build_client_topic(&self) -> String {
-        format!("/app/{}-{}/subscribe", self.user_id, Self::generate_app_id())
+        format!("/app/{}-{}/subscribe", self.user_id, self.app_id)
     }
 
     /// Generate MQTT password from user_id and key

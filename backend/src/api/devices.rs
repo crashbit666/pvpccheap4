@@ -18,6 +18,9 @@ pub struct DeviceResponse {
     pub device_type: String,
     pub is_managed: bool,
     pub provider_name: String,
+    /// Device on/off state - defaults to false since we don't query real state on list
+    /// The actual state is determined by controlling the device
+    pub is_on: bool,
 }
 
 #[derive(Deserialize)]
@@ -85,6 +88,7 @@ pub async fn list_devices(pool: web::Data<DbPool>, claims: Claims) -> impl Respo
             device_type: device.device_type,
             is_managed: device.is_managed,
             provider_name,
+            is_on: false, // Default to false - real state requires MQTT query
         })
         .collect();
 
