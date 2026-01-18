@@ -179,15 +179,16 @@ impl MerossMqttClient {
         let client_topic = self.build_client_topic();
 
         // Parse domain - remove port if present
-        // Meross MQTT uses standard TLS TCP on port 8883, NOT WebSocket
+        // Meross Cloud MQTT uses port 2001 with TLS TCP (not standard 8883)
+        // See: https://github.com/albertogeniola/MerossIot/wiki/Device-pairing
         let (host, port) = if self.mqtt_domain.contains(':') {
             let parts: Vec<&str> = self.mqtt_domain.split(':').collect();
             (
                 parts[0].to_string(),
-                parts.get(1).and_then(|p| p.parse().ok()).unwrap_or(8883),
+                parts.get(1).and_then(|p| p.parse().ok()).unwrap_or(2001),
             )
         } else {
-            (self.mqtt_domain.clone(), 8883)
+            (self.mqtt_domain.clone(), 2001)
         };
 
         info!("Meross MQTT connecting to {}:{} (TLS TCP)", host, port);
