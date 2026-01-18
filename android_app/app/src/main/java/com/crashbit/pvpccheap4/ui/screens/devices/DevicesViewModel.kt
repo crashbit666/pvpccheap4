@@ -199,4 +199,23 @@ class DevicesViewModel @Inject constructor(
     fun refresh() {
         loadAll()
     }
+
+    /**
+     * Silently refresh device states without showing loading indicator.
+     * Used for polling to keep device states up-to-date.
+     * Uses refresh=true to fetch real states from providers.
+     */
+    fun refreshDeviceStates() {
+        viewModelScope.launch {
+            when (val result = deviceRepository.getDevices(refresh = true)) {
+                is Result.Success -> {
+                    _uiState.value = _uiState.value.copy(devices = result.data)
+                }
+                is Result.Error -> {
+                    // Silent fail - don't show error for background refresh
+                }
+                is Result.Loading -> {}
+            }
+        }
+    }
 }

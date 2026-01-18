@@ -59,7 +59,7 @@ interface ApiService {
 
     // Devices endpoints
     @GET("api/devices")
-    suspend fun getDevices(): Response<List<Device>>
+    suspend fun getDevices(@Query("refresh") refresh: Boolean = false): Response<List<Device>>
 
     @POST("api/devices/sync")
     suspend fun syncDevices(@Body request: SyncDevicesRequest): Response<SyncDevicesResponse>

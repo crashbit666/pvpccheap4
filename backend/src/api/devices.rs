@@ -1,6 +1,6 @@
 use crate::{
     db::DbPool,
-    integrations::{ProviderError, ProviderRegistry},
+    integrations::ProviderRegistry,
     models::{Device, UserIntegration},
     schema::{devices, user_integrations},
     services::auth::Claims,
@@ -29,6 +29,13 @@ pub struct SyncDevicesRequest {
 }
 
 #[derive(Deserialize)]
+pub struct ListDevicesQuery {
+    /// If true, query real device states from providers (slower but accurate)
+    #[serde(default)]
+    pub refresh: bool,
+}
+
+#[derive(Deserialize)]
 pub struct DeviceActionRequest {
     pub action: String, // "turn_on" or "turn_off"
 }
@@ -40,8 +47,15 @@ pub struct UpdateDeviceRequest {
 }
 
 /// List all devices for the authenticated user
+/// Query params:
+///   - refresh: if true, fetch real device states from providers (slower but accurate)
 #[get("")]
-pub async fn list_devices(pool: web::Data<DbPool>, claims: Claims) -> impl Responder {
+pub async fn list_devices(
+    pool: web::Data<DbPool>,
+    registry: web::Data<ProviderRegistry>,
+    claims: Claims,
+    query: web::Query<ListDevicesQuery>,
+) -> impl Responder {
     let mut conn = match pool.get() {
         Ok(c) => c,
         Err(_) => return HttpResponse::InternalServerError().body("Database connection error"),
@@ -53,19 +67,20 @@ pub async fn list_devices(pool: web::Data<DbPool>, claims: Claims) -> impl Respo
     };
 
     // Get all integrations for this user
-    let user_integration_ids: Vec<i32> = match user_integrations::table
+    let integrations: Vec<UserIntegration> = match user_integrations::table
         .filter(user_integrations::user_id.eq(user_id))
         .filter(user_integrations::is_active.eq(true))
-        .select(user_integrations::id)
         .load(&mut conn)
     {
-        Ok(ids) => ids,
+        Ok(i) => i,
         Err(_) => return HttpResponse::InternalServerError().body("Error fetching integrations"),
     };
 
-    if user_integration_ids.is_empty() {
+    if integrations.is_empty() {
         return HttpResponse::Ok().json(Vec::<DeviceResponse>::new());
     }
+
+    let user_integration_ids: Vec<i32> = integrations.iter().map(|i| i.id).collect();
 
     // Get all devices for these integrations with provider names
     let results: Vec<(Device, String)> = match devices::table
@@ -78,6 +93,92 @@ pub async fn list_devices(pool: web::Data<DbPool>, claims: Claims) -> impl Respo
         Err(_) => return HttpResponse::InternalServerError().body("Error fetching devices"),
     };
 
+    // If refresh requested, fetch real states from providers
+    if query.refresh && !results.is_empty() {
+        let mut response: Vec<DeviceResponse> = Vec::new();
+
+        // Group devices by integration for efficient querying
+        for integration in &integrations {
+            let provider = match registry.get(&integration.provider_name) {
+                Some(p) => p,
+                None => continue,
+            };
+
+            let credentials: serde_json::Value =
+                match serde_json::from_str(&integration.credentials_json) {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
+
+            // Try to get session, but don't fail if authentication fails
+            let session = match provider.login(&credentials).await {
+                Ok(s) => s,
+                Err(e) => {
+                    log::warn!(
+                        "Failed to authenticate for refresh on integration {}: {}",
+                        integration.id,
+                        e
+                    );
+                    // Return cached states for this integration's devices
+                    for (device, provider_name) in &results {
+                        if device.integration_id == integration.id {
+                            response.push(DeviceResponse {
+                                id: device.id,
+                                integration_id: device.integration_id,
+                                external_id: device.external_id.clone(),
+                                name: device.name.clone(),
+                                device_type: device.device_type.clone(),
+                                is_managed: device.is_managed,
+                                provider_name: provider_name.clone(),
+                                is_on: device.is_on,
+                            });
+                        }
+                    }
+                    continue;
+                }
+            };
+
+            // Query state for each device in this integration
+            for (device, provider_name) in &results {
+                if device.integration_id != integration.id {
+                    continue;
+                }
+
+                let is_on = match provider.get_device_state(&session, &device.external_id).await {
+                    Ok(state) => {
+                        // Update cached state in database
+                        let _ = diesel::update(devices::table.filter(devices::id.eq(device.id)))
+                            .set(devices::is_on.eq(state.is_on))
+                            .execute(&mut conn);
+                        state.is_on
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to get state for device {}: {}, using cached",
+                            device.id,
+                            e
+                        );
+                        device.is_on // Fall back to cached state
+                    }
+                };
+
+                response.push(DeviceResponse {
+                    id: device.id,
+                    integration_id: device.integration_id,
+                    external_id: device.external_id.clone(),
+                    name: device.name.clone(),
+                    device_type: device.device_type.clone(),
+                    is_managed: device.is_managed,
+                    provider_name: provider_name.clone(),
+                    is_on,
+                });
+            }
+        }
+
+        return HttpResponse::Ok().json(response);
+    }
+
+    // Return cached states (fast path)
     let response: Vec<DeviceResponse> = results
         .into_iter()
         .map(|(device, provider_name)| DeviceResponse {

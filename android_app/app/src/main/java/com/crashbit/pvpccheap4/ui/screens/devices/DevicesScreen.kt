@@ -36,10 +36,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -60,10 +65,32 @@ fun DevicesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     // Refresh data when screen becomes visible (e.g., returning from AddIntegrationScreen)
     LaunchedEffect(Unit) {
         viewModel.refresh()
+    }
+
+    // Polling: refresh device states every 10 seconds while screen is visible
+    DisposableEffect(lifecycleOwner) {
+        var isActive = true
+        val observer = LifecycleEventObserver { _, event ->
+            isActive = event == Lifecycle.Event.ON_RESUME
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(10_000) // 10 seconds
+            if (!uiState.isLoading && !uiState.isSyncing) {
+                viewModel.refreshDeviceStates()
+            }
+        }
     }
 
     // Handle refresh signal from navigation

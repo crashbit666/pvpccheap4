@@ -59,9 +59,13 @@ class DeviceRepository @Inject constructor(
     }
 
     // Devices
-    suspend fun getDevices(): Result<List<Device>> {
+    /**
+     * Get all devices for the user.
+     * @param refresh If true, fetch real device states from providers (slower but accurate)
+     */
+    suspend fun getDevices(refresh: Boolean = false): Result<List<Device>> {
         return try {
-            val response = apiService.getDevices()
+            val response = apiService.getDevices(refresh)
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
