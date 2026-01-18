@@ -194,6 +194,7 @@ impl MerossMqttClient {
             username: Some(self.user_id.clone()),
             password: Some(self.key.clone()),
             use_tls: true,
+            use_websocket: true, // Meross uses MQTT over WebSocket on port 443
             keep_alive_secs: 30,
         };
 

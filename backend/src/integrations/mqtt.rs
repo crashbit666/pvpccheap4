@@ -21,6 +21,7 @@ pub struct MqttConfig {
     pub username: Option<String>,
     pub password: Option<String>,
     pub use_tls: bool,
+    pub use_websocket: bool,
     pub keep_alive_secs: u64,
 }
 
@@ -33,6 +34,7 @@ impl Default for MqttConfig {
             username: None,
             password: None,
             use_tls: false,
+            use_websocket: false,
             keep_alive_secs: 30,
         }
     }
@@ -100,11 +102,22 @@ pub struct MqttConnection {
 impl MqttConnection {
     /// Create a new MQTT connection
     pub async fn connect(config: MqttConfig) -> Result<Self, MqttError> {
-        let mut mqtt_options = MqttOptions::new(
-            &config.client_id,
-            &config.broker_host,
-            config.broker_port,
-        );
+        // Build the appropriate URL based on transport configuration
+        let mut mqtt_options = if config.use_websocket {
+            // Use WebSocket transport (wss:// for TLS, ws:// for plain)
+            let scheme = if config.use_tls { "wss" } else { "ws" };
+            let url = format!(
+                "{}://{}:{}?client_id={}",
+                scheme, config.broker_host, config.broker_port, config.client_id
+            );
+            info!("Setting up WebSocket MQTT connection: {}", url);
+
+            MqttOptions::parse_url(&url)
+                .map_err(|e| MqttError::ConnectionFailed(format!("Invalid MQTT URL: {}", e)))?
+        } else {
+            // Use standard MQTT TCP transport
+            MqttOptions::new(&config.client_id, &config.broker_host, config.broker_port)
+        };
 
         mqtt_options.set_keep_alive(Duration::from_secs(config.keep_alive_secs));
 
@@ -112,7 +125,14 @@ impl MqttConnection {
             mqtt_options.set_credentials(username, password);
         }
 
-        if config.use_tls {
+        // For non-websocket TLS connections, we need to set up the transport manually
+        // For websocket connections (wss://), TLS is handled automatically by parse_url
+        if config.use_tls && !config.use_websocket {
+            info!(
+                "Setting up TLS connection to {}:{}",
+                config.broker_host, config.broker_port
+            );
+
             // Load native root certificates from the operating system
             let mut root_cert_store = tokio_rustls::rustls::RootCertStore::empty();
 
@@ -124,7 +144,11 @@ impl MqttConnection {
             }
 
             let (added, _ignored) = root_cert_store.add_parsable_certificates(cert_result.certs);
-            debug!("Loaded {} native root certificates for TLS", added);
+            info!("Loaded {} native root certificates for TLS", added);
+
+            if added == 0 {
+                error!("No TLS certificates loaded! This will likely cause connection failures.");
+            }
 
             let client_config = ClientConfig::builder()
                 .with_root_certificates(root_cert_store)
@@ -230,11 +254,12 @@ impl MqttConnection {
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    error!("MQTT event loop error: {}", e);
+                    error!("MQTT event loop error: {:?}", e);
+                    error!("MQTT error details: {}", e);
                     *connected.lock().await = false;
                     // Signal connection failure if we haven't signaled yet
                     if let Some(tx) = conn_signal.take() {
-                        let _ = tx.send(Err(e.to_string()));
+                        let _ = tx.send(Err(format!("{:?}", e)));
                     }
                     // Clear all pending requests on error
                     pending_requests.lock().await.clear();
