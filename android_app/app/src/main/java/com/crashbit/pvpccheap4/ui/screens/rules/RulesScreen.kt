@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -43,9 +44,19 @@ import com.crashbit.pvpccheap4.data.model.Rule
 @Composable
 fun RulesScreen(
     onAddRule: () -> Unit = {},
+    shouldRefresh: Boolean = false,
+    onRefreshConsumed: () -> Unit = {},
     viewModel: RulesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Refresh when coming back from AddRuleScreen
+    LaunchedEffect(shouldRefresh) {
+        if (shouldRefresh) {
+            viewModel.refresh()
+            onRefreshConsumed()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -130,6 +141,14 @@ fun RuleCard(
                     fontWeight = FontWeight.Medium
                 )
                 Spacer(modifier = Modifier.height(4.dp))
+                rule.deviceName?.let { deviceName ->
+                    Text(
+                        text = deviceName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                }
                 Text(
                     text = getRuleTypeDescription(rule.ruleType),
                     style = MaterialTheme.typography.bodySmall,

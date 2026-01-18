@@ -49,7 +49,8 @@ data class ScheduleItem(
     val startHour: Int,
     val endHour: Int,
     val deviceName: String,
-    val status: ScheduleStatus
+    val status: ScheduleStatus,
+    val price: String? = null
 )
 
 enum class ScheduleStatus {
@@ -186,12 +187,20 @@ fun ScheduleItemCard(item: ScheduleItem) {
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Device name
-            Text(
-                text = item.deviceName,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.weight(1f)
-            )
+            // Device name and price
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.deviceName,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                item.price?.let { price ->
+                    Text(
+                        text = price,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF4CAF50)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 

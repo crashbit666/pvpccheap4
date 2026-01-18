@@ -113,17 +113,28 @@ fun MainScreen(
                     }
                 )
             }
-            composable(BottomNavItem.Rules.route) {
+            composable(BottomNavItem.Rules.route) { backStackEntry ->
+                // Listen for refresh signal from AddRuleScreen
+                val shouldRefresh = backStackEntry.savedStateHandle.get<Boolean>("refresh") == true
+
                 RulesScreen(
                     onAddRule = {
                         navController.navigate("add_rule")
+                    },
+                    shouldRefresh = shouldRefresh,
+                    onRefreshConsumed = {
+                        backStackEntry.savedStateHandle.remove<Boolean>("refresh")
                     }
                 )
             }
             composable("add_rule") {
                 AddRuleScreen(
                     onNavigateBack = { navController.popBackStack() },
-                    onSuccess = { navController.popBackStack() }
+                    onSuccess = {
+                        // Set a flag to indicate refresh is needed, then navigate back
+                        navController.previousBackStackEntry?.savedStateHandle?.set("refresh", true)
+                        navController.popBackStack()
+                    }
                 )
             }
             composable(BottomNavItem.Schedule.route) {

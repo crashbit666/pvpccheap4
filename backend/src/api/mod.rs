@@ -6,6 +6,7 @@ pub mod devices;
 pub mod integrations;
 pub mod prices;
 pub mod rules;
+pub mod schedules;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     // Auth routes (public)
@@ -50,6 +51,12 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/automation")
             .service(automation::run_automation),
+    );
+
+    // Schedule routes (protected)
+    cfg.service(
+        web::scope("/api/schedules")
+            .service(schedules::get_schedule),
     );
 
     // Price routes (public - no auth required for price info)

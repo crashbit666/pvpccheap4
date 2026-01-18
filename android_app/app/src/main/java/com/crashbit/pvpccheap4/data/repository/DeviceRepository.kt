@@ -7,6 +7,7 @@ import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
 import com.crashbit.pvpccheap4.data.model.Integration
 import com.crashbit.pvpccheap4.data.model.Rule
+import com.crashbit.pvpccheap4.data.model.ScheduleResponse
 import com.crashbit.pvpccheap4.data.model.SyncDevicesRequest
 import com.crashbit.pvpccheap4.data.model.SyncDevicesResponse
 import javax.inject.Inject
@@ -180,6 +181,20 @@ class DeviceRepository @Inject constructor(
                 Result.Success(response.body()!!)
             } else {
                 Result.Error("Failed to toggle rule", response.code())
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Network error")
+        }
+    }
+
+    // Schedules
+    suspend fun getSchedule(date: String? = null): Result<ScheduleResponse> {
+        return try {
+            val response = apiService.getSchedule(date)
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("Failed to get schedule", response.code())
             }
         } catch (e: Exception) {
             Result.Error(e.message ?: "Network error")

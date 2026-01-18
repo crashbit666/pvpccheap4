@@ -10,6 +10,7 @@ import com.crashbit.pvpccheap4.data.model.LoginRequest
 import com.crashbit.pvpccheap4.data.model.PriceData
 import com.crashbit.pvpccheap4.data.model.RegisterRequest
 import com.crashbit.pvpccheap4.data.model.Rule
+import com.crashbit.pvpccheap4.data.model.ScheduleResponse
 import com.crashbit.pvpccheap4.data.model.SyncDevicesRequest
 import com.crashbit.pvpccheap4.data.model.SyncDevicesResponse
 import retrofit2.Response
@@ -87,4 +88,8 @@ interface ApiService {
 
     @POST("api/rules/{id}/toggle")
     suspend fun toggleRule(@Path("id") id: Int): Response<Rule>
+
+    // Schedule endpoints
+    @GET("api/schedules")
+    suspend fun getSchedule(@Query("date") date: String? = null): Response<ScheduleResponse>
 }

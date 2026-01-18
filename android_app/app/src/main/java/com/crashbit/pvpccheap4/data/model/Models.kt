@@ -99,17 +99,26 @@ data class DeviceState(
 // Rule models
 data class Rule(
     val id: Int? = null,
+    @SerializedName("user_id")
+    val userId: Int? = null,
     val name: String,
     @SerializedName("device_id")
     val deviceId: Int,
+    @SerializedName("device_name")
+    val deviceName: String? = null,
     @SerializedName("rule_type")
     val ruleType: String,
     val action: String = "turn_on", // "turn_on", "turn_off", or "toggle"
     val config: RuleConfig,
     @SerializedName("is_enabled")
     val isEnabled: Boolean = true,
+    val priority: Int? = null,
     @SerializedName("created_at")
-    val createdAt: String? = null
+    val createdAt: String? = null,
+    @SerializedName("updated_at")
+    val updatedAt: String? = null,
+    @SerializedName("last_triggered_at")
+    val lastTriggeredAt: String? = null
 )
 
 data class RuleConfig(
@@ -121,4 +130,28 @@ data class RuleConfig(
     val timeRangeStart: String? = null,
     @SerializedName("time_range_end")
     val timeRangeEnd: String? = null
+)
+
+// Schedule models
+data class ScheduleResponse(
+    val date: String,
+    @SerializedName("scheduled_hours")
+    val scheduledHours: List<ScheduledHour>
+)
+
+data class ScheduledHour(
+    val hour: Int,
+    @SerializedName("device_id")
+    val deviceId: Int,
+    @SerializedName("device_name")
+    val deviceName: String,
+    @SerializedName("rule_id")
+    val ruleId: Int,
+    @SerializedName("rule_name")
+    val ruleName: String,
+    val action: String,
+    val status: String, // "pending", "completed_on", "completed_off", "failed"
+    val price: Double? = null,
+    @SerializedName("price_formatted")
+    val priceFormatted: String? = null
 )
