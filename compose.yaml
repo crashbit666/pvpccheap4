@@ -28,6 +28,7 @@ services:
       RUST_LOG: ${RUST_LOG:-info}
       HOST: 0.0.0.0
       PORT: 8080
+      TZ: Europe/Madrid
     depends_on:
       db:
         condition: service_healthy
@@ -45,6 +46,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       ESIOS_TOKEN: ${ESIOS_TOKEN}
       RUST_LOG: ${RUST_LOG:-info}
+      TZ: Europe/Madrid
     depends_on:
       db:
         condition: service_healthy
