@@ -128,9 +128,9 @@ pub async fn get_schedule(
                     }
                 }
                 "pending" => "pending",
-                "retrying" => "failed", // Show as failed while retrying
+                "retrying" => "retrying",
                 "failed" => "failed",
-                "missed" => "failed", // Missed is also a type of failure
+                "missed" => "missed",
                 _ => "pending",
             };
 

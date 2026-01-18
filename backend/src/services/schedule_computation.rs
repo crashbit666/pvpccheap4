@@ -183,9 +183,12 @@ impl ScheduleComputationService {
         let mut conn = self.pool.get().map_err(|e| e.to_string())?;
 
         let now = Local::now().naive_local();
+        // An hour is considered "missed" if we're past the start of that hour
+        // e.g., if it's 14:14, then 13:00 is missed (we should have executed at 13:00)
         let current_hour_start = now.date().and_hms_opt(now.hour(), 0, 0).unwrap();
 
         // Mark all pending scheduled executions where the hour has passed as missed
+        // Use lt (less than) because the current hour might still be executing
         let count = diesel::update(
             scheduled_executions::table
                 .filter(scheduled_executions::status.eq(ExecutionStatus::Pending.as_str()))

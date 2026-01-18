@@ -58,6 +58,8 @@ enum class ScheduleStatus {
     COMPLETED_OFF,
     COMPLETED_ON,
     FAILED,
+    RETRYING,
+    MISSED,
     PENDING
 }
 
@@ -222,6 +224,8 @@ fun StatusBadge(status: ScheduleStatus) {
         ScheduleStatus.COMPLETED_OFF -> Triple("Apagat", Color(0xFF4CAF50).copy(alpha = 0.2f), Color(0xFF4CAF50))
         ScheduleStatus.COMPLETED_ON -> Triple("Encès", Color(0xFF2196F3).copy(alpha = 0.2f), Color(0xFF2196F3))
         ScheduleStatus.FAILED -> Triple("Fallat", Color(0xFFF44336).copy(alpha = 0.2f), Color(0xFFF44336))
+        ScheduleStatus.RETRYING -> Triple("Reintentant", Color(0xFFFF9800).copy(alpha = 0.2f), Color(0xFFFF9800))
+        ScheduleStatus.MISSED -> Triple("Perdut", Color(0xFF9E9E9E).copy(alpha = 0.2f), Color(0xFF757575))
         ScheduleStatus.PENDING -> Triple("Pendent", Color(0xFF9E9E9E).copy(alpha = 0.2f), Color(0xFF9E9E9E))
     }
 

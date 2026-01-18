@@ -71,6 +71,9 @@ class ScheduleViewModel @Inject constructor(
             "completed_on" -> ScheduleStatus.COMPLETED_ON
             "completed_off" -> ScheduleStatus.COMPLETED_OFF
             "failed" -> ScheduleStatus.FAILED
+            "retrying" -> ScheduleStatus.RETRYING
+            "missed" -> ScheduleStatus.MISSED
+            "pending" -> ScheduleStatus.PENDING
             else -> ScheduleStatus.PENDING
         }
     }

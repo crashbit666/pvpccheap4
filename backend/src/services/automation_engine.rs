@@ -592,6 +592,7 @@ impl AutomationEngine {
     // =========================================================================
 
     /// Execute all scheduled actions for the current hour
+    /// Also turn off devices that are NOT scheduled for the current hour (inverse action)
     pub async fn execute_current_hour(&self) -> Vec<ExecutionResult> {
         let mut results = Vec::new();
         let now = Local::now().naive_local();
@@ -621,9 +622,55 @@ impl AutomationEngine {
             current_hour_start
         );
 
+        // Execute scheduled actions (turn on)
+        let scheduled_rule_ids: Vec<i32> = pending_executions.iter().map(|(_, r)| r.id).collect();
+
         for (scheduled, rule) in pending_executions {
             let result = self.execute_scheduled_execution(&scheduled, &rule).await;
             results.push(result);
+        }
+
+        // Find rules that should turn OFF (not scheduled for current hour but have "turn_on" action)
+        let rules_to_turn_off: Vec<AutomationRule> = automation_rules::table
+            .filter(automation_rules::is_enabled.eq(true))
+            .filter(automation_rules::action.eq("turn_on"))
+            .filter(automation_rules::id.ne_all(&scheduled_rule_ids))
+            .load(&mut conn)
+            .unwrap_or_default();
+
+        // For each rule not scheduled this hour, turn off the device
+        for rule in rules_to_turn_off {
+            // Check if this rule has any scheduled execution for today (to know if it's an automated rule)
+            let today_start = now.date().and_hms_opt(0, 0, 0).unwrap();
+            let today_end = now.date().and_hms_opt(23, 59, 59).unwrap();
+
+            let has_schedule_today: bool = scheduled_executions::table
+                .filter(scheduled_executions::rule_id.eq(rule.id))
+                .filter(scheduled_executions::scheduled_hour.ge(today_start))
+                .filter(scheduled_executions::scheduled_hour.le(today_end))
+                .select(scheduled_executions::id)
+                .first::<i32>(&mut conn)
+                .is_ok();
+
+            // Only turn off if this rule has scheduled executions (it's an automated rule)
+            if has_schedule_today {
+                info!(
+                    "Rule {} not scheduled for hour {}, turning off device {}",
+                    rule.id, current_hour_start, rule.device_id
+                );
+
+                let current_price = self.get_current_price(&now);
+                let evaluation = RuleEvaluation {
+                    rule_id: rule.id,
+                    should_trigger: true,
+                    action: RuleAction::TurnOff,
+                    reason: format!("Not scheduled for hour {} - auto turn off", now.hour()),
+                };
+
+                let result = self.execute_rule(&rule, &evaluation, current_price).await;
+                self.log_execution(&result, &evaluation);
+                results.push(result);
+            }
         }
 
         results
