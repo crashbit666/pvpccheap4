@@ -4,7 +4,7 @@
 //! different smart home providers (Meross, Tuya, Shelly, etc.)
 
 use log::{debug, error, info, warn};
-use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS, Transport};
+use rumqttc::{AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, NetworkOptions, Packet, QoS, Transport};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -146,6 +146,10 @@ impl MqttConnection {
 
         mqtt_options.set_keep_alive(Duration::from_secs(config.keep_alive_secs));
 
+        // Meross requires clean_session=false for persistent sessions
+        // See: https://github.com/albertogeniola/MerossIot - Python library uses clean_session=False
+        mqtt_options.set_clean_session(false);
+
         if let (Some(username), Some(password)) = (&config.username, &config.password) {
             mqtt_options.set_credentials(username, password);
         }
@@ -182,7 +186,13 @@ impl MqttConnection {
             mqtt_options.set_transport(Transport::tls_with_config(client_config.into()));
         }
 
-        let (client, eventloop) = AsyncClient::new(mqtt_options, 100);
+        let (client, mut eventloop) = AsyncClient::new(mqtt_options, 100);
+
+        // Configure network options with connection timeout
+        let mut network_options = NetworkOptions::new();
+        network_options.set_connection_timeout(30); // 30 second connection timeout
+        eventloop.set_network_options(network_options);
+
         let pending_requests: Arc<Mutex<Vec<PendingRequest>>> = Arc::new(Mutex::new(Vec::new()));
         let connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 
@@ -281,6 +291,13 @@ impl MqttConnection {
                 Err(e) => {
                     error!("MQTT event loop error: {:?}", e);
                     error!("MQTT error details: {}", e);
+                    // Log more specific error info for debugging
+                    if let ConnectionError::Io(ref io_err) = e {
+                        error!("MQTT IO error kind: {:?}", io_err.kind());
+                    }
+                    if let ConnectionError::Tls(ref tls_err) = e {
+                        error!("MQTT TLS error: {:?}", tls_err);
+                    }
                     *connected.lock().await = false;
                     // Signal connection failure if we haven't signaled yet
                     if let Some(tx) = conn_signal.take() {
