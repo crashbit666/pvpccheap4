@@ -1,15 +1,17 @@
 use crate::{
-    db::DbPool, models::UserIntegration, schema::{devices, user_integrations}, services::auth::Claims,
+    db::DbPool, integrations::ProviderRegistry, models::UserIntegration,
+    schema::{devices, user_integrations}, services::auth::Claims,
 };
 use actix_web::{HttpResponse, Responder, delete, get, post, web};
 use diesel::prelude::*;
+use log::info;
 use serde::Deserialize;
 use serde_json::Value;
 
 #[derive(Deserialize)]
 pub struct AddIntegrationRequest {
     pub provider: String,
-    pub credentials: Value, // JSON object
+    pub credentials: Value, // JSON object with email/password
 }
 
 #[post("")]
@@ -21,11 +23,43 @@ pub async fn add_integration(
     let mut conn = pool.get().expect("Couldn't get db connection");
     let user_id = claims.sub.parse::<i32>().unwrap();
 
+    // Get the provider and authenticate
+    let registry = ProviderRegistry::new();
+    let provider = match registry.get(&item.provider) {
+        Some(p) => p,
+        None => return HttpResponse::BadRequest().body(format!("Unknown provider: {}", item.provider)),
+    };
+
+    // Perform login to get session credentials
+    let session_credentials = match provider.login(&item.credentials).await {
+        Ok(creds) => creds,
+        Err(e) => return HttpResponse::Unauthorized().body(format!("Authentication failed: {}", e)),
+    };
+
+    // Merge original credentials (email/password) with session credentials (token/key)
+    // This ensures we can refresh the token later
+    let mut final_credentials = session_credentials.clone();
+    if let (Some(obj), Some(orig)) = (final_credentials.as_object_mut(), item.credentials.as_object()) {
+        // Copy email and password from original request if not present
+        if !obj.contains_key("email") {
+            if let Some(email) = orig.get("email") {
+                obj.insert("email".to_string(), email.clone());
+            }
+        }
+        if !obj.contains_key("password") {
+            if let Some(password) = orig.get("password") {
+                obj.insert("password".to_string(), password.clone());
+            }
+        }
+    }
+
+    info!("Integration login successful for provider: {}", item.provider);
+
     let new_integration = diesel::insert_into(user_integrations::table)
         .values((
             user_integrations::user_id.eq(user_id),
             user_integrations::provider_name.eq(&item.provider),
-            user_integrations::credentials_json.eq(item.credentials.to_string()),
+            user_integrations::credentials_json.eq(final_credentials.to_string()),
             user_integrations::is_active.eq(true),
         ))
         .get_result::<UserIntegration>(&mut conn);

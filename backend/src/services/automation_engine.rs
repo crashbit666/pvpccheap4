@@ -1,6 +1,6 @@
 use crate::{
     db::DbPool,
-    integrations::{ProviderRegistry, DeviceState},
+    integrations::{ProviderError, ProviderRegistry, DeviceState},
     models::{
         AutomationRule, CheapestHoursConfig, ExecutionStatus, NewRuleExecution, Price,
         PriceThresholdConfig, RuleAction, ScheduledExecution, TimeScheduleConfig,
@@ -454,10 +454,11 @@ impl AutomationEngine {
         };
 
         // Get device and integration info
-        let device_info: Option<(String, String, String)> = devices::table
+        let device_info: Option<(i32, String, String, String)> = devices::table
             .inner_join(user_integrations::table)
             .filter(devices::id.eq(rule.device_id))
             .select((
+                user_integrations::id,
                 devices::external_id,
                 user_integrations::provider_name,
                 user_integrations::credentials_json,
@@ -466,7 +467,7 @@ impl AutomationEngine {
             .optional()
             .unwrap_or(None);
 
-        let (external_id, provider_name, credentials_json) = match device_info {
+        let (integration_id, external_id, provider_name, credentials_json) = match device_info {
             Some(info) => info,
             None => {
                 return ExecutionResult {
@@ -496,7 +497,7 @@ impl AutomationEngine {
         };
 
         // Parse credentials
-        let credentials: JsonValue = match serde_json::from_str(&credentials_json) {
+        let mut credentials: JsonValue = match serde_json::from_str(&credentials_json) {
             Ok(c) => c,
             Err(e) => {
                 return ExecutionResult {
@@ -516,19 +517,15 @@ impl AutomationEngine {
             .await
             .ok();
 
-        // Execute the action
-        let action_result = match evaluation.action {
-            RuleAction::TurnOn => provider.turn_on(&credentials, &external_id).await,
-            RuleAction::TurnOff => provider.turn_off(&credentials, &external_id).await,
-            RuleAction::Toggle => {
-                // Toggle based on current state
-                if state_before.as_ref().map(|s| s.is_on).unwrap_or(false) {
-                    provider.turn_off(&credentials, &external_id).await
-                } else {
-                    provider.turn_on(&credentials, &external_id).await
-                }
-            }
-        };
+        // Execute the action (with automatic token refresh on auth failure)
+        let action_result = self.execute_action_with_retry(
+            &provider,
+            &mut credentials,
+            &external_id,
+            &evaluation.action,
+            &state_before,
+            integration_id,
+        ).await;
 
         match action_result {
             Ok(result) => {
@@ -557,6 +554,87 @@ impl AutomationEngine {
                 device_state_after: None,
             },
         }
+    }
+
+    /// Execute an action with automatic token refresh on authentication failure
+    async fn execute_action_with_retry(
+        &self,
+        provider: &std::sync::Arc<dyn crate::integrations::SmartHomeProvider>,
+        credentials: &mut JsonValue,
+        external_id: &str,
+        action: &RuleAction,
+        state_before: &Option<DeviceState>,
+        integration_id: i32,
+    ) -> Result<crate::integrations::DeviceActionResult, ProviderError> {
+        // First attempt
+        let first_result = self.execute_single_action(provider, credentials, external_id, action, state_before).await;
+
+        match &first_result {
+            Err(ProviderError::AuthenticationFailed(_)) | Err(ProviderError::InvalidCredentials) => {
+                // Token might be expired - try to refresh
+                warn!("Authentication failed, attempting to refresh credentials for integration {}", integration_id);
+
+                match provider.refresh_credentials(credentials).await {
+                    Ok(new_credentials) => {
+                        info!("Credentials refreshed successfully, updating database");
+
+                        // Update credentials in database
+                        if let Err(e) = self.update_integration_credentials(integration_id, &new_credentials) {
+                            error!("Failed to update credentials in database: {}", e);
+                        }
+
+                        // Update local credentials and retry
+                        *credentials = new_credentials;
+                        self.execute_single_action(provider, credentials, external_id, action, state_before).await
+                    }
+                    Err(e) => {
+                        error!("Failed to refresh credentials: {}", e);
+                        Err(ProviderError::AuthenticationFailed(format!(
+                            "Token expired and refresh failed: {}", e
+                        )))
+                    }
+                }
+            }
+            _ => first_result,
+        }
+    }
+
+    /// Execute a single action without retry
+    async fn execute_single_action(
+        &self,
+        provider: &std::sync::Arc<dyn crate::integrations::SmartHomeProvider>,
+        credentials: &JsonValue,
+        external_id: &str,
+        action: &RuleAction,
+        state_before: &Option<DeviceState>,
+    ) -> Result<crate::integrations::DeviceActionResult, ProviderError> {
+        match action {
+            RuleAction::TurnOn => provider.turn_on(credentials, external_id).await,
+            RuleAction::TurnOff => provider.turn_off(credentials, external_id).await,
+            RuleAction::Toggle => {
+                if state_before.as_ref().map(|s| s.is_on).unwrap_or(false) {
+                    provider.turn_off(credentials, external_id).await
+                } else {
+                    provider.turn_on(credentials, external_id).await
+                }
+            }
+        }
+    }
+
+    /// Update integration credentials in the database
+    fn update_integration_credentials(&self, integration_id: i32, new_credentials: &JsonValue) -> Result<(), String> {
+        let mut conn = self.pool.get().map_err(|e| e.to_string())?;
+
+        let credentials_str = serde_json::to_string(new_credentials)
+            .map_err(|e| format!("Failed to serialize credentials: {}", e))?;
+
+        diesel::update(user_integrations::table.filter(user_integrations::id.eq(integration_id)))
+            .set(user_integrations::credentials_json.eq(credentials_str))
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to update credentials: {}", e))?;
+
+        info!("Updated credentials for integration {}", integration_id);
+        Ok(())
     }
 
     /// Log an execution to the database

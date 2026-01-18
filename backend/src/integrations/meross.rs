@@ -284,6 +284,49 @@ impl MerossProvider {
             .unwrap_or(MEROSS_API_EU)
             .to_string()
     }
+
+    /// Perform a fresh login (used by both login and refresh_credentials)
+    async fn do_fresh_login(&self, credentials: &Value) -> Result<Value, ProviderError> {
+        let email = credentials
+            .get("email")
+            .and_then(|v| v.as_str())
+            .ok_or(ProviderError::InvalidCredentials)?;
+        let password = credentials
+            .get("password")
+            .and_then(|v| v.as_str())
+            .ok_or(ProviderError::InvalidCredentials)?;
+
+        info!("Meross login attempt for: {}", email);
+
+        // Try each regional endpoint until one works
+        let endpoints = [MEROSS_API_EU, MEROSS_API_US, MEROSS_API_AP];
+        let mut last_error = ProviderError::Unknown("No endpoints tried".to_string());
+
+        for endpoint in endpoints {
+            match self.try_login_endpoint(endpoint, email, password).await {
+                Ok(login_data) => {
+                    info!("Meross login successful via {}", endpoint);
+                    // Include email and password so we can refresh later
+                    return Ok(serde_json::json!({
+                        "token": login_data.token,
+                        "key": login_data.key,
+                        "user_id": login_data.userid,
+                        "email": email,
+                        "password": password,
+                        "api_base_url": endpoint,
+                        "mqtt_domain": login_data.mqtt_domain
+                    }));
+                }
+                Err(e) => {
+                    debug!("Meross login failed at {}: {}", endpoint, e);
+                    last_error = e;
+                }
+            }
+        }
+
+        error!("Meross login failed on all endpoints");
+        Err(last_error)
+    }
 }
 
 /// Simple base64 encoding without external dependency
@@ -338,43 +381,14 @@ impl SmartHomeProvider for MerossProvider {
             return Ok(credentials.clone());
         }
 
-        let email = credentials
-            .get("email")
-            .and_then(|v| v.as_str())
-            .ok_or(ProviderError::InvalidCredentials)?;
-        let password = credentials
-            .get("password")
-            .and_then(|v| v.as_str())
-            .ok_or(ProviderError::InvalidCredentials)?;
+        // Perform fresh login
+        self.do_fresh_login(credentials).await
+    }
 
-        info!("Meross login attempt for: {}", email);
-
-        // Try each regional endpoint until one works
-        let endpoints = [MEROSS_API_EU, MEROSS_API_US, MEROSS_API_AP];
-        let mut last_error = ProviderError::Unknown("No endpoints tried".to_string());
-
-        for endpoint in endpoints {
-            match self.try_login_endpoint(endpoint, email, password).await {
-                Ok(login_data) => {
-                    info!("Meross login successful via {}", endpoint);
-                    return Ok(serde_json::json!({
-                        "token": login_data.token,
-                        "key": login_data.key,
-                        "user_id": login_data.userid,
-                        "email": login_data.email,
-                        "api_base_url": endpoint,
-                        "mqtt_domain": login_data.mqtt_domain
-                    }));
-                }
-                Err(e) => {
-                    debug!("Meross login failed at {}: {}", endpoint, e);
-                    last_error = e;
-                }
-            }
-        }
-
-        error!("Meross login failed on all endpoints");
-        Err(last_error)
+    async fn refresh_credentials(&self, credentials: &Value) -> Result<Value, ProviderError> {
+        info!("Meross: Refreshing credentials (forcing new login)");
+        // Force a fresh login even if we have existing tokens
+        self.do_fresh_login(credentials).await
     }
 
     async fn list_devices(&self, credentials: &Value) -> Result<Vec<DiscoveredDevice>, ProviderError> {

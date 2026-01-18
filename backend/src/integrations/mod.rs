@@ -125,10 +125,11 @@ pub trait SmartHomeProvider: Send + Sync {
         DeviceCapabilities::default()
     }
 
-    /// Check if credentials are still valid
-    async fn validate_credentials(&self, credentials: &Value) -> Result<bool, ProviderError> {
-        // Default implementation: try to list devices
-        self.list_devices(credentials).await.map(|_| true)
+    /// Refresh credentials (re-login to get new token)
+    /// Returns updated credentials with new token if successful
+    async fn refresh_credentials(&self, credentials: &Value) -> Result<Value, ProviderError> {
+        // Default implementation: just call login which will re-authenticate
+        self.login(credentials).await
     }
 }
 
