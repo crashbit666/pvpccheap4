@@ -105,16 +105,18 @@ impl MqttConnection {
         // Build the appropriate URL based on transport configuration
         let mut mqtt_options = if config.use_websocket {
             // Use WebSocket transport (wss:// for TLS, ws:// for plain)
-            // First create MqttOptions with standard constructor, then set WebSocket transport
+            // IMPORTANT: For WebSocket, the "host" parameter must be the FULL URL including scheme and port
+            // See: https://github.com/bytebeamio/rumqtt/issues/808
             let scheme = if config.use_tls { "wss" } else { "ws" };
-            let url = format!(
-                "{}://{}:{}",
+            let ws_url = format!(
+                "{}://{}:{}/mqtt",
                 scheme, config.broker_host, config.broker_port
             );
-            info!("Setting up WebSocket MQTT connection to: {}", url);
+            info!("Setting up WebSocket MQTT connection to: {}", ws_url);
 
-            // Create options with client_id, then parse URL just for transport config
-            let mut opts = MqttOptions::new(&config.client_id, &config.broker_host, config.broker_port);
+            // For websocket, pass the full URL as the "host" parameter
+            // The port parameter is ignored for websocket connections
+            let mut opts = MqttOptions::new(&config.client_id, &ws_url, config.broker_port);
 
             // Set WebSocket transport with TLS
             if config.use_tls {
