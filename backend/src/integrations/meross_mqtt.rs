@@ -116,7 +116,7 @@ impl MerossMqttClient {
             ))?;
 
         // mqtt_domain from API is usually like "mqtt-eu-5.meross.com"
-        // The MQTT broker runs on port 8883 with TLS
+        // The MQTT broker runs on port 2001 with TLS
         let mqtt_domain = credentials
             .get("mqtt_domain")
             .and_then(|v| v.as_str())
