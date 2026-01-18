@@ -68,6 +68,22 @@ class RulesViewModel @Inject constructor(
         }
     }
 
+    fun deleteRule(rule: Rule) {
+        viewModelScope.launch {
+            rule.id?.let { id ->
+                when (val result = deviceRepository.deleteRule(id)) {
+                    is Result.Success -> {
+                        loadRules()
+                    }
+                    is Result.Error -> {
+                        _uiState.value = _uiState.value.copy(error = result.message)
+                    }
+                    is Result.Loading -> {}
+                }
+            }
+        }
+    }
+
     fun refresh() {
         loadRules()
     }
