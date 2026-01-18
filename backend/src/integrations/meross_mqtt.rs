@@ -173,6 +173,15 @@ impl MerossMqttClient {
         format!("/app/{}-{}/subscribe", self.user_id, Self::generate_app_id())
     }
 
+    /// Generate MQTT password from user_id and key
+    /// Meross MQTT password = MD5(user_id + key)
+    /// See: https://albertogeniola.github.io/MerossIot/meross-protocol.html
+    fn generate_mqtt_password(user_id: &str, key: &str) -> String {
+        let password_string = format!("{}{}", user_id, key);
+        let digest = md5::compute(password_string.as_bytes());
+        format!("{:x}", digest)
+    }
+
     /// Connect to MQTT broker
     pub async fn connect(&mut self) -> Result<(), ProviderError> {
         let client_id = self.build_client_id();
@@ -191,14 +200,18 @@ impl MerossMqttClient {
             (self.mqtt_domain.clone(), 2001)
         };
 
+        // Generate MQTT password: MD5(user_id + key)
+        let mqtt_password = Self::generate_mqtt_password(&self.user_id, &self.key);
+
         info!("Meross MQTT connecting to {}:{} (TLS TCP)", host, port);
+        debug!("Meross MQTT auth: user_id={}, password_hash={}", self.user_id, &mqtt_password[..8]);
 
         let config = MqttConfig {
             broker_host: host,
             broker_port: port,
             client_id,
             username: Some(self.user_id.clone()),
-            password: Some(self.key.clone()),
+            password: Some(mqtt_password),
             use_tls: true,
             use_websocket: false, // Meross uses standard MQTT over TLS TCP, NOT WebSocket
             keep_alive_secs: 30,
