@@ -147,7 +147,7 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun updateRule(id: String, rule: Rule): Result<Rule> {
+    suspend fun updateRule(id: Int, rule: Rule): Result<Rule> {
         return try {
             val response = apiService.updateRule(id, rule)
             if (response.isSuccessful && response.body() != null) {
@@ -160,7 +160,7 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun deleteRule(id: String): Result<Unit> {
+    suspend fun deleteRule(id: Int): Result<Unit> {
         return try {
             val response = apiService.deleteRule(id)
             if (response.isSuccessful) {
@@ -173,7 +173,7 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun toggleRule(id: String): Result<Rule> {
+    suspend fun toggleRule(id: Int): Result<Rule> {
         return try {
             val response = apiService.toggleRule(id)
             if (response.isSuccessful && response.body() != null) {

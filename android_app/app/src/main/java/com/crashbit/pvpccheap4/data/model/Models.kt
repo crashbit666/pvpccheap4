@@ -98,12 +98,13 @@ data class DeviceState(
 
 // Rule models
 data class Rule(
-    val id: String? = null,
+    val id: Int? = null,
     val name: String,
     @SerializedName("device_id")
-    val deviceId: String,
+    val deviceId: Int,
     @SerializedName("rule_type")
     val ruleType: String,
+    val action: String = "turn_on", // "turn_on", "turn_off", or "toggle"
     val config: RuleConfig,
     @SerializedName("is_enabled")
     val isEnabled: Boolean = true,

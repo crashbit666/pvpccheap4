@@ -408,8 +408,9 @@ fun AddRuleScreen(
 
                         val rule = Rule(
                             name = ruleName.ifBlank { "${selectedRuleType.displayName} - ${device.name}" },
-                            deviceId = device.id,
+                            deviceId = device.id.toIntOrNull() ?: 0,
                             ruleType = selectedRuleType.id,
+                            action = "turn_on",
                             config = config,
                             isEnabled = true
                         )

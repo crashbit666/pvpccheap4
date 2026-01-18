@@ -80,11 +80,11 @@ interface ApiService {
     suspend fun createRule(@Body rule: Rule): Response<Rule>
 
     @PUT("api/rules/{id}")
-    suspend fun updateRule(@Path("id") id: String, @Body rule: Rule): Response<Rule>
+    suspend fun updateRule(@Path("id") id: Int, @Body rule: Rule): Response<Rule>
 
     @DELETE("api/rules/{id}")
-    suspend fun deleteRule(@Path("id") id: String): Response<Unit>
+    suspend fun deleteRule(@Path("id") id: Int): Response<Unit>
 
     @POST("api/rules/{id}/toggle")
-    suspend fun toggleRule(@Path("id") id: String): Response<Rule>
+    suspend fun toggleRule(@Path("id") id: Int): Response<Rule>
 }
