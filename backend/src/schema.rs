@@ -86,6 +86,22 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    scheduled_executions (id) {
+        id -> Int4,
+        rule_id -> Int4,
+        scheduled_hour -> Timestamp,
+        expected_action -> Text,
+        status -> Text,
+        executed_at -> Nullable<Timestamp>,
+        execution_id -> Nullable<Int4>,
+        retry_count -> Int4,
+        last_retry_at -> Nullable<Timestamp>,
+        next_retry_at -> Nullable<Timestamp>,
+        created_at -> Timestamp,
+    }
+}
+
 diesel::joinable!(devices -> user_integrations (integration_id));
 diesel::joinable!(schedules -> devices (device_id));
 diesel::joinable!(schedules -> users (user_id));
@@ -93,12 +109,14 @@ diesel::joinable!(user_integrations -> users (user_id));
 diesel::joinable!(automation_rules -> users (user_id));
 diesel::joinable!(automation_rules -> devices (device_id));
 diesel::joinable!(rule_executions -> automation_rules (rule_id));
+diesel::joinable!(scheduled_executions -> automation_rules (rule_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     automation_rules,
     devices,
     prices,
     rule_executions,
+    scheduled_executions,
     schedules,
     user_integrations,
     users,

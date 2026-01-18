@@ -1,8 +1,8 @@
 use crate::{
     db::DbPool,
-    models::AutomationRule,
-    schema::{automation_rules, devices},
-    services::{auth::Claims, price_fetcher::PriceService},
+    models::ScheduledExecution,
+    schema::{automation_rules, devices, scheduled_executions},
+    services::{auth::Claims, price_fetcher::PriceService, schedule_computation::ScheduleComputationService},
 };
 use actix_web::{get, web, HttpResponse, Responder};
 use chrono::{Local, NaiveDate, Timelike};
@@ -41,7 +41,7 @@ pub struct ScheduleResponse {
 // Endpoints
 // ============================================================================
 
-/// Get scheduled actions for a specific date based on active rules
+/// Get scheduled actions for a specific date from scheduled_executions table
 #[get("")]
 pub async fn get_schedule(
     pool: web::Data<DbPool>,
@@ -66,162 +66,91 @@ pub async fn get_schedule(
         None => Local::now().date_naive(),
     };
 
-    // Get active rules for this user with device names
-    let rules_with_devices: Vec<(AutomationRule, String)> = match automation_rules::table
-        .inner_join(devices::table)
+    // Ensure schedules are computed for this date (in case they're missing)
+    let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
+    let _ = schedule_service.compute_schedule_for_date(date);
+
+    // Get scheduled executions for this user's rules on the given date
+    let start_of_day = date.and_hms_opt(0, 0, 0).unwrap();
+    let end_of_day = date.and_hms_opt(23, 59, 59).unwrap();
+
+    // Join scheduled_executions with automation_rules and devices to get all needed info
+    let executions: Vec<(ScheduledExecution, String, String, i32, String)> = match scheduled_executions::table
+        .inner_join(automation_rules::table.on(
+            scheduled_executions::rule_id.eq(automation_rules::id)
+        ))
+        .inner_join(devices::table.on(
+            automation_rules::device_id.eq(devices::id)
+        ))
         .filter(automation_rules::user_id.eq(user_id))
-        .filter(automation_rules::is_enabled.eq(true))
-        .select((AutomationRule::as_select(), devices::name))
+        .filter(scheduled_executions::scheduled_hour.ge(start_of_day))
+        .filter(scheduled_executions::scheduled_hour.le(end_of_day))
+        .select((
+            ScheduledExecution::as_select(),
+            automation_rules::name,
+            devices::name,
+            devices::id,
+            automation_rules::action,
+        ))
         .load(&mut conn)
     {
-        Ok(r) => r,
-        Err(_) => return HttpResponse::InternalServerError().body("Error fetching rules"),
+        Ok(e) => e,
+        Err(e) => {
+            log::error!("Error fetching scheduled executions: {}", e);
+            return HttpResponse::InternalServerError().body("Error fetching schedule");
+        }
     };
 
-    // Get prices for the date
+    // Get prices for the date for price info
     let price_service = PriceService::new(pool.get_ref().clone());
     let prices = price_service.get_prices_for_date(date).unwrap_or_default();
 
-    let mut scheduled_hours: Vec<ScheduledHour> = Vec::new();
-    let current_hour = if date == Local::now().date_naive() {
-        Local::now().hour()
-    } else if date < Local::now().date_naive() {
-        24 // All hours are in the past
-    } else {
-        0 // All hours are in the future
-    };
+    let scheduled_hours: Vec<ScheduledHour> = executions
+        .into_iter()
+        .map(|(exec, rule_name, device_name, device_id, action)| {
+            let hour = exec.scheduled_hour.hour();
 
-    for (rule, device_name) in rules_with_devices {
-        // Parse the config
-        let config = &rule.config;
+            // Find price for this hour
+            let price_at_hour = prices.iter()
+                .find(|p| p.timestamp.hour() == hour)
+                .map(|p| p.price);
 
-        match rule.rule_type.as_str() {
-            "cheapest_hours" => {
-                let hours_needed = config.get("cheapest_hours")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(6) as usize;
-
-                // Get the cheapest N hours
-                let cheapest = price_service.get_cheapest_hours(date, hours_needed).unwrap_or_default();
-
-                for price in cheapest {
-                    let hour = price.timestamp.hour();
-                    let status = if date < Local::now().date_naive() || hour < current_hour {
-                        if rule.action == "turn_on" {
-                            "completed_on"
-                        } else {
-                            "completed_off"
-                        }
+            // Map database status to API status
+            let status = match exec.status.as_str() {
+                "executed" => {
+                    if action == "turn_on" {
+                        "completed_on"
                     } else {
-                        "pending"
-                    };
-
-                    scheduled_hours.push(ScheduledHour {
-                        hour,
-                        device_id: rule.device_id,
-                        device_name: device_name.clone(),
-                        rule_id: rule.id,
-                        rule_name: rule.name.clone(),
-                        action: rule.action.clone(),
-                        status: status.to_string(),
-                        price: Some(price.price),
-                        price_formatted: Some(format!("{:.4} €/kWh", price.price)),
-                    });
-                }
-            }
-            "price_threshold" => {
-                let threshold = config.get("price_threshold")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.10);
-
-                // Get all hours below threshold
-                for price in &prices {
-                    if price.price <= threshold {
-                        let hour = price.timestamp.hour();
-                        let status = if date < Local::now().date_naive() || hour < current_hour {
-                            if rule.action == "turn_on" {
-                                "completed_on"
-                            } else {
-                                "completed_off"
-                            }
-                        } else {
-                            "pending"
-                        };
-
-                        scheduled_hours.push(ScheduledHour {
-                            hour,
-                            device_id: rule.device_id,
-                            device_name: device_name.clone(),
-                            rule_id: rule.id,
-                            rule_name: rule.name.clone(),
-                            action: rule.action.clone(),
-                            status: status.to_string(),
-                            price: Some(price.price),
-                            price_formatted: Some(format!("{:.4} €/kWh", price.price)),
-                        });
+                        "completed_off"
                     }
                 }
+                "pending" => "pending",
+                "retrying" => "failed", // Show as failed while retrying
+                "failed" => "failed",
+                "missed" => "failed", // Missed is also a type of failure
+                _ => "pending",
+            };
+
+            ScheduledHour {
+                hour,
+                device_id,
+                device_name,
+                rule_id: exec.rule_id,
+                rule_name,
+                action,
+                status: status.to_string(),
+                price: price_at_hour,
+                price_formatted: price_at_hour.map(|p| format!("{:.4} €/kWh", p)),
             }
-            "time_schedule" => {
-                let start_str = config.get("time_range_start")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("00:00");
-                let end_str = config.get("time_range_end")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("23:59");
-
-                let start_hour: u32 = start_str.split(':').next()
-                    .and_then(|h| h.parse().ok())
-                    .unwrap_or(0);
-                let end_hour: u32 = end_str.split(':').next()
-                    .and_then(|h| h.parse().ok())
-                    .unwrap_or(23);
-
-                // Handle overnight ranges (e.g., 22:00 to 08:00)
-                let hours_in_range: Vec<u32> = if start_hour <= end_hour {
-                    (start_hour..=end_hour).collect()
-                } else {
-                    (start_hour..24).chain(0..=end_hour).collect()
-                };
-
-                for hour in hours_in_range {
-                    let price_at_hour = prices.iter()
-                        .find(|p| p.timestamp.hour() == hour)
-                        .map(|p| p.price);
-
-                    let status = if date < Local::now().date_naive() || hour < current_hour {
-                        if rule.action == "turn_on" {
-                            "completed_on"
-                        } else {
-                            "completed_off"
-                        }
-                    } else {
-                        "pending"
-                    };
-
-                    scheduled_hours.push(ScheduledHour {
-                        hour,
-                        device_id: rule.device_id,
-                        device_name: device_name.clone(),
-                        rule_id: rule.id,
-                        rule_name: rule.name.clone(),
-                        action: rule.action.clone(),
-                        status: status.to_string(),
-                        price: price_at_hour,
-                        price_formatted: price_at_hour.map(|p| format!("{:.4} €/kWh", p)),
-                    });
-                }
-            }
-            // "manual" rules don't generate scheduled hours
-            _ => {}
-        }
-    }
+        })
+        .collect();
 
     // Sort by hour
-    scheduled_hours.sort_by_key(|s| s.hour);
+    let mut sorted_hours = scheduled_hours;
+    sorted_hours.sort_by_key(|s| s.hour);
 
     HttpResponse::Ok().json(ScheduleResponse {
         date: date.to_string(),
-        scheduled_hours,
+        scheduled_hours: sorted_hours,
     })
 }

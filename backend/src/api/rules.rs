@@ -2,10 +2,10 @@ use crate::{
     db::DbPool,
     models::{AutomationRule, NewAutomationRule, RuleExecution},
     schema::{automation_rules, devices, rule_executions, user_integrations},
-    services::auth::Claims,
+    services::{auth::Claims, schedule_computation::ScheduleComputationService},
 };
 use actix_web::{delete, get, post, put, web, HttpResponse, Responder};
-use chrono::Utc;
+use chrono::{Local, Utc};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -230,7 +230,21 @@ pub async fn create_rule(
         .values(&new_rule)
         .get_result::<AutomationRule>(&mut conn)
     {
-        Ok(rule) => HttpResponse::Created().json(rule),
+        Ok(rule) => {
+            // Compute schedules for this new rule (today and tomorrow)
+            let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
+            let today = Local::now().date_naive();
+            let tomorrow = today + chrono::Duration::days(1);
+
+            if let Err(e) = schedule_service.compute_schedule_for_rule(rule.id, today) {
+                log::warn!("Failed to compute today's schedule for new rule: {}", e);
+            }
+            if let Err(e) = schedule_service.compute_schedule_for_rule(rule.id, tomorrow) {
+                log::warn!("Failed to compute tomorrow's schedule for new rule: {}", e);
+            }
+
+            HttpResponse::Created().json(rule)
+        }
         Err(e) => {
             HttpResponse::InternalServerError().body(format!("Failed to create rule: {}", e))
         }
@@ -336,6 +350,28 @@ pub async fn update_rule(
         .execute(&mut conn)
         .ok();
 
+    // Recompute schedules if config, enabled status, or rule type changed
+    let should_recompute = body.config.is_some()
+        || body.is_enabled.is_some()
+        || body.rule_type.is_some()
+        || body.action.is_some();
+
+    if should_recompute {
+        let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
+        let today = Local::now().date_naive();
+        let tomorrow = today + chrono::Duration::days(1);
+
+        // Delete old schedules and recompute
+        let _ = schedule_service.delete_schedule_for_rule(rule_id);
+
+        if let Err(e) = schedule_service.compute_schedule_for_rule(rule_id, today) {
+            log::warn!("Failed to recompute today's schedule for rule {}: {}", rule_id, e);
+        }
+        if let Err(e) = schedule_service.compute_schedule_for_rule(rule_id, tomorrow) {
+            log::warn!("Failed to recompute tomorrow's schedule for rule {}: {}", rule_id, e);
+        }
+    }
+
     // Return updated rule
     match automation_rules::table
         .find(rule_id)
@@ -424,6 +460,24 @@ pub async fn toggle_rule(
         ))
         .execute(&mut conn)
         .ok();
+
+    // Recompute schedules based on new enabled status
+    let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
+    let today = Local::now().date_naive();
+    let tomorrow = today + chrono::Duration::days(1);
+
+    // Delete old schedules and recompute
+    let _ = schedule_service.delete_schedule_for_rule(rule_id);
+
+    if new_status {
+        // Rule is now enabled, compute schedules
+        if let Err(e) = schedule_service.compute_schedule_for_rule(rule_id, today) {
+            log::warn!("Failed to compute today's schedule for toggled rule {}: {}", rule_id, e);
+        }
+        if let Err(e) = schedule_service.compute_schedule_for_rule(rule_id, tomorrow) {
+            log::warn!("Failed to compute tomorrow's schedule for toggled rule {}: {}", rule_id, e);
+        }
+    }
 
     HttpResponse::Ok().json(serde_json::json!({
         "id": rule_id,

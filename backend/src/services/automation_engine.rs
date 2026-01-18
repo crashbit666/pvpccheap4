@@ -2,10 +2,11 @@ use crate::{
     db::DbPool,
     integrations::{ProviderRegistry, DeviceState},
     models::{
-        AutomationRule, CheapestHoursConfig, NewRuleExecution, Price, PriceThresholdConfig,
-        RuleAction, TimeScheduleConfig,
+        AutomationRule, CheapestHoursConfig, ExecutionStatus, NewRuleExecution, Price,
+        PriceThresholdConfig, RuleAction, ScheduledExecution, TimeScheduleConfig,
+        UpdateScheduledExecution,
     },
-    schema::{automation_rules, devices, prices, rule_executions, user_integrations},
+    schema::{automation_rules, devices, prices, rule_executions, scheduled_executions, user_integrations},
 };
 use chrono::{Local, NaiveDateTime, NaiveTime, Timelike, Weekday, Datelike};
 use diesel::prelude::*;
@@ -584,6 +585,210 @@ impl AutomationEngine {
         {
             error!("Failed to log execution: {}", e);
         }
+    }
+
+    // =========================================================================
+    // Scheduled Execution Methods
+    // =========================================================================
+
+    /// Execute all scheduled actions for the current hour
+    pub async fn execute_current_hour(&self) -> Vec<ExecutionResult> {
+        let mut results = Vec::new();
+        let now = Local::now().naive_local();
+        let current_hour_start = now.date().and_hms_opt(now.hour(), 0, 0).unwrap();
+
+        let mut conn = match self.pool.get() {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to get connection: {}", e);
+                return results;
+            }
+        };
+
+        // Get pending scheduled executions for current hour
+        let pending_executions: Vec<(ScheduledExecution, AutomationRule)> =
+            scheduled_executions::table
+                .inner_join(automation_rules::table)
+                .filter(scheduled_executions::scheduled_hour.eq(current_hour_start))
+                .filter(scheduled_executions::status.eq(ExecutionStatus::Pending.as_str()))
+                .select((ScheduledExecution::as_select(), AutomationRule::as_select()))
+                .load(&mut conn)
+                .unwrap_or_default();
+
+        info!(
+            "Found {} pending scheduled executions for hour {}",
+            pending_executions.len(),
+            current_hour_start
+        );
+
+        for (scheduled, rule) in pending_executions {
+            let result = self.execute_scheduled_execution(&scheduled, &rule).await;
+            results.push(result);
+        }
+
+        results
+    }
+
+    /// Execute a specific scheduled execution
+    async fn execute_scheduled_execution(
+        &self,
+        scheduled: &ScheduledExecution,
+        rule: &AutomationRule,
+    ) -> ExecutionResult {
+        let current_price = self.get_current_price(&Local::now().naive_local());
+        let action = RuleAction::from_str(&scheduled.expected_action).unwrap_or(RuleAction::TurnOn);
+
+        let evaluation = RuleEvaluation {
+            rule_id: rule.id,
+            should_trigger: true,
+            action: action.clone(),
+            reason: format!("Scheduled execution for hour {}", scheduled.scheduled_hour),
+        };
+
+        // Execute the action
+        let result = self.execute_rule(rule, &evaluation, current_price).await;
+
+        // Log the execution to rule_executions
+        self.log_execution(&result, &evaluation);
+
+        // Update the scheduled_execution status
+        self.update_scheduled_status(scheduled.id, &result).await;
+
+        result
+    }
+
+    /// Update the status of a scheduled execution based on result
+    async fn update_scheduled_status(&self, scheduled_id: i32, result: &ExecutionResult) {
+        let mut conn = match self.pool.get() {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to get connection for status update: {}", e);
+                return;
+            }
+        };
+
+        let now = Local::now().naive_local();
+
+        if result.success {
+            // Mark as executed
+            let update = UpdateScheduledExecution {
+                status: Some(ExecutionStatus::Executed.as_str().to_string()),
+                executed_at: Some(now),
+                execution_id: None, // TODO: get the execution_id from log
+                retry_count: None,
+                last_retry_at: None,
+                next_retry_at: Some(None),
+            };
+
+            diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled_id)))
+                .set(&update)
+                .execute(&mut conn)
+                .ok();
+        } else {
+            // Get current retry count
+            let current: Option<ScheduledExecution> = scheduled_executions::table
+                .filter(scheduled_executions::id.eq(scheduled_id))
+                .first(&mut conn)
+                .optional()
+                .unwrap_or(None);
+
+            if let Some(sched) = current {
+                let new_retry_count = sched.retry_count + 1;
+
+                if new_retry_count >= 5 {
+                    // Max retries reached - mark as failed
+                    let update = UpdateScheduledExecution {
+                        status: Some(ExecutionStatus::Failed.as_str().to_string()),
+                        executed_at: None,
+                        execution_id: None,
+                        retry_count: Some(new_retry_count),
+                        last_retry_at: Some(now),
+                        next_retry_at: Some(None),
+                    };
+
+                    diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled_id)))
+                        .set(&update)
+                        .execute(&mut conn)
+                        .ok();
+                } else {
+                    // Schedule retry in 1 minute
+                    let next_retry = now + chrono::Duration::minutes(1);
+                    let update = UpdateScheduledExecution {
+                        status: Some(ExecutionStatus::Retrying.as_str().to_string()),
+                        executed_at: None,
+                        execution_id: None,
+                        retry_count: Some(new_retry_count),
+                        last_retry_at: Some(now),
+                        next_retry_at: Some(Some(next_retry)),
+                    };
+
+                    diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled_id)))
+                        .set(&update)
+                        .execute(&mut conn)
+                        .ok();
+                }
+            }
+        }
+    }
+
+    /// Retry failed scheduled executions that are due
+    pub async fn retry_failed_executions(&self) -> Vec<ExecutionResult> {
+        let mut results = Vec::new();
+        let now = Local::now().naive_local();
+
+        let mut conn = match self.pool.get() {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to get connection: {}", e);
+                return results;
+            }
+        };
+
+        // Get executions that are in "retrying" status and due for retry
+        let retrying_executions: Vec<(ScheduledExecution, AutomationRule)> =
+            scheduled_executions::table
+                .inner_join(automation_rules::table)
+                .filter(scheduled_executions::status.eq(ExecutionStatus::Retrying.as_str()))
+                .filter(scheduled_executions::next_retry_at.le(now))
+                .select((ScheduledExecution::as_select(), AutomationRule::as_select()))
+                .load(&mut conn)
+                .unwrap_or_default();
+
+        if !retrying_executions.is_empty() {
+            info!("Found {} executions to retry", retrying_executions.len());
+        }
+
+        for (scheduled, rule) in retrying_executions {
+            // Check if the hour has passed - if so, mark as missed
+            let current_hour = now.date().and_hms_opt(now.hour(), 0, 0).unwrap();
+            if scheduled.scheduled_hour < current_hour {
+                // Hour has passed, mark as missed
+                let update = UpdateScheduledExecution {
+                    status: Some(ExecutionStatus::Missed.as_str().to_string()),
+                    executed_at: None,
+                    execution_id: None,
+                    retry_count: None,
+                    last_retry_at: Some(now),
+                    next_retry_at: Some(None),
+                };
+
+                diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled.id)))
+                    .set(&update)
+                    .execute(&mut conn)
+                    .ok();
+
+                warn!(
+                    "Scheduled execution {} for rule {} marked as missed - hour passed",
+                    scheduled.id, rule.id
+                );
+            } else {
+                // Try again
+                let result = self.execute_scheduled_execution(&scheduled, &rule).await;
+                results.push(result);
+            }
+        }
+
+        results
     }
 }
 

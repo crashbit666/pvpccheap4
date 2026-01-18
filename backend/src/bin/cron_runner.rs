@@ -18,6 +18,7 @@ use backend::db::{self, DbPool};
 use backend::integrations::ProviderRegistry;
 use backend::services::automation_engine::AutomationEngine;
 use backend::services::price_fetcher::PriceService;
+use backend::services::schedule_computation::ScheduleComputationService;
 
 #[tokio::main]
 async fn main() {
@@ -63,7 +64,7 @@ async fn main() {
         let pool = pool_auto.clone();
         Box::pin(async move {
             log::info!("Scheduled run-automation triggered (hourly)");
-            run_automation(pool).await;
+            run_scheduled_automation(pool).await;
         })
     })
     .expect("Failed to create automation job");
@@ -72,12 +73,28 @@ async fn main() {
         .await
         .expect("Failed to add automation job");
 
+    // Schedule retry job every minute
+    // Cron: "0 * * * * *" = second 0, every minute
+    let pool_retry = pool.clone();
+    let retry_job = Job::new_async("0 * * * * *", move |_uuid, _l| {
+        let pool = pool_retry.clone();
+        Box::pin(async move {
+            retry_failed_executions(pool).await;
+        })
+    })
+    .expect("Failed to create retry job");
+    sched
+        .add(retry_job)
+        .await
+        .expect("Failed to add retry job");
+
     // Start the scheduler
     sched.start().await.expect("Failed to start scheduler");
 
     log::info!("Cron scheduler running. Jobs scheduled:");
     log::info!("  - sync-prices: daily at 20:30");
     log::info!("  - run-automation: every hour at :00");
+    log::info!("  - retry-failed: every minute");
 
     // Keep the process running
     loop {
@@ -88,6 +105,7 @@ async fn main() {
 /// Sync prices at startup - loads today's prices and tomorrow's if past 20:30
 async fn sync_prices_startup(pool: Arc<DbPool>) {
     let service = PriceService::new((*pool).clone());
+    let schedule_service = ScheduleComputationService::new((*pool).clone());
     let now = Local::now();
     let today = now.date_naive();
     let tomorrow = today + chrono::Duration::days(1);
@@ -136,19 +154,44 @@ async fn sync_prices_startup(pool: Arc<DbPool>) {
         }
     }
 
-    // Also run automation once at startup to handle current hour
+    // Compute schedules for today
+    log::info!("Computing schedules for today...");
+    match schedule_service.compute_schedule_for_date(today) {
+        Ok(count) => log::info!("Computed {} scheduled executions for today", count),
+        Err(e) => log::error!("Failed to compute today's schedules: {}", e),
+    }
+
+    // Mark any missed hours
+    match schedule_service.mark_missed_hours() {
+        Ok(count) if count > 0 => log::info!("Marked {} hours as missed", count),
+        _ => {}
+    }
+
+    // Run scheduled automation for current hour
     log::info!("Running initial automation check...");
-    run_automation(pool).await;
+    run_scheduled_automation(pool).await;
 }
 
-/// Daily sync at 20:30 - fetches tomorrow's prices
+/// Daily sync at 20:30 - fetches tomorrow's prices and computes schedules
 async fn sync_prices_daily(pool: Arc<DbPool>) {
     let service = PriceService::new((*pool).clone());
+    let schedule_service = ScheduleComputationService::new((*pool).clone());
     let tomorrow = Local::now().date_naive() + chrono::Duration::days(1);
 
     log::info!("Daily sync: fetching tomorrow's prices ({})...", tomorrow);
     match service.sync_tomorrow().await {
-        Ok(count) => log::info!("Synced {} prices for tomorrow", count),
+        Ok(count) => {
+            log::info!("Synced {} prices for tomorrow", count);
+
+            // Compute schedules for tomorrow now that we have prices
+            log::info!("Computing schedules for tomorrow...");
+            match schedule_service.compute_schedule_for_date(tomorrow) {
+                Ok(sched_count) => {
+                    log::info!("Computed {} scheduled executions for tomorrow", sched_count)
+                }
+                Err(e) => log::error!("Failed to compute tomorrow's schedules: {}", e),
+            }
+        }
         Err(e) => log::error!("Failed to sync tomorrow's prices: {}", e),
     }
 }
@@ -195,6 +238,70 @@ async fn run_automation(pool: Arc<DbPool>) {
         for result in results.iter().filter(|r| !r.success) {
             if let Some(ref error) = result.error_message {
                 log::error!("Rule {} failed: {}", result.rule_id, error);
+            }
+        }
+    }
+}
+
+/// Run scheduled automation for the current hour
+async fn run_scheduled_automation(pool: Arc<DbPool>) {
+    let registry = Arc::new(ProviderRegistry::new());
+    let engine = AutomationEngine::new((*pool).clone(), registry);
+
+    let results = engine.execute_current_hour().await;
+
+    let successful = results.iter().filter(|r| r.success).count();
+    let failed = results.len() - successful;
+
+    if results.is_empty() {
+        log::info!("Scheduled automation: no executions for current hour");
+    } else {
+        log::info!(
+            "Scheduled automation completed: {} executions, {} successful, {} failed",
+            results.len(),
+            successful,
+            failed
+        );
+
+        // Log details of failed executions
+        for result in results.iter().filter(|r| !r.success) {
+            if let Some(ref error) = result.error_message {
+                log::error!("Rule {} failed: {}", result.rule_id, error);
+            }
+        }
+    }
+}
+
+/// Retry failed executions that are due for retry
+async fn retry_failed_executions(pool: Arc<DbPool>) {
+    let registry = Arc::new(ProviderRegistry::new());
+    let engine = AutomationEngine::new((*pool).clone(), registry);
+    let schedule_service = ScheduleComputationService::new((*pool).clone());
+
+    // First, mark any missed hours (hours that have passed without execution)
+    match schedule_service.mark_missed_hours() {
+        Ok(count) if count > 0 => log::info!("Marked {} hours as missed", count),
+        Err(e) => log::warn!("Failed to mark missed hours: {}", e),
+        _ => {}
+    }
+
+    // Then retry failed executions
+    let results = engine.retry_failed_executions().await;
+
+    if !results.is_empty() {
+        let successful = results.iter().filter(|r| r.success).count();
+        let failed = results.len() - successful;
+
+        log::info!(
+            "Retry completed: {} retries, {} successful, {} still failing",
+            results.len(),
+            successful,
+            failed
+        );
+
+        for result in results.iter().filter(|r| !r.success) {
+            if let Some(ref error) = result.error_message {
+                log::warn!("Retry for rule {} failed: {}", result.rule_id, error);
             }
         }
     }

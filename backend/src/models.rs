@@ -230,6 +230,86 @@ pub struct Schedule {
 }
 
 // ============================================================================
+// Scheduled Execution Models
+// ============================================================================
+
+/// Execution status for scheduled actions
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionStatus {
+    Pending,
+    Executed,
+    Failed,
+    Retrying,
+    Missed,
+}
+
+impl ExecutionStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ExecutionStatus::Pending => "pending",
+            ExecutionStatus::Executed => "executed",
+            ExecutionStatus::Failed => "failed",
+            ExecutionStatus::Retrying => "retrying",
+            ExecutionStatus::Missed => "missed",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "pending" => Some(ExecutionStatus::Pending),
+            "executed" => Some(ExecutionStatus::Executed),
+            "failed" => Some(ExecutionStatus::Failed),
+            "retrying" => Some(ExecutionStatus::Retrying),
+            "missed" => Some(ExecutionStatus::Missed),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Queryable, Selectable, Serialize, Deserialize, Debug, Clone)]
+#[diesel(table_name = crate::schema::scheduled_executions)]
+pub struct ScheduledExecution {
+    pub id: i32,
+    pub rule_id: i32,
+    pub scheduled_hour: NaiveDateTime,
+    pub expected_action: String,
+    pub status: String,
+    pub executed_at: Option<NaiveDateTime>,
+    pub execution_id: Option<i32>,
+    pub retry_count: i32,
+    pub last_retry_at: Option<NaiveDateTime>,
+    pub next_retry_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+}
+
+impl ScheduledExecution {
+    pub fn get_status(&self) -> Option<ExecutionStatus> {
+        ExecutionStatus::from_str(&self.status)
+    }
+}
+
+#[derive(Insertable, Debug)]
+#[diesel(table_name = crate::schema::scheduled_executions)]
+pub struct NewScheduledExecution {
+    pub rule_id: i32,
+    pub scheduled_hour: NaiveDateTime,
+    pub expected_action: String,
+    pub status: String,
+}
+
+#[derive(AsChangeset, Debug)]
+#[diesel(table_name = crate::schema::scheduled_executions)]
+pub struct UpdateScheduledExecution {
+    pub status: Option<String>,
+    pub executed_at: Option<NaiveDateTime>,
+    pub execution_id: Option<i32>,
+    pub retry_count: Option<i32>,
+    pub last_retry_at: Option<NaiveDateTime>,
+    pub next_retry_at: Option<Option<NaiveDateTime>>,
+}
+
+// ============================================================================
 // Configuration Structs for Rules
 // ============================================================================
 
