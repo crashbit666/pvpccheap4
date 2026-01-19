@@ -24,7 +24,7 @@ class AuthInterceptor @Inject constructor(
         // Get token synchronously (safe in interceptor context)
         val token = runBlocking { tokenManager.getTokenSync() }
 
-        return if (token != null) {
+        val response = if (token != null) {
             val newRequest = originalRequest.newBuilder()
                 .header("Authorization", "Bearer $token")
                 .build()
@@ -32,5 +32,13 @@ class AuthInterceptor @Inject constructor(
         } else {
             chain.proceed(originalRequest)
         }
+
+        // Handle 401 Unauthorized - token expired or invalid
+        if (response.code == 401) {
+            // Clear the session so user is redirected to login
+            runBlocking { tokenManager.clearSession() }
+        }
+
+        return response
     }
 }

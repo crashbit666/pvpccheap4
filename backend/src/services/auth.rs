@@ -67,7 +67,7 @@ pub fn create_jwt(user_id: i32) -> Result<String, String> {
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_secs() as usize
-        + 24 * 3600; // 24 hours
+        + 90 * 24 * 3600; // 90 days (3 months)
 
     let claims = Claims {
         sub: user_id.to_string(),
@@ -184,7 +184,7 @@ mod tests {
             .as_secs() as usize;
 
         assert!(token_data.claims.exp > now);
-        // Should be approximately 24 hours in the future
-        assert!(token_data.claims.exp <= now + 24 * 3600 + 1);
+        // Should be approximately 90 days in the future
+        assert!(token_data.claims.exp <= now + 90 * 24 * 3600 + 1);
     }
 }
