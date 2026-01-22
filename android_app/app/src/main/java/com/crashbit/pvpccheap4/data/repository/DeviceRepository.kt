@@ -27,7 +27,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to get integrations", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -41,7 +41,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to create integration: ${response.message()}", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -54,7 +54,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to delete integration", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -72,7 +72,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to get devices", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -86,7 +86,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to sync devices: ${response.message()}", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -100,7 +100,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to control device", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -121,7 +121,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to get device state", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -135,7 +135,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to get rules", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -148,7 +148,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to create rule", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -161,7 +161,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to update rule", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -174,7 +174,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to delete rule", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -187,7 +187,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to toggle rule", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -201,7 +201,7 @@ class DeviceRepository @Inject constructor(
                 Result.Error("Failed to get schedule", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 }

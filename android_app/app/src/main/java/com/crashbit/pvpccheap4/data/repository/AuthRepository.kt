@@ -11,8 +11,36 @@ import javax.inject.Singleton
 
 sealed class Result<out T> {
     data class Success<T>(val data: T) : Result<T>()
-    data class Error(val message: String, val code: Int? = null) : Result<Nothing>()
+    data class Error(
+        val message: String,
+        val code: Int? = null,
+        val isConnectionError: Boolean = false
+    ) : Result<Nothing>()
     data object Loading : Result<Nothing>()
+
+    companion object {
+        private const val CONNECTION_ERROR_MESSAGE = "No hi ha accés al servei del núvol de PVPCCheap"
+
+        fun connectionError(): Error = Error(CONNECTION_ERROR_MESSAGE, isConnectionError = true)
+
+        fun isConnectionException(e: Exception): Boolean {
+            return e is java.net.ConnectException ||
+                    e is java.net.UnknownHostException ||
+                    e is java.net.SocketTimeoutException ||
+                    e is java.net.NoRouteToHostException ||
+                    e.cause is java.net.ConnectException ||
+                    e.cause is java.net.UnknownHostException ||
+                    e.cause is java.net.SocketTimeoutException
+        }
+
+        fun <T> fromException(e: Exception): Error {
+            return if (isConnectionException(e)) {
+                connectionError()
+            } else {
+                Error(e.message ?: "Error de xarxa")
+            }
+        }
+    }
 }
 
 @Singleton
@@ -40,7 +68,7 @@ class AuthRepository @Inject constructor(
                 Result.Error("Login failed: ${response.message()}", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -55,7 +83,7 @@ class AuthRepository @Inject constructor(
                 Result.Error("Registration failed: ${response.message()}", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -72,7 +100,7 @@ class AuthRepository @Inject constructor(
                 Result.Error("Failed to get user", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 }

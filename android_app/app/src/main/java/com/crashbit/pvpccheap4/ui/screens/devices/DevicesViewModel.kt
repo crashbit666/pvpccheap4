@@ -17,6 +17,7 @@ data class DevicesUiState(
     val isLoading: Boolean = false,
     val isSyncing: Boolean = false,
     val error: String? = null,
+    val isConnectionError: Boolean = false,
     val devices: List<Device> = emptyList(),
     val integrations: List<Integration> = emptyList(),
     val syncMessage: String? = null
@@ -36,7 +37,7 @@ class DevicesViewModel @Inject constructor(
 
     fun loadAll() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null, isConnectionError = false)
 
             // Load integrations
             when (val result = deviceRepository.getIntegrations()) {
@@ -44,7 +45,12 @@ class DevicesViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(integrations = result.data)
                 }
                 is Result.Error -> {
-                    _uiState.value = _uiState.value.copy(error = result.message)
+                    _uiState.value = _uiState.value.copy(
+                        error = result.message,
+                        isConnectionError = result.isConnectionError,
+                        isLoading = false
+                    )
+                    if (result.isConnectionError) return@launch
                 }
                 is Result.Loading -> {}
             }
@@ -60,6 +66,7 @@ class DevicesViewModel @Inject constructor(
                 is Result.Error -> {
                     _uiState.value = _uiState.value.copy(
                         error = result.message,
+                        isConnectionError = result.isConnectionError,
                         isLoading = false
                     )
                 }
