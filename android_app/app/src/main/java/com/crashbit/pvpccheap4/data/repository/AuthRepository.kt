@@ -33,7 +33,7 @@ sealed class Result<out T> {
                     e.cause is java.net.SocketTimeoutException
         }
 
-        fun <T> fromException(e: Exception): Error {
+        fun fromException(e: Exception): Error {
             return if (isConnectionException(e)) {
                 connectionError()
             } else {

@@ -89,7 +89,7 @@ fun PricesScreen(
             if (selectedTabIndex == 0 && uiState.currentPrice != null) {
                 CurrentPriceSummary(
                     currentPrice = uiState.currentPrice!!,
-                    cheapestHours = uiState.cheapestHours
+                    cheapestHours = uiState.todayCheapestHours
                 )
             }
 
@@ -111,6 +111,12 @@ fun PricesScreen(
                             isTomorrow = selectedTabIndex == 1
                         )
                     } else {
+                        val cheapestHours = if (selectedTabIndex == 0) {
+                            uiState.todayCheapestHours
+                        } else {
+                            uiState.tomorrowCheapestHours
+                        }
+
                         LazyColumn(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -118,7 +124,7 @@ fun PricesScreen(
                             items(prices.sortedBy { it.hour }) { price ->
                                 PriceItem(
                                     price = price,
-                                    isCheap = uiState.cheapestHours.any { it.hour == price.hour },
+                                    isCheap = price.hour in cheapestHours,
                                     isCurrentHour = selectedTabIndex == 0 && price.hour == LocalTime.now().hour
                                 )
                             }
@@ -143,9 +149,9 @@ fun PricesScreen(
 @Composable
 fun CurrentPriceSummary(
     currentPrice: PriceData,
-    cheapestHours: List<PriceData>
+    cheapestHours: Set<Int>
 ) {
-    val isCheap = cheapestHours.any { it.hour == currentPrice.hour }
+    val isCheap = currentPrice.hour in cheapestHours
 
     Card(
         modifier = Modifier

@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -151,6 +152,9 @@ fun AddRuleScreen(
 
     // cheapest_hours config
     var cheapestHours by remember { mutableFloatStateOf(3f) }
+    var cheapestHoursLimitTimeWindow by remember { mutableStateOf(false) }
+    var cheapestHoursTimeStart by remember { mutableStateOf("06:00") }
+    var cheapestHoursTimeEnd by remember { mutableStateOf("22:00") }
 
     // price_threshold config
     var priceThreshold by remember { mutableStateOf("0.10") }
@@ -327,8 +331,61 @@ fun AddRuleScreen(
                         steps = 10,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = cheapestHoursLimitTimeWindow,
+                                onClick = { cheapestHoursLimitTimeWindow = !cheapestHoursLimitTimeWindow },
+                                role = Role.Checkbox
+                            )
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Checkbox(
+                            checked = cheapestHoursLimitTimeWindow,
+                            onCheckedChange = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Limitar a franja horària",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    if (cheapestHoursLimitTimeWindow) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = cheapestHoursTimeStart,
+                                onValueChange = { cheapestHoursTimeStart = it },
+                                label = { Text("Inici") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = cheapestHoursTimeEnd,
+                                onValueChange = { cheapestHoursTimeEnd = it },
+                                label = { Text("Fi") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "El dispositiu s'encendrà durant les ${cheapestHours.toInt()} hores més barates del dia",
+                        text = if (cheapestHoursLimitTimeWindow) {
+                            "El dispositiu s'encendrà durant les ${cheapestHours.toInt()} hores més barates entre $cheapestHoursTimeStart i $cheapestHoursTimeEnd"
+                        } else {
+                            "El dispositiu s'encendrà durant les ${cheapestHours.toInt()} hores més barates del dia"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -397,7 +454,17 @@ fun AddRuleScreen(
                 onClick = {
                     selectedDevice?.let { device ->
                         val config = when (selectedRuleType) {
-                            RuleType.CHEAPEST_HOURS -> RuleConfig(cheapestHours = cheapestHours.toInt())
+                            RuleType.CHEAPEST_HOURS -> {
+                                if (cheapestHoursLimitTimeWindow) {
+                                    RuleConfig(
+                                        cheapestHours = cheapestHours.toInt(),
+                                        timeRangeStart = cheapestHoursTimeStart,
+                                        timeRangeEnd = cheapestHoursTimeEnd
+                                    )
+                                } else {
+                                    RuleConfig(cheapestHours = cheapestHours.toInt())
+                                }
+                            }
                             RuleType.PRICE_THRESHOLD -> RuleConfig(priceThreshold = priceThreshold.toDoubleOrNull() ?: 0.10)
                             RuleType.TIME_SCHEDULE -> RuleConfig(
                                 timeRangeStart = timeRangeStart,

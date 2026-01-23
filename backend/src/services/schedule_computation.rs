@@ -117,11 +117,57 @@ impl ScheduleComputationService {
                     .and_then(|v| v.as_i64())
                     .unwrap_or(6) as usize;
 
-                let cheapest = price_service
-                    .get_cheapest_hours(date, hours_needed)
+                // Check for optional time window
+                let start_hour = rule
+                    .config
+                    .get("time_range_start")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| s.split(':').next())
+                    .and_then(|h| h.parse::<u32>().ok());
+
+                let end_hour = rule
+                    .config
+                    .get("time_range_end")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| s.split(':').next())
+                    .and_then(|h| h.parse::<u32>().ok());
+
+                // Get all prices for the date
+                let all_prices = price_service
+                    .get_prices_for_date(date)
                     .map_err(|e| e.to_string())?;
 
-                Ok(cheapest.iter().map(|p| p.timestamp.hour()).collect())
+                // Filter by time window if specified
+                let filtered_prices: Vec<_> = match (start_hour, end_hour) {
+                    (Some(start), Some(end)) => {
+                        all_prices
+                            .into_iter()
+                            .filter(|p| {
+                                let hour = p.timestamp.hour();
+                                if start <= end {
+                                    // Normal range: e.g., 06:00-22:00
+                                    hour >= start && hour <= end
+                                } else {
+                                    // Overnight range: e.g., 22:00-06:00
+                                    hour >= start || hour <= end
+                                }
+                            })
+                            .collect()
+                    }
+                    _ => all_prices, // No time window, use all hours
+                };
+
+                // Sort by price and take the cheapest N hours
+                let mut sorted_prices = filtered_prices;
+                sorted_prices.sort_by(|a, b| a.price.partial_cmp(&b.price).unwrap());
+
+                let cheapest_hours: Vec<u32> = sorted_prices
+                    .iter()
+                    .take(hours_needed)
+                    .map(|p| p.timestamp.hour())
+                    .collect();
+
+                Ok(cheapest_hours)
             }
             "price_threshold" => {
                 let threshold = rule

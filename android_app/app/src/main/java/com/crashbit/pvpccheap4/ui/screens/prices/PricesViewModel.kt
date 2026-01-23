@@ -18,7 +18,8 @@ data class PricesUiState(
     val error: String? = null,
     val todayPrices: List<PriceData> = emptyList(),
     val tomorrowPrices: List<PriceData> = emptyList(),
-    val cheapestHours: List<PriceData> = emptyList(),
+    val todayCheapestHours: Set<Int> = emptySet(),
+    val tomorrowCheapestHours: Set<Int> = emptySet(),
     val currentPrice: PriceData? = null
 )
 
@@ -30,9 +31,12 @@ class PricesViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(PricesUiState())
     val uiState: StateFlow<PricesUiState> = _uiState.asStateFlow()
 
+    companion object {
+        private const val CHEAPEST_HOURS_COUNT = 5
+    }
+
     init {
         loadTodayPrices()
-        loadCheapestHours()
     }
 
     fun loadTodayPrices() {
@@ -44,9 +48,11 @@ class PricesViewModel @Inject constructor(
                     val prices = result.data
                     val currentHour = LocalTime.now().hour
                     val currentPrice = prices.find { it.hour == currentHour }
+                    val cheapestHours = calculateCheapestHours(prices)
 
                     _uiState.value = _uiState.value.copy(
                         todayPrices = prices,
+                        todayCheapestHours = cheapestHours,
                         currentPrice = currentPrice,
                         isLoading = false
                     )
@@ -68,14 +74,19 @@ class PricesViewModel @Inject constructor(
 
             when (val result = priceRepository.getPricesTomorrow()) {
                 is Result.Success -> {
+                    val prices = result.data
+                    val cheapestHours = calculateCheapestHours(prices)
+
                     _uiState.value = _uiState.value.copy(
-                        tomorrowPrices = result.data,
+                        tomorrowPrices = prices,
+                        tomorrowCheapestHours = cheapestHours,
                         isLoading = false
                     )
                 }
                 is Result.Error -> {
                     _uiState.value = _uiState.value.copy(
                         tomorrowPrices = emptyList(),
+                        tomorrowCheapestHours = emptySet(),
                         isLoading = false
                     )
                 }
@@ -84,24 +95,15 @@ class PricesViewModel @Inject constructor(
         }
     }
 
-    private fun loadCheapestHours() {
-        viewModelScope.launch {
-            when (val result = priceRepository.getCheapestHours(count = 5)) {
-                is Result.Success -> {
-                    _uiState.value = _uiState.value.copy(
-                        cheapestHours = result.data
-                    )
-                }
-                is Result.Error -> {
-                    // Silent fail for cheapest hours
-                }
-                is Result.Loading -> {}
-            }
-        }
+    private fun calculateCheapestHours(prices: List<PriceData>): Set<Int> {
+        return prices
+            .sortedBy { it.price }
+            .take(CHEAPEST_HOURS_COUNT)
+            .map { it.hour }
+            .toSet()
     }
 
     fun refresh() {
         loadTodayPrices()
-        loadCheapestHours()
     }
 }
