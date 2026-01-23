@@ -1,5 +1,5 @@
 use crate::db::DbPool;
-use crate::models::{AutomationRule, ExecutionStatus, NewScheduledExecution, ScheduledExecution};
+use crate::models::{AutomationRule, ExecutionStatus, NewScheduledExecution, Price, ScheduledExecution};
 use crate::schema::{automation_rules, devices, scheduled_executions};
 use crate::services::price_fetcher::PriceService;
 use chrono::{Local, NaiveDate, NaiveDateTime, Timelike};
@@ -61,15 +61,12 @@ impl ScheduleComputationService {
         rule: &AutomationRule,
         date: NaiveDate,
     ) -> Result<usize, String> {
-        // Get hours to schedule based on rule type
-        let hours_to_schedule = self.calculate_hours_for_rule(rule, date)?;
+        // Get timestamps to schedule based on rule type
+        // Returns NaiveDateTime to handle overnight windows spanning two days
+        let timestamps_to_schedule = self.calculate_timestamps_for_rule(rule, date)?;
 
         let mut count = 0;
-        for hour in hours_to_schedule {
-            let scheduled_hour = date
-                .and_hms_opt(hour as u32, 0, 0)
-                .ok_or("Invalid hour")?;
-
+        for scheduled_hour in timestamps_to_schedule {
             let new_execution = NewScheduledExecution {
                 rule_id: rule.id,
                 scheduled_hour,
@@ -102,11 +99,13 @@ impl ScheduleComputationService {
         Ok(count)
     }
 
-    fn calculate_hours_for_rule(
+    /// Calculate timestamps for scheduling a rule on a given date
+    /// For overnight windows (e.g., 19:00-08:00), returns timestamps from both days
+    fn calculate_timestamps_for_rule(
         &self,
         rule: &AutomationRule,
         date: NaiveDate,
-    ) -> Result<Vec<u32>, String> {
+    ) -> Result<Vec<NaiveDateTime>, String> {
         let price_service = PriceService::new(self.pool.clone());
 
         match rule.rule_type.as_str() {
@@ -132,42 +131,66 @@ impl ScheduleComputationService {
                     .and_then(|s| s.split(':').next())
                     .and_then(|h| h.parse::<u32>().ok());
 
-                // Get all prices for the date
-                let all_prices = price_service
-                    .get_prices_for_date(date)
-                    .map_err(|e| e.to_string())?;
+                // Get prices based on window type
+                let filtered_prices: Vec<Price> = match (start_hour, end_hour) {
+                    (Some(start), Some(end)) if start > end => {
+                        // Overnight window: e.g., 19:00-08:00
+                        // Get prices from today (start_hour to 23:00) and tomorrow (00:00 to end_hour)
+                        let today_prices = price_service
+                            .get_prices_for_date(date)
+                            .map_err(|e| e.to_string())?;
 
-                // Filter by time window if specified
-                let filtered_prices: Vec<_> = match (start_hour, end_hour) {
+                        let tomorrow = date + chrono::Duration::days(1);
+                        let tomorrow_prices = price_service
+                            .get_prices_for_date(tomorrow)
+                            .unwrap_or_else(|_| vec![]); // Tomorrow's prices may not be available yet
+
+                        let mut combined: Vec<Price> = today_prices
+                            .into_iter()
+                            .filter(|p| p.timestamp.hour() >= start)
+                            .collect();
+
+                        combined.extend(
+                            tomorrow_prices
+                                .into_iter()
+                                .filter(|p| p.timestamp.hour() <= end)
+                        );
+
+                        combined
+                    }
                     (Some(start), Some(end)) => {
+                        // Normal daytime window: e.g., 06:00-22:00
+                        let all_prices = price_service
+                            .get_prices_for_date(date)
+                            .map_err(|e| e.to_string())?;
+
                         all_prices
                             .into_iter()
                             .filter(|p| {
                                 let hour = p.timestamp.hour();
-                                if start <= end {
-                                    // Normal range: e.g., 06:00-22:00
-                                    hour >= start && hour <= end
-                                } else {
-                                    // Overnight range: e.g., 22:00-06:00
-                                    hour >= start || hour <= end
-                                }
+                                hour >= start && hour <= end
                             })
                             .collect()
                     }
-                    _ => all_prices, // No time window, use all hours
+                    _ => {
+                        // No time window, use all hours of the day
+                        price_service
+                            .get_prices_for_date(date)
+                            .map_err(|e| e.to_string())?
+                    }
                 };
 
                 // Sort by price and take the cheapest N hours
                 let mut sorted_prices = filtered_prices;
                 sorted_prices.sort_by(|a, b| a.price.partial_cmp(&b.price).unwrap());
 
-                let cheapest_hours: Vec<u32> = sorted_prices
+                let cheapest_timestamps: Vec<NaiveDateTime> = sorted_prices
                     .iter()
                     .take(hours_needed)
-                    .map(|p| p.timestamp.hour())
+                    .map(|p| p.timestamp)
                     .collect();
 
-                Ok(cheapest_hours)
+                Ok(cheapest_timestamps)
             }
             "price_threshold" => {
                 let threshold = rule
@@ -180,13 +203,13 @@ impl ScheduleComputationService {
                     .get_prices_for_date(date)
                     .map_err(|e| e.to_string())?;
 
-                let hours: Vec<u32> = prices
+                let timestamps: Vec<NaiveDateTime> = prices
                     .iter()
                     .filter(|p| p.price <= threshold)
-                    .map(|p| p.timestamp.hour())
+                    .map(|p| p.timestamp)
                     .collect();
 
-                Ok(hours)
+                Ok(timestamps)
             }
             "time_schedule" => {
                 let start_str = rule
@@ -212,16 +235,133 @@ impl ScheduleComputationService {
                     .unwrap_or(23);
 
                 // Handle overnight ranges
-                let hours: Vec<u32> = if start_hour <= end_hour {
-                    (start_hour..=end_hour).collect()
+                let timestamps: Vec<NaiveDateTime> = if start_hour <= end_hour {
+                    (start_hour..=end_hour)
+                        .filter_map(|h| date.and_hms_opt(h, 0, 0))
+                        .collect()
                 } else {
-                    (start_hour..24).chain(0..=end_hour).collect()
+                    // Overnight: today's hours from start to 23, then tomorrow's 0 to end
+                    let today_hours: Vec<NaiveDateTime> = (start_hour..24)
+                        .filter_map(|h| date.and_hms_opt(h, 0, 0))
+                        .collect();
+                    let tomorrow = date + chrono::Duration::days(1);
+                    let tomorrow_hours: Vec<NaiveDateTime> = (0..=end_hour)
+                        .filter_map(|h| tomorrow.and_hms_opt(h, 0, 0))
+                        .collect();
+                    today_hours.into_iter().chain(tomorrow_hours).collect()
                 };
 
-                Ok(hours)
+                Ok(timestamps)
             }
             _ => Ok(vec![]), // Manual or unknown rule types don't schedule
         }
+    }
+
+    /// Check if a rule has an overnight time window (crosses midnight)
+    pub fn rule_has_overnight_window(&self, rule: &AutomationRule) -> bool {
+        if rule.rule_type != "cheapest_hours" && rule.rule_type != "time_schedule" {
+            return false;
+        }
+
+        let start_hour = rule
+            .config
+            .get("time_range_start")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.split(':').next())
+            .and_then(|h| h.parse::<u32>().ok());
+
+        let end_hour = rule
+            .config
+            .get("time_range_end")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.split(':').next())
+            .and_then(|h| h.parse::<u32>().ok());
+
+        match (start_hour, end_hour) {
+            (Some(start), Some(end)) => start > end,
+            _ => false,
+        }
+    }
+
+    /// Recompute schedules for all rules with overnight windows
+    /// Called when tomorrow's prices become available (around 20:30)
+    pub fn recompute_overnight_rules(&self) -> Result<usize, String> {
+        let mut conn = self.pool.get().map_err(|e| e.to_string())?;
+
+        // Get all enabled rules
+        let rules: Vec<AutomationRule> = automation_rules::table
+            .filter(automation_rules::is_enabled.eq(true))
+            .load(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let today = Local::now().date_naive();
+        let mut total_recomputed = 0;
+
+        for rule in rules {
+            if self.rule_has_overnight_window(&rule) {
+                info!(
+                    "Recomputing overnight rule {} ({}) now that tomorrow's prices are available",
+                    rule.id, rule.name
+                );
+
+                // Delete pending executions for this rule that are for today's overnight window
+                // (we'll recalculate them with complete data)
+                if let Err(e) = self.delete_pending_overnight_for_rule(&rule, today) {
+                    warn!("Failed to delete pending overnight executions for rule {}: {}", rule.id, e);
+                }
+
+                // Recompute for today (which will now include tomorrow's prices)
+                match self.compute_schedule_for_rule_internal(&mut conn, &rule, today) {
+                    Ok(count) => {
+                        total_recomputed += count;
+                        info!("Recomputed {} executions for overnight rule {}", count, rule.id);
+                    }
+                    Err(e) => {
+                        error!("Failed to recompute schedule for rule {}: {}", rule.id, e);
+                    }
+                }
+            }
+        }
+
+        if total_recomputed > 0 {
+            info!(
+                "Recomputed {} scheduled executions for overnight rules",
+                total_recomputed
+            );
+        }
+
+        Ok(total_recomputed)
+    }
+
+    /// Delete pending overnight executions for a rule on a given date
+    /// This is called before recomputing to replace with updated calculations
+    fn delete_pending_overnight_for_rule(&self, rule: &AutomationRule, date: NaiveDate) -> Result<usize, String> {
+        let mut conn = self.pool.get().map_err(|e| e.to_string())?;
+
+        let start_hour = rule
+            .config
+            .get("time_range_start")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.split(':').next())
+            .and_then(|h| h.parse::<u32>().ok())
+            .unwrap_or(0);
+
+        // For overnight rules, delete from start_hour today to end of tomorrow's window
+        let window_start = date.and_hms_opt(start_hour, 0, 0).unwrap();
+        let tomorrow = date + chrono::Duration::days(1);
+        let window_end = tomorrow.and_hms_opt(23, 59, 59).unwrap();
+
+        let count = diesel::delete(
+            scheduled_executions::table
+                .filter(scheduled_executions::rule_id.eq(rule.id))
+                .filter(scheduled_executions::status.eq(ExecutionStatus::Pending.as_str()))
+                .filter(scheduled_executions::scheduled_hour.ge(window_start))
+                .filter(scheduled_executions::scheduled_hour.le(window_end)),
+        )
+        .execute(&mut conn)
+        .map_err(|e| e.to_string())?;
+
+        Ok(count)
     }
 
     /// Mark pending hours that have passed as "missed"
