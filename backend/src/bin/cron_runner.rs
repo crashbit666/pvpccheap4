@@ -9,6 +9,7 @@
 //!   ESIOS_TOKEN  - ESIOS API token for price fetching (required for sync-prices)
 
 use chrono::{Local, Timelike};
+use chrono_tz::Europe::Madrid;
 use std::env;
 use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
@@ -44,23 +45,23 @@ async fn main() {
     // Create scheduler
     let sched = JobScheduler::new().await.expect("Failed to create scheduler");
 
-    // Schedule sync-prices at 20:30 every day
+    // Schedule sync-prices at 20:30 every day (Madrid timezone)
     // Cron: "0 30 20 * * *" = second 0, minute 30, hour 20, every day
     let pool_sync = pool.clone();
-    let sync_job = Job::new_async("0 30 20 * * *", move |_uuid, _l| {
+    let sync_job = Job::new_async_tz("0 30 20 * * *", Madrid, move |_uuid, _l| {
         let pool = pool_sync.clone();
         Box::pin(async move {
-            log::info!("Scheduled sync-prices triggered (20:30)");
+            log::info!("Scheduled sync-prices triggered (20:30 Madrid)");
             sync_prices_daily(pool).await;
         })
     })
     .expect("Failed to create sync-prices job");
     sched.add(sync_job).await.expect("Failed to add sync job");
 
-    // Schedule run-automation at the start of every hour
+    // Schedule run-automation at the start of every hour (Madrid timezone)
     // Cron: "0 0 * * * *" = second 0, minute 0, every hour
     let pool_auto = pool.clone();
-    let automation_job = Job::new_async("0 0 * * * *", move |_uuid, _l| {
+    let automation_job = Job::new_async_tz("0 0 * * * *", Madrid, move |_uuid, _l| {
         let pool = pool_auto.clone();
         Box::pin(async move {
             log::info!("Scheduled run-automation triggered (hourly)");
@@ -73,10 +74,10 @@ async fn main() {
         .await
         .expect("Failed to add automation job");
 
-    // Schedule retry job every minute
+    // Schedule retry job every minute (Madrid timezone)
     // Cron: "0 * * * * *" = second 0, every minute
     let pool_retry = pool.clone();
-    let retry_job = Job::new_async("0 * * * * *", move |_uuid, _l| {
+    let retry_job = Job::new_async_tz("0 * * * * *", Madrid, move |_uuid, _l| {
         let pool = pool_retry.clone();
         Box::pin(async move {
             retry_failed_executions(pool).await;
@@ -91,7 +92,7 @@ async fn main() {
     // Start the scheduler
     sched.start().await.expect("Failed to start scheduler");
 
-    log::info!("Cron scheduler running. Jobs scheduled:");
+    log::info!("Cron scheduler running. Jobs scheduled (Europe/Madrid timezone):");
     log::info!("  - sync-prices: daily at 20:30");
     log::info!("  - run-automation: every hour at :00");
     log::info!("  - retry-failed: every minute");
