@@ -346,10 +346,19 @@ impl ScheduleComputationService {
             .and_then(|h| h.parse::<u32>().ok())
             .unwrap_or(0);
 
-        // For overnight rules, delete from start_hour today to end of tomorrow's window
+        let end_hour = rule
+            .config
+            .get("time_range_end")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.split(':').next())
+            .and_then(|h| h.parse::<u32>().ok())
+            .unwrap_or(8);
+
+        // For overnight rules, delete from start_hour today to end_hour tomorrow
+        // Only delete the actual overnight window, not the entire next day
         let window_start = date.and_hms_opt(start_hour, 0, 0).unwrap();
         let tomorrow = date + chrono::Duration::days(1);
-        let window_end = tomorrow.and_hms_opt(23, 59, 59).unwrap();
+        let window_end = tomorrow.and_hms_opt(end_hour, 59, 59).unwrap();
 
         let count = diesel::delete(
             scheduled_executions::table
