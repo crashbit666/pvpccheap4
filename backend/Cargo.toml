@@ -34,7 +34,7 @@ serde_json = "1.0.149"
 chrono = { version = "0.4.43", features = ["serde"] }
 # Auth & Crypto
 argon2 = "0.5.3"
-jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 hex = "0.4.3"
 md5 = "0.8.0"
 uuid = { version = "1.20.0", features = ["v4", "serde"] }
