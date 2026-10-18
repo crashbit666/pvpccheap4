@@ -1,0 +1,30 @@
+# Caddy de pvpccheap, DARRERE del Caddy d'entrada del servidor compartit:
+# aquell fa el TLS i ens passa el domini pel sòcol Unix
+# /srv/webedge/pvpccheap/http.sock (ACL: només l'usuari del Caddy d'entrada). Aquí no hi ha
+# certificats. Les regles són les del Caddyfile de l'arrel (servidor antic).
+{
+	auto_https off
+	admin localhost:2019
+	servers {
+		trusted_proxies_unix
+	}
+}
+
+http://{$DOMAIN} {
+	# 0660: amb el 0755 per defecte, la màscara de l'ACL treuria al Caddy d'entrada el
+	# permís per connectar-s'hi.
+	bind unix//srv/webedge/http.sock|0660
+
+	reverse_proxy backend:8080
+
+	# CORS headers per l'app Android
+	header {
+		Access-Control-Allow-Origin *
+		Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+		Access-Control-Allow-Headers "Authorization, Content-Type"
+	}
+
+	log {
+		output file /data/access.log
+	}
+}

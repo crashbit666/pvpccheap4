@@ -1,0 +1,3 @@
+# Xarxa interna de pvpccheap: db, backend, cron i caddy s'hi troben pel nom.
+[Network]
+NetworkName=pvp-lab

@@ -1,0 +1,4 @@
+# Secrets i fitxers generats: viuen només al servidor.
+.env
+.env.d/
+copies/

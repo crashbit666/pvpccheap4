@@ -1,0 +1,24 @@
+# Tasques programades (preus a les 20:30, automatitzacions cada hora). La
+# mateixa imatge que l'API, amb cron_runner.
+[Unit]
+Description=Tasques programades de pvpccheap
+Requires=pvp-db.service
+After=pvp-db.service
+
+[Container]
+Image=${BACKEND_IMAGE}
+ContainerName=pvp-cron
+Network=pvp-lab.network
+EnvironmentFile=%h/pvpccheap4/servidor/.env.d/cron.env
+Exec=cron_runner
+NoNewPrivileges=true
+DropCapability=all
+ReadOnly=true
+PidsLimit=128
+PodmanArgs=--memory=128m --cpus=0.5 --oom-score-adj=400
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

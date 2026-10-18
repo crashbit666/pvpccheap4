@@ -1,0 +1,25 @@
+# API (Rust/actix). ${BACKEND_IMAGE} és l'etiqueta que deixa bin/construeix.sh
+# al .env. SENSE PublishPort: abans el 8080 era obert a Internet saltant-se el
+# Caddy; ara només s'hi arriba per la xarxa interna.
+[Unit]
+Description=API de pvpccheap
+Requires=pvp-db.service
+After=pvp-db.service
+
+[Container]
+Image=${BACKEND_IMAGE}
+ContainerName=pvp-backend
+Network=pvp-lab.network
+NetworkAlias=backend
+EnvironmentFile=%h/pvpccheap4/servidor/.env.d/backend.env
+NoNewPrivileges=true
+DropCapability=all
+ReadOnly=true
+PidsLimit=256
+PodmanArgs=--memory=256m --cpus=1.0 --oom-score-adj=400
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

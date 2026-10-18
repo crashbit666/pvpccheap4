@@ -1,0 +1,6 @@
+[Unit]
+Description=Còpia diària de la base de dades de pvpccheap
+
+[Service]
+Type=oneshot
+ExecStart=%h/pvpccheap4/servidor/bin/copia-pvpccheap.sh

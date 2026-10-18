@@ -1,0 +1,33 @@
+# Postgres de pvpccheap. La mateixa empremta que corria al servidor antic
+# (postgres:18.1): les dades hi arriben per pg_dump/pg_restore.
+[Unit]
+Description=Postgres de pvpccheap
+After=network-online.target
+
+[Container]
+Image=docker.io/library/postgres@sha256:3baafb47e05b749eddd549ea4eab576631d1db72dc083542f37984455457fece
+ContainerName=pvp-db
+Network=pvp-lab.network
+NetworkAlias=db
+EnvironmentFile=%h/pvpccheap4/servidor/.env.d/db.env
+Volume=pvp-pgdata.volume:/var/lib/postgresql
+NoNewPrivileges=true
+DropCapability=all
+AddCapability=CHOWN DAC_OVERRIDE FOWNER SETGID SETUID
+PidsLimit=256
+# Els altres projectes del servidor tenen prioritat: si falta memòria, el kernel
+# atura abans els projectes convidats.
+PodmanArgs=--memory=512m --cpus=1.0 --oom-score-adj=300
+# $$: systemd substituiria la variable (buida) abans de passar-la.
+HealthCmd=sh -c 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=10
+Notify=healthy
+
+[Service]
+Restart=always
+TimeoutStartSec=180
+
+[Install]
+WantedBy=default.target
