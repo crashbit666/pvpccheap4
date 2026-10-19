@@ -2,13 +2,53 @@ use crate::{
     db::DbPool,
     models::{AutomationRule, NewAutomationRule, RuleExecution},
     schema::{automation_rules, devices, rule_executions, user_integrations},
-    services::{auth::Claims, schedule_computation::ScheduleComputationService},
+    services::{
+        auth::Claims,
+        schedule_computation::{parse_time_of_day, ScheduleComputationService},
+    },
 };
 use actix_web::{delete, get, post, put, web, HttpResponse, Responder};
 use chrono::{Local, Utc};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+
+/// Check the config keys the schedule computation reads, so a typo is rejected
+/// instead of being silently replaced by a default (e.g. the whole day).
+fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), String> {
+    if !config.is_object() {
+        return Err("config must be a JSON object".to_string());
+    }
+
+    if let Some(hours) = config.get("cheapest_hours") {
+        match hours.as_i64() {
+            Some(1..=24) => {}
+            _ => return Err("cheapest_hours must be an integer between 1 and 24".to_string()),
+        }
+    }
+
+    if let Some(threshold) = config.get("price_threshold") {
+        if !threshold.is_number() {
+            return Err("price_threshold must be a number (€/kWh)".to_string());
+        }
+    }
+
+    for key in ["time_range_start", "time_range_end"] {
+        if let Some(value) = config.get(key) {
+            if value.as_str().and_then(parse_time_of_day).is_none() {
+                return Err(format!("{} must be a time in HH:MM format", key));
+            }
+        }
+    }
+
+    if rule_type == "cheapest_hours"
+        && config.get("time_range_start").is_some() != config.get("time_range_end").is_some()
+    {
+        return Err("time_range_start and time_range_end must be set together".to_string());
+    }
+
+    Ok(())
+}
 
 // ============================================================================
 // Request/Response DTOs
@@ -201,6 +241,10 @@ pub async fn create_rule(
         ));
     }
 
+    if let Err(e) = validate_rule_config(&body.rule_type, &body.config) {
+        return HttpResponse::BadRequest().body(e);
+    }
+
     // Verify device belongs to user
     let device_belongs_to_user = devices::table
         .inner_join(user_integrations::table)
@@ -271,16 +315,15 @@ pub async fn update_rule(
     };
 
     // Verify rule exists and belongs to user
-    let rule_exists = automation_rules::table
+    let current_rule_type = match automation_rules::table
         .filter(automation_rules::id.eq(rule_id))
         .filter(automation_rules::user_id.eq(user_id))
-        .select(automation_rules::id)
-        .first::<i32>(&mut conn)
-        .is_ok();
-
-    if !rule_exists {
-        return HttpResponse::NotFound().body("Rule not found");
-    }
+        .select(automation_rules::rule_type)
+        .first::<String>(&mut conn)
+    {
+        Ok(t) => t,
+        Err(_) => return HttpResponse::NotFound().body("Rule not found"),
+    };
 
     // Validate rule_type if provided
     if let Some(ref rule_type) = body.rule_type {
@@ -295,6 +338,13 @@ pub async fn update_rule(
         let valid_actions = ["turn_on", "turn_off", "toggle"];
         if !valid_actions.contains(&action.as_str()) {
             return HttpResponse::BadRequest().body("Invalid action");
+        }
+    }
+
+    if let Some(ref config) = body.config {
+        let rule_type = body.rule_type.as_deref().unwrap_or(&current_rule_type);
+        if let Err(e) = validate_rule_config(rule_type, config) {
+            return HttpResponse::BadRequest().body(e);
         }
     }
 
@@ -589,5 +639,24 @@ mod tests {
         let query: PaginationQuery = serde_json::from_str(json).unwrap();
         assert!(query.limit.is_none());
         assert!(query.offset.is_none());
+    }
+
+    #[test]
+    fn test_validate_rule_config() {
+        let ok = |t: &str, c: JsonValue| validate_rule_config(t, &c).is_ok();
+
+        assert!(ok("cheapest_hours", serde_json::json!({"cheapest_hours": 6})));
+        assert!(ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 6, "time_range_start": "19:00", "time_range_end": "07:00"})
+        ));
+        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 0})));
+        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": "6"})));
+        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 6, "time_range_start": "19:00"})));
+        assert!(!ok("time_schedule", serde_json::json!({"time_range_start": "7h30"})));
+        assert!(ok("price_threshold", serde_json::json!({"price_threshold": 0.12})));
+        assert!(!ok("price_threshold", serde_json::json!({"price_threshold": "0,12"})));
+        assert!(ok("manual", serde_json::json!({})));
+        assert!(!ok("manual", serde_json::json!([])));
     }
 }

@@ -130,9 +130,19 @@ class AddRuleViewModel @Inject constructor(
 enum class RuleType(val id: String, val displayName: String, val description: String) {
     CHEAPEST_HOURS("cheapest_hours", "Hores més barates", "Encén el dispositiu durant les X hores més barates del dia"),
     PRICE_THRESHOLD("price_threshold", "Llindar de preu", "Encén quan el preu està per sota d'un llindar"),
-    TIME_SCHEDULE("time_schedule", "Franja horària", "Encén durant una franja horària específica si el preu és barat"),
+    TIME_SCHEDULE("time_schedule", "Franja horària", "Encén cada dia durant una franja horària fixa, sense mirar el preu"),
     MANUAL("manual", "Manual", "Control manual sense automatització")
 }
+
+private val TIME_OF_DAY = Regex("^([01]?\\d|2[0-3]):[0-5]\\d$")
+
+/** Same format the backend accepts: "HH:MM", 00:00–23:59. */
+private fun isValidTime(value: String) = TIME_OF_DAY.matches(value.trim())
+
+/** Accepts both "0,12" (Catalan keyboard) and "0.12". */
+private fun parsePrice(value: String) = value.trim().replace(',', '.').toDoubleOrNull()
+
+private const val TIME_FORMAT_ERROR = "Format HH:MM"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,6 +172,20 @@ fun AddRuleScreen(
     // time_schedule config
     var timeRangeStart by remember { mutableStateOf("22:00") }
     var timeRangeEnd by remember { mutableStateOf("08:00") }
+
+    val configError: String? = when (selectedRuleType) {
+        RuleType.CHEAPEST_HOURS ->
+            if (cheapestHoursLimitTimeWindow && !(isValidTime(cheapestHoursTimeStart) && isValidTime(cheapestHoursTimeEnd)))
+                "Les hores de la franja han de tenir el format HH:MM (per exemple 07:00)"
+            else null
+        RuleType.PRICE_THRESHOLD ->
+            if (parsePrice(priceThreshold) == null) "Escriu un preu vàlid, per exemple 0,12" else null
+        RuleType.TIME_SCHEDULE ->
+            if (!(isValidTime(timeRangeStart) && isValidTime(timeRangeEnd)))
+                "Les hores de la franja han de tenir el format HH:MM (per exemple 07:00)"
+            else null
+        RuleType.MANUAL -> null
+    }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
@@ -367,6 +391,8 @@ fun AddRuleScreen(
                                 onValueChange = { cheapestHoursTimeStart = it },
                                 label = { Text("Inici") },
                                 singleLine = true,
+                                isError = !isValidTime(cheapestHoursTimeStart),
+                                supportingText = if (!isValidTime(cheapestHoursTimeStart)) { { Text(TIME_FORMAT_ERROR) } } else null,
                                 modifier = Modifier.weight(1f)
                             )
                             OutlinedTextField(
@@ -374,6 +400,8 @@ fun AddRuleScreen(
                                 onValueChange = { cheapestHoursTimeEnd = it },
                                 label = { Text("Fi") },
                                 singleLine = true,
+                                isError = !isValidTime(cheapestHoursTimeEnd),
+                                supportingText = if (!isValidTime(cheapestHoursTimeEnd)) { { Text(TIME_FORMAT_ERROR) } } else null,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -397,6 +425,7 @@ fun AddRuleScreen(
                         onValueChange = { priceThreshold = it },
                         label = { Text("Llindar de preu (€/kWh)") },
                         singleLine = true,
+                        isError = parsePrice(priceThreshold) == null,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Decimal,
                             imeAction = ImeAction.Done
@@ -421,6 +450,8 @@ fun AddRuleScreen(
                             onValueChange = { timeRangeStart = it },
                             label = { Text("Inici") },
                             singleLine = true,
+                            isError = !isValidTime(timeRangeStart),
+                            supportingText = if (!isValidTime(timeRangeStart)) { { Text(TIME_FORMAT_ERROR) } } else null,
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
@@ -428,12 +459,14 @@ fun AddRuleScreen(
                             onValueChange = { timeRangeEnd = it },
                             label = { Text("Fi") },
                             singleLine = true,
+                            isError = !isValidTime(timeRangeEnd),
+                            supportingText = if (!isValidTime(timeRangeEnd)) { { Text(TIME_FORMAT_ERROR) } } else null,
                             modifier = Modifier.weight(1f)
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "El dispositiu s'encendrà entre $timeRangeStart i $timeRangeEnd si el preu és barat",
+                        text = "El dispositiu s'encendrà cada dia de $timeRangeStart a $timeRangeEnd, sigui quin sigui el preu",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -450,6 +483,15 @@ fun AddRuleScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            configError?.let { error ->
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             Button(
                 onClick = {
                     selectedDevice?.let { device ->
@@ -458,17 +500,17 @@ fun AddRuleScreen(
                                 if (cheapestHoursLimitTimeWindow) {
                                     RuleConfig(
                                         cheapestHours = cheapestHours.toInt(),
-                                        timeRangeStart = cheapestHoursTimeStart,
-                                        timeRangeEnd = cheapestHoursTimeEnd
+                                        timeRangeStart = cheapestHoursTimeStart.trim(),
+                                        timeRangeEnd = cheapestHoursTimeEnd.trim()
                                     )
                                 } else {
                                     RuleConfig(cheapestHours = cheapestHours.toInt())
                                 }
                             }
-                            RuleType.PRICE_THRESHOLD -> RuleConfig(priceThreshold = priceThreshold.toDoubleOrNull() ?: 0.10)
+                            RuleType.PRICE_THRESHOLD -> RuleConfig(priceThreshold = parsePrice(priceThreshold))
                             RuleType.TIME_SCHEDULE -> RuleConfig(
-                                timeRangeStart = timeRangeStart,
-                                timeRangeEnd = timeRangeEnd
+                                timeRangeStart = timeRangeStart.trim(),
+                                timeRangeEnd = timeRangeEnd.trim()
                             )
                             RuleType.MANUAL -> RuleConfig()
                         }
@@ -484,7 +526,7 @@ fun AddRuleScreen(
                         viewModel.createRule(rule)
                     }
                 },
-                enabled = !uiState.isLoading && selectedDevice != null && uiState.devices.isNotEmpty(),
+                enabled = !uiState.isLoading && selectedDevice != null && uiState.devices.isNotEmpty() && configError == null,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (uiState.isLoading) {

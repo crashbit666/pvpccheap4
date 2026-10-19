@@ -145,7 +145,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to create rule", response.code())
+                Result.Error(ruleErrorMessage(response, "No s'ha pogut crear la regla"), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -158,7 +158,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to update rule", response.code())
+                Result.Error(ruleErrorMessage(response, "No s'ha pogut actualitzar la regla"), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -203,5 +203,11 @@ class DeviceRepository @Inject constructor(
         } catch (e: Exception) {
             Result.fromException(e)
         }
+    }
+
+    /** On 400 the backend explains what is wrong with the rule; otherwise use a generic message. */
+    private fun ruleErrorMessage(response: retrofit2.Response<*>, fallback: String): String {
+        val detail = if (response.code() == 400) response.errorBody()?.string()?.takeIf { it.isNotBlank() } else null
+        return detail?.let { "$fallback: $it" } ?: fallback
     }
 }

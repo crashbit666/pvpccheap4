@@ -117,23 +117,12 @@ impl ScheduleComputationService {
                     .unwrap_or(6) as usize;
 
                 // Check for optional time window
-                let start_hour = rule
-                    .config
-                    .get("time_range_start")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.split(':').next())
-                    .and_then(|h| h.parse::<u32>().ok());
-
-                let end_hour = rule
-                    .config
-                    .get("time_range_end")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.split(':').next())
-                    .and_then(|h| h.parse::<u32>().ok());
+                let start_hour = window_start_hour(&rule.config);
+                let end_hour = window_end_hour(&rule.config);
 
                 // Get prices based on window type
                 let filtered_prices: Vec<Price> = match (start_hour, end_hour) {
-                    (Some(start), Some(end)) if start > end => {
+                    (Some(start), Some(end)) if start >= end => {
                         // Overnight window: e.g., 19:00-08:00
                         // Get prices from today (start_hour to 23:00) and tomorrow (00:00 to end_hour)
                         let today_prices = price_service
@@ -153,7 +142,7 @@ impl ScheduleComputationService {
                         combined.extend(
                             tomorrow_prices
                                 .into_iter()
-                                .filter(|p| p.timestamp.hour() <= end)
+                                .filter(|p| p.timestamp.hour() < end)
                         );
 
                         combined
@@ -168,7 +157,7 @@ impl ScheduleComputationService {
                             .into_iter()
                             .filter(|p| {
                                 let hour = p.timestamp.hour();
-                                hour >= start && hour <= end
+                                hour >= start && hour < end
                             })
                             .collect()
                     }
@@ -212,31 +201,12 @@ impl ScheduleComputationService {
                 Ok(timestamps)
             }
             "time_schedule" => {
-                let start_str = rule
-                    .config
-                    .get("time_range_start")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("00:00");
-                let end_str = rule
-                    .config
-                    .get("time_range_end")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("23:59");
-
-                let start_hour: u32 = start_str
-                    .split(':')
-                    .next()
-                    .and_then(|h| h.parse().ok())
-                    .unwrap_or(0);
-                let end_hour: u32 = end_str
-                    .split(':')
-                    .next()
-                    .and_then(|h| h.parse().ok())
-                    .unwrap_or(23);
+                let start_hour = window_start_hour(&rule.config).unwrap_or(0);
+                let end_hour = window_end_hour(&rule.config).unwrap_or(24);
 
                 // Handle overnight ranges
-                let timestamps: Vec<NaiveDateTime> = if start_hour <= end_hour {
-                    (start_hour..=end_hour)
+                let timestamps: Vec<NaiveDateTime> = if start_hour < end_hour {
+                    (start_hour..end_hour)
                         .filter_map(|h| date.and_hms_opt(h, 0, 0))
                         .collect()
                 } else {
@@ -245,7 +215,7 @@ impl ScheduleComputationService {
                         .filter_map(|h| date.and_hms_opt(h, 0, 0))
                         .collect();
                     let tomorrow = date + chrono::Duration::days(1);
-                    let tomorrow_hours: Vec<NaiveDateTime> = (0..=end_hour)
+                    let tomorrow_hours: Vec<NaiveDateTime> = (0..end_hour)
                         .filter_map(|h| tomorrow.and_hms_opt(h, 0, 0))
                         .collect();
                     today_hours.into_iter().chain(tomorrow_hours).collect()
@@ -263,22 +233,8 @@ impl ScheduleComputationService {
             return false;
         }
 
-        let start_hour = rule
-            .config
-            .get("time_range_start")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.split(':').next())
-            .and_then(|h| h.parse::<u32>().ok());
-
-        let end_hour = rule
-            .config
-            .get("time_range_end")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.split(':').next())
-            .and_then(|h| h.parse::<u32>().ok());
-
-        match (start_hour, end_hour) {
-            (Some(start), Some(end)) => start > end,
+        match (window_start_hour(&rule.config), window_end_hour(&rule.config)) {
+            (Some(start), Some(end)) => start >= end,
             _ => false,
         }
     }
@@ -338,34 +294,21 @@ impl ScheduleComputationService {
     fn delete_pending_overnight_for_rule(&self, rule: &AutomationRule, date: NaiveDate) -> Result<usize, String> {
         let mut conn = self.pool.get().map_err(|e| e.to_string())?;
 
-        let start_hour = rule
-            .config
-            .get("time_range_start")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.split(':').next())
-            .and_then(|h| h.parse::<u32>().ok())
-            .unwrap_or(0);
+        let start_hour = window_start_hour(&rule.config).unwrap_or(0);
+        let end_hour = window_end_hour(&rule.config).unwrap_or(8);
 
-        let end_hour = rule
-            .config
-            .get("time_range_end")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.split(':').next())
-            .and_then(|h| h.parse::<u32>().ok())
-            .unwrap_or(8);
-
-        // For overnight rules, delete from start_hour today to end_hour tomorrow
+        // For overnight rules, delete from start_hour today to end_hour tomorrow (exclusive)
         // Only delete the actual overnight window, not the entire next day
         let window_start = date.and_hms_opt(start_hour, 0, 0).unwrap();
         let tomorrow = date + chrono::Duration::days(1);
-        let window_end = tomorrow.and_hms_opt(end_hour, 59, 59).unwrap();
+        let window_end = tomorrow.and_hms_opt(end_hour, 0, 0).unwrap();
 
         let count = diesel::delete(
             scheduled_executions::table
                 .filter(scheduled_executions::rule_id.eq(rule.id))
                 .filter(scheduled_executions::status.eq(ExecutionStatus::Pending.as_str()))
                 .filter(scheduled_executions::scheduled_hour.ge(window_start))
-                .filter(scheduled_executions::scheduled_hour.le(window_end)),
+                .filter(scheduled_executions::scheduled_hour.lt(window_end)),
         )
         .execute(&mut conn)
         .map_err(|e| e.to_string())?;
@@ -462,5 +405,58 @@ impl ScheduleComputationService {
         let count_tomorrow = self.compute_schedule_for_rule(rule_id, tomorrow).unwrap_or(0);
 
         Ok(count_today + count_tomorrow)
+    }
+}
+
+/// Parse a rule config time ("HH:MM") into (hour, minute), rejecting out-of-range values.
+pub fn parse_time_of_day(s: &str) -> Option<(u32, u32)> {
+    let (h, m) = s.trim().split_once(':')?;
+    let (h, m) = (h.parse::<u32>().ok()?, m.parse::<u32>().ok()?);
+    (h < 24 && m < 60).then_some((h, m))
+}
+
+/// First hour of a rule's time window (`time_range_start`).
+fn window_start_hour(config: &serde_json::Value) -> Option<u32> {
+    let (h, _) = parse_time_of_day(config.get("time_range_start")?.as_str()?)?;
+    Some(h)
+}
+
+/// Exclusive end hour of a rule's time window (`time_range_end`):
+/// "22:00" stops before 22:00, "22:30" and "23:59" include that hour.
+fn window_end_hour(config: &serde_json::Value) -> Option<u32> {
+    let (h, m) = parse_time_of_day(config.get("time_range_end")?.as_str()?)?;
+    Some(if m == 0 { h } else { h + 1 })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_time_of_day() {
+        assert_eq!(parse_time_of_day("07:00"), Some((7, 0)));
+        assert_eq!(parse_time_of_day(" 23:59 "), Some((23, 59)));
+        assert_eq!(parse_time_of_day("7h30"), None);
+        assert_eq!(parse_time_of_day("24:00"), None);
+        assert_eq!(parse_time_of_day("12:60"), None);
+        assert_eq!(parse_time_of_day("7"), None);
+    }
+
+    #[test]
+    fn test_window_end_hour_is_exclusive() {
+        let end = |t: &str| window_end_hour(&json!({ "time_range_end": t }));
+        assert_eq!(end("22:00"), Some(22));
+        assert_eq!(end("22:30"), Some(23));
+        assert_eq!(end("23:59"), Some(24));
+        assert_eq!(end("00:00"), Some(0));
+        assert_eq!(end("bad"), None);
+        assert_eq!(window_end_hour(&json!({})), None);
+    }
+
+    #[test]
+    fn test_window_start_hour() {
+        assert_eq!(window_start_hour(&json!({ "time_range_start": "19:00" })), Some(19));
+        assert_eq!(window_start_hour(&json!({ "time_range_start": "19:45" })), Some(19));
     }
 }

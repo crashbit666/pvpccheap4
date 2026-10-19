@@ -188,9 +188,9 @@ fun RuleCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                rule.config.cheapestHours?.let { hours ->
+                getRuleConfigSummary(rule)?.let { summary ->
                     Text(
-                        text = "$hours hores més barates",
+                        text = summary,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF4CAF50)
                     )
@@ -239,11 +239,27 @@ fun EmptyRulesMessage(modifier: Modifier = Modifier) {
     }
 }
 
+private fun getRuleConfigSummary(rule: Rule): String? {
+    val config = rule.config
+    val window = if (config.timeRangeStart != null && config.timeRangeEnd != null) {
+        "${config.timeRangeStart}–${config.timeRangeEnd}"
+    } else null
+    return when (rule.ruleType) {
+        "cheapest_hours" -> config.cheapestHours?.let { hours ->
+            if (window != null) "$hours hores més barates entre $window" else "$hours hores més barates"
+        }
+        "price_threshold" -> config.priceThreshold?.let { "Preu ≤ $it €/kWh" }
+        "time_schedule" -> window?.let { "Cada dia $it" }
+        else -> null
+    }
+}
+
 private fun getRuleTypeDescription(ruleType: String): String {
     return when (ruleType) {
         "cheapest_hours" -> "Hores més barates"
         "price_threshold" -> "Llindar de preu"
-        "time_range" -> "Franja horària"
+        "time_schedule" -> "Franja horària"
+        "manual" -> "Manual"
         else -> ruleType
     }
 }
