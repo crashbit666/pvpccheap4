@@ -31,10 +31,6 @@ class DevicesViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DevicesUiState())
     val uiState: StateFlow<DevicesUiState> = _uiState.asStateFlow()
 
-    init {
-        loadAll()
-    }
-
     fun loadAll() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null, isConnectionError = false)

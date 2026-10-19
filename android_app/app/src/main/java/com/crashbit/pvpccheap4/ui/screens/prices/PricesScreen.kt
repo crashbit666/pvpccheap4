@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -117,11 +119,23 @@ fun PricesScreen(
                             uiState.tomorrowCheapestHours
                         }
 
+                        val sortedPrices = prices.sortedBy { it.hour }
+                        val listState = rememberLazyListState()
+
+                        // Today starts at the current hour (past hours are above), tomorrow at 00:00
+                        LaunchedEffect(selectedTabIndex, sortedPrices.size) {
+                            val index = if (selectedTabIndex == 0) {
+                                sortedPrices.indexOfFirst { it.hour == LocalTime.now().hour }.coerceAtLeast(0)
+                            } else 0
+                            listState.scrollToItem(index)
+                        }
+
                         LazyColumn(
+                            state = listState,
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(prices.sortedBy { it.hour }) { price ->
+                            items(sortedPrices) { price ->
                                 PriceItem(
                                     price = price,
                                     isCheap = price.hour in cheapestHours,
