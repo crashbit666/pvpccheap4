@@ -34,9 +34,12 @@ pub struct UserIntegration {
     pub id: i32,
     pub user_id: i32,
     pub provider_name: String,
+    // Never sent to clients: holds the provider email/password and session tokens
+    #[serde(skip_serializing)]
     pub credentials_json: String,
     pub is_active: bool,
     pub created_at: NaiveDateTime,
+    #[serde(skip_serializing)]
     pub session_data: Option<JsonValue>,
     pub session_expires_at: Option<NaiveDateTime>,
 }

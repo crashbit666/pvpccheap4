@@ -10,6 +10,40 @@ use actix_web::{FromRequest, HttpRequest, dev::Payload, error::ErrorUnauthorized
 use jsonwebtoken::{DecodingKey, Validation, decode};
 use std::future::{Ready, ready};
 
+/// Below this length JWT_SECRET is accepted but logged as weak
+/// (`openssl rand -hex 32` gives 64 characters).
+const MIN_JWT_SECRET_LEN: usize = 32;
+
+/// Values that must never be used as a signing key (old fallback, .env.example placeholder).
+const FORBIDDEN_JWT_SECRETS: [&str; 2] = ["secret", "your-super-secret-jwt-key-change-in-production"];
+
+/// Checks JWT_SECRET at startup so a misconfigured server refuses to run
+/// instead of signing tokens with a guessable key.
+pub fn ensure_jwt_secret() {
+    match std::env::var("JWT_SECRET") {
+        Err(_) => panic!("JWT_SECRET must be set"),
+        Ok(s) if s.trim().is_empty() => panic!("JWT_SECRET must not be empty"),
+        Ok(s) if FORBIDDEN_JWT_SECRETS.contains(&s.as_str()) => {
+            panic!("JWT_SECRET is a placeholder value, generate one with: openssl rand -hex 32")
+        }
+        Ok(s) if s.len() < MIN_JWT_SECRET_LEN => log::warn!(
+            "JWT_SECRET is only {} characters long, use at least {}",
+            s.len(),
+            MIN_JWT_SECRET_LEN
+        ),
+        Ok(_) => {}
+    }
+}
+
+/// Signing secret for JWTs. `ensure_jwt_secret` runs at startup, so it is always set here.
+fn jwt_secret() -> String {
+    #[cfg(test)]
+    if std::env::var("JWT_SECRET").is_err() {
+        return "test-only-jwt-secret".to_string();
+    }
+    std::env::var("JWT_SECRET").expect("JWT_SECRET must be set")
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String, // Subject (User ID)
@@ -31,7 +65,7 @@ impl FromRequest for Claims {
             Err(_) => return ready(Err(ErrorUnauthorized("Invalid Auth header"))),
         };
 
-        let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".to_string());
+        let secret = jwt_secret();
 
         match decode::<Claims>(
             &token_str,
@@ -74,8 +108,7 @@ pub fn create_jwt(user_id: i32) -> Result<String, String> {
         exp: expiration,
     };
 
-    // In production, use env var for secret!
-    let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".to_string());
+    let secret = jwt_secret();
 
     encode(
         &Header::default(),
@@ -154,7 +187,7 @@ mod tests {
         let user_id = 123;
         let token = create_jwt(user_id).unwrap();
 
-        let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".to_string());
+        let secret = jwt_secret();
         let token_data = decode::<Claims>(
             &token,
             &DecodingKey::from_secret(secret.as_bytes()),
@@ -170,7 +203,7 @@ mod tests {
         let user_id = 1;
         let token = create_jwt(user_id).unwrap();
 
-        let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".to_string());
+        let secret = jwt_secret();
         let token_data = decode::<Claims>(
             &token,
             &DecodingKey::from_secret(secret.as_bytes()),

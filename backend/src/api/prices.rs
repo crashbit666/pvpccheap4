@@ -1,6 +1,6 @@
 use crate::{
     db::DbPool,
-    services::price_fetcher::PriceService,
+    services::{auth::Claims, price_fetcher::PriceService},
 };
 use actix_web::{get, post, web, HttpResponse, Responder};
 use chrono::{Local, NaiveDate};
@@ -215,7 +215,10 @@ pub async fn get_expensive_hours(
 
 /// Sync prices from ESIOS API (today and tomorrow if available)
 #[post("/sync")]
-pub async fn sync_prices(pool: web::Data<DbPool>) -> impl Responder {
+pub async fn sync_prices(
+    pool: web::Data<DbPool>,
+    _claims: Claims, // Requires authentication: each call hits the ESIOS API
+) -> impl Responder {
     let service = PriceService::new(pool.get_ref().clone());
 
     // Sync today's prices
@@ -250,6 +253,7 @@ pub async fn sync_prices(pool: web::Data<DbPool>) -> impl Responder {
 #[post("/sync/{date}")]
 pub async fn sync_prices_for_date(
     pool: web::Data<DbPool>,
+    _claims: Claims, // Requires authentication: each call hits the ESIOS API
     path: web::Path<String>,
 ) -> impl Responder {
     let date_str = path.into_inner();

@@ -1,10 +1,10 @@
 use crate::db::DbPool;
 use crate::models::Price;
 use crate::schema::prices;
-use chrono::{DateTime, Datelike, Local, NaiveDate, NaiveDateTime, Timelike};
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, TimeZone, Timelike};
+use chrono_tz::Europe::Madrid;
 use diesel::prelude::*;
 use log::{error, info, warn};
-use reqwest::Error as ReqwestError;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
@@ -21,7 +21,12 @@ struct Indicator {
 struct EsiosValue {
     value: f64,
     datetime: String,
+    geo_id: Option<i32>,
 }
+
+/// ESIOS geo_id for the Iberian Peninsula. Indicator 1001 also returns
+/// Canarias, Baleares, Ceuta and Melilla with the same timestamps.
+const GEO_ID_PENINSULA: i32 = 8741;
 
 #[derive(Debug, Clone)]
 pub struct PriceData {
@@ -212,7 +217,7 @@ impl PriceService {
             .get_result(&mut conn)
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
 
-        Ok(count >= 24) // We expect 24 hourly prices
+        Ok(count >= expected_price_rows(date))
     }
 }
 
@@ -220,8 +225,8 @@ impl PriceService {
 pub async fn fetch_pvpc_prices(date: NaiveDate, token: &str) -> Result<Vec<PriceData>, PriceFetchError> {
     // URL for PVPC 2.0TD (Indicator 1001)
     let url = format!(
-        "https://api.esios.ree.es/indicators/1001?start_date={}T00:00&end_date={}T23:59",
-        date, date
+        "https://api.esios.ree.es/indicators/1001?start_date={}T00:00&end_date={}T23:59&geo_ids[]={}",
+        date, date, GEO_ID_PENINSULA
     );
 
     let client = reqwest::Client::new();
@@ -246,25 +251,58 @@ pub async fn fetch_pvpc_prices(date: NaiveDate, token: &str) -> Result<Vec<Price
         .await
         .map_err(|e| PriceFetchError::ParseError(e.to_string()))?;
 
-    let prices = esios_response
-        .indicator
-        .values
+    Ok(parse_esios_values(esios_response.indicator.values))
+}
+
+/// Convert raw ESIOS values into one price per local hour.
+///
+/// Keeps only the Peninsula (in case the geo filter is ignored) and merges the
+/// repeated 02:00 of the 25-hour DST day, which would otherwise collide on the
+/// `prices.timestamp` primary key and silently overwrite each other.
+fn parse_esios_values(values: Vec<EsiosValue>) -> Vec<PriceData> {
+    let parsed: Vec<PriceData> = values
         .into_iter()
-        .filter_map(|v| {
-            match DateTime::parse_from_rfc3339(&v.datetime) {
-                Ok(dt) => Some(PriceData {
-                    timestamp: dt.naive_local(),
-                    price: v.value / 1000.0, // Convert €/MWh to €/kWh
-                }),
-                Err(e) => {
-                    error!("Failed to parse datetime '{}': {}", v.datetime, e);
-                    None
-                }
+        .filter(|v| v.geo_id.is_none_or(|id| id == GEO_ID_PENINSULA))
+        .filter_map(|v| match parse_esios_value(v.value, &v.datetime) {
+            Ok(p) => Some(p),
+            Err(e) => {
+                error!("{} ('{}')", e, v.datetime);
+                None
             }
         })
         .collect();
 
-    Ok(prices)
+    merge_duplicate_hours(parsed)
+}
+
+/// Average prices that share the same local timestamp, keeping first-seen order.
+fn merge_duplicate_hours(prices: Vec<PriceData>) -> Vec<PriceData> {
+    let mut merged: Vec<(PriceData, u32)> = Vec::with_capacity(prices.len());
+    for p in prices {
+        match merged.iter_mut().find(|(m, _)| m.timestamp == p.timestamp) {
+            Some((m, n)) => {
+                warn!("Duplicate price for {} (DST change), averaging", p.timestamp);
+                m.price = (m.price * *n as f64 + p.price) / (*n + 1) as f64;
+                *n += 1;
+            }
+            None => merged.push((p, 1)),
+        }
+    }
+    merged.into_iter().map(|(p, _)| p).collect()
+}
+
+/// Number of price rows a fully synced day has: 24, or 23 on the spring DST day.
+/// The autumn DST day has 25 hours but its repeated hour is merged into one row.
+fn expected_price_rows(date: NaiveDate) -> i64 {
+    let local_midnight = |d: NaiveDate| {
+        Madrid
+            .from_local_datetime(&d.and_hms_opt(0, 0, 0).unwrap())
+            .earliest()
+            .unwrap()
+    };
+    let next = date + chrono::Duration::days(1);
+    let hours = (local_midnight(next) - local_midnight(date)).num_hours();
+    hours.min(24)
 }
 
 /// Parse a single ESIOS value into PriceData (exposed for testing)
@@ -281,6 +319,7 @@ pub fn parse_esios_value(value: f64, datetime: &str) -> Result<PriceData, String
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Datelike;
 
     #[test]
     fn test_parse_esios_value_valid() {
@@ -347,6 +386,64 @@ mod tests {
         assert!(result.is_ok());
         let price_data = result.unwrap();
         assert!((price_data.price - 0.0).abs() < 0.0001);
+    }
+
+    fn esios(value: f64, datetime: &str, geo_id: Option<i32>) -> EsiosValue {
+        EsiosValue {
+            value,
+            datetime: datetime.to_string(),
+            geo_id,
+        }
+    }
+
+    #[test]
+    fn test_parse_esios_values_keeps_only_peninsula() {
+        let values = vec![
+            esios(100.0, "2026-01-15T10:00:00.000+01:00", Some(8741)),
+            esios(200.0, "2026-01-15T10:00:00.000+01:00", Some(8742)),
+            esios(300.0, "2026-01-15T10:00:00.000+01:00", Some(8745)),
+        ];
+
+        let prices = parse_esios_values(values);
+
+        assert_eq!(prices.len(), 1);
+        assert!((prices[0].price - 0.1).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_parse_esios_values_without_geo_id() {
+        let values = vec![
+            esios(100.0, "2026-01-15T10:00:00.000+01:00", None),
+            esios(110.0, "2026-01-15T11:00:00.000+01:00", None),
+        ];
+
+        assert_eq!(parse_esios_values(values).len(), 2);
+    }
+
+    #[test]
+    fn test_parse_esios_values_merges_repeated_dst_hour() {
+        // 25 October 2026: 02:00 happens twice (CEST, then CET)
+        let values = vec![
+            esios(100.0, "2026-10-25T01:00:00.000+02:00", Some(8741)),
+            esios(80.0, "2026-10-25T02:00:00.000+02:00", Some(8741)),
+            esios(60.0, "2026-10-25T02:00:00.000+01:00", Some(8741)),
+            esios(90.0, "2026-10-25T03:00:00.000+01:00", Some(8741)),
+        ];
+
+        let prices = parse_esios_values(values);
+
+        assert_eq!(prices.len(), 3);
+        assert_eq!(prices[1].timestamp.hour(), 2);
+        assert!((prices[1].price - 0.07).abs() < 0.0001);
+        assert_eq!(prices[2].timestamp.hour(), 3);
+    }
+
+    #[test]
+    fn test_expected_price_rows() {
+        let d = |y, m, day| NaiveDate::from_ymd_opt(y, m, day).unwrap();
+        assert_eq!(expected_price_rows(d(2026, 1, 15)), 24);
+        assert_eq!(expected_price_rows(d(2026, 3, 29)), 23); // spring forward
+        assert_eq!(expected_price_rows(d(2026, 10, 25)), 24); // fall back, merged
     }
 
     #[test]

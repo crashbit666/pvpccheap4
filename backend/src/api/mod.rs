@@ -59,7 +59,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(schedules::get_schedule),
     );
 
-    // Price routes (public - no auth required for price info)
+    // Price routes (reads are public, /sync requires auth)
     cfg.service(
         web::scope("/api/prices")
             .service(prices::get_prices)

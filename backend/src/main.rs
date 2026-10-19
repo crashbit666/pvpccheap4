@@ -41,6 +41,9 @@ async fn list_providers(registry: web::Data<ProviderRegistry>) -> impl Responder
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
+    // Refuse to start without a real JWT signing secret
+    services::auth::ensure_jwt_secret();
+
     // DB Pool initialization
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = db::init_pool(&database_url);
