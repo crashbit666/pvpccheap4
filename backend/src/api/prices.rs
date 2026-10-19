@@ -3,7 +3,7 @@ use crate::{
     services::{auth::Claims, price_fetcher::PriceService},
 };
 use actix_web::{get, post, web, HttpResponse, Responder};
-use chrono::{Local, NaiveDate};
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -60,7 +60,7 @@ pub async fn get_prices(pool: web::Data<DbPool>, query: web::Query<DateQuery>) -
             Ok(date) => date,
             Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
         },
-        None => Local::now().date_naive(),
+        None => crate::time::today(),
     };
 
     match service.get_prices_for_date(date) {
@@ -113,7 +113,7 @@ pub async fn get_price_summary(pool: web::Data<DbPool>, query: web::Query<DateQu
             Ok(date) => date,
             Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
         },
-        None => Local::now().date_naive(),
+        None => crate::time::today(),
     };
 
     match service.get_prices_for_date(date) {
@@ -156,7 +156,7 @@ pub async fn get_cheapest_hours(
             Ok(date) => date,
             Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
         },
-        None => Local::now().date_naive(),
+        None => crate::time::today(),
     };
 
     let count = query.count.unwrap_or(6).min(24);
@@ -191,7 +191,7 @@ pub async fn get_expensive_hours(
             Ok(date) => date,
             Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
         },
-        None => Local::now().date_naive(),
+        None => crate::time::today(),
     };
 
     let count = query.count.unwrap_or(6).min(24);

@@ -8,7 +8,7 @@ use crate::{
     },
     schema::{automation_rules, devices, prices, rule_executions, scheduled_executions, user_integrations},
 };
-use chrono::{Local, NaiveDateTime, NaiveTime, Timelike, Weekday, Datelike};
+use chrono::{NaiveDateTime, NaiveTime, Timelike, Weekday, Datelike};
 use diesel::prelude::*;
 use log::{error, info, warn};
 use serde_json::Value as JsonValue;
@@ -51,7 +51,7 @@ impl AutomationEngine {
     /// Run the automation engine - evaluate all enabled rules and execute actions
     pub async fn run(&self) -> Vec<ExecutionResult> {
         let mut results = Vec::new();
-        let now = Local::now().naive_local();
+        let now = crate::time::now_naive();
 
         // Get current price
         let current_price = self.get_current_price(&now);
@@ -530,7 +530,7 @@ impl AutomationEngine {
         match action_result {
             Ok(result) => {
                 // Update last_triggered_at
-                let now = chrono::Utc::now().naive_utc();
+                let now = crate::time::now_naive();
                 diesel::update(automation_rules::table.filter(automation_rules::id.eq(rule.id)))
                     .set(automation_rules::last_triggered_at.eq(Some(now)))
                     .execute(&mut conn)
@@ -673,7 +673,7 @@ impl AutomationEngine {
     /// Also turn off devices that are NOT scheduled for the current hour (inverse action)
     pub async fn execute_current_hour(&self) -> Vec<ExecutionResult> {
         let mut results = Vec::new();
-        let now = Local::now().naive_local();
+        let now = crate::time::now_naive();
         let current_hour_start = now.date().and_hms_opt(now.hour(), 0, 0).unwrap();
 
         let mut conn = match self.pool.get() {
@@ -778,7 +778,7 @@ impl AutomationEngine {
         scheduled: &ScheduledExecution,
         rule: &AutomationRule,
     ) -> ExecutionResult {
-        let current_price = self.get_current_price(&Local::now().naive_local());
+        let current_price = self.get_current_price(&crate::time::now_naive());
         let action = RuleAction::from_str(&scheduled.expected_action).unwrap_or(RuleAction::TurnOn);
 
         let evaluation = RuleEvaluation {
@@ -810,7 +810,7 @@ impl AutomationEngine {
             }
         };
 
-        let now = Local::now().naive_local();
+        let now = crate::time::now_naive();
 
         if result.success {
             // Mark as executed
@@ -877,7 +877,7 @@ impl AutomationEngine {
     /// Retry failed scheduled executions that are due
     pub async fn retry_failed_executions(&self) -> Vec<ExecutionResult> {
         let mut results = Vec::new();
-        let now = Local::now().naive_local();
+        let now = crate::time::now_naive();
 
         let mut conn = match self.pool.get() {
             Ok(c) => c,

@@ -1,7 +1,7 @@
 use crate::db::DbPool;
 use crate::models::Price;
 use crate::schema::prices;
-use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, TimeZone, Timelike};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Timelike};
 use chrono_tz::Europe::Madrid;
 use diesel::prelude::*;
 use log::{error, info, warn};
@@ -89,14 +89,14 @@ impl PriceService {
 
     /// Sync prices for today
     pub async fn sync_today(&self) -> Result<usize, PriceFetchError> {
-        let today = Local::now().date_naive();
+        let today = crate::time::today();
         info!("Syncing PVPC prices for today: {}", today);
         self.sync_prices_for_date(today).await
     }
 
     /// Sync prices for tomorrow (available after 20:00)
     pub async fn sync_tomorrow(&self) -> Result<usize, PriceFetchError> {
-        let tomorrow = Local::now().date_naive() + chrono::Duration::days(1);
+        let tomorrow = crate::time::today() + chrono::Duration::days(1);
         info!("Syncing PVPC prices for tomorrow: {}", tomorrow);
         self.sync_prices_for_date(tomorrow).await
     }
@@ -158,7 +158,7 @@ impl PriceService {
         let mut conn = self.pool.get()
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
 
-        let now = Local::now().naive_local();
+        let now = crate::time::now_naive();
         let hour_start = now.date().and_hms_opt(now.hour(), 0, 0).unwrap();
 
         prices::table
@@ -311,7 +311,8 @@ pub fn parse_esios_value(value: f64, datetime: &str) -> Result<PriceData, String
         .map_err(|e| format!("Failed to parse datetime: {}", e))?;
 
     Ok(PriceData {
-        timestamp: dt.naive_local(),
+        // Madrid wall time, whatever offset ESIOS uses
+        timestamp: dt.with_timezone(&Madrid).naive_local(),
         price: value / 1000.0, // Convert €/MWh to €/kWh
     })
 }
@@ -347,7 +348,8 @@ mod tests {
 
         assert!(result.is_ok());
         let price_data = result.unwrap();
-        // naive_local() will convert to local time
+        // Converted to Madrid wall time (CET in January)
+        assert_eq!(price_data.timestamp.hour(), 13);
         assert!((price_data.price - 0.2).abs() < 0.0001);
     }
 

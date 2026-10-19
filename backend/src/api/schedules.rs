@@ -5,7 +5,7 @@ use crate::{
     services::{auth::Claims, price_fetcher::PriceService, schedule_computation::ScheduleComputationService},
 };
 use actix_web::{get, web, HttpResponse, Responder};
-use chrono::{Local, NaiveDate, Timelike};
+use chrono::{NaiveDate, Timelike};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -63,7 +63,7 @@ pub async fn get_schedule(
             Ok(date) => date,
             Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
         },
-        None => Local::now().date_naive(),
+        None => crate::time::today(),
     };
 
     // Ensure schedules are computed for this date (in case they're missing)

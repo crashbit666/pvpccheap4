@@ -2,7 +2,7 @@ use crate::db::DbPool;
 use crate::models::{AutomationRule, ExecutionStatus, NewScheduledExecution, Price, ScheduledExecution};
 use crate::schema::{automation_rules, devices, scheduled_executions};
 use crate::services::price_fetcher::PriceService;
-use chrono::{Local, NaiveDate, NaiveDateTime, Timelike};
+use chrono::{NaiveDate, NaiveDateTime, Timelike};
 use diesel::prelude::*;
 use log::{error, info, warn};
 
@@ -250,7 +250,7 @@ impl ScheduleComputationService {
             .load(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        let today = Local::now().date_naive();
+        let today = crate::time::today();
         let mut total_recomputed = 0;
 
         for rule in rules {
@@ -320,7 +320,7 @@ impl ScheduleComputationService {
     pub fn mark_missed_hours(&self) -> Result<usize, String> {
         let mut conn = self.pool.get().map_err(|e| e.to_string())?;
 
-        let now = Local::now().naive_local();
+        let now = crate::time::now_naive();
         // An hour is considered "missed" if we're past the start of that hour
         // e.g., if it's 14:14, then 13:00 is missed (we should have executed at 13:00)
         let current_hour_start = now.date().and_hms_opt(now.hour(), 0, 0).unwrap();
@@ -398,7 +398,7 @@ impl ScheduleComputationService {
         self.delete_schedule_for_rule(rule_id)?;
 
         // Recompute for today and tomorrow
-        let today = Local::now().date_naive();
+        let today = crate::time::today();
         let tomorrow = today + chrono::Duration::days(1);
 
         let count_today = self.compute_schedule_for_rule(rule_id, today).unwrap_or(0);

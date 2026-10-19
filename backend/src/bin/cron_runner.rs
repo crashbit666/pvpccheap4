@@ -8,7 +8,7 @@
 //!   DATABASE_URL - PostgreSQL connection string (required)
 //!   ESIOS_TOKEN  - ESIOS API token for price fetching (required for sync-prices)
 
-use chrono::{Local, Timelike};
+use chrono::Timelike;
 use chrono_tz::Europe::Madrid;
 use std::env;
 use std::sync::Arc;
@@ -107,7 +107,7 @@ async fn main() {
 async fn sync_prices_startup(pool: Arc<DbPool>) {
     let service = PriceService::new((*pool).clone());
     let schedule_service = ScheduleComputationService::new((*pool).clone());
-    let now = Local::now();
+    let now = backend::time::now();
     let today = now.date_naive();
     let tomorrow = today + chrono::Duration::days(1);
 
@@ -195,7 +195,7 @@ async fn sync_prices_startup(pool: Arc<DbPool>) {
 async fn sync_prices_daily(pool: Arc<DbPool>) {
     let service = PriceService::new((*pool).clone());
     let schedule_service = ScheduleComputationService::new((*pool).clone());
-    let tomorrow = Local::now().date_naive() + chrono::Duration::days(1);
+    let tomorrow = backend::time::today() + chrono::Duration::days(1);
 
     log::info!("Daily sync: fetching tomorrow's prices ({})...", tomorrow);
 
@@ -272,7 +272,7 @@ async fn sync_prices_daily(pool: Arc<DbPool>) {
 async fn run_automation(pool: Arc<DbPool>) {
     // First, ensure we have today's prices
     let service = PriceService::new((*pool).clone());
-    let today = Local::now().date_naive();
+    let today = backend::time::today();
 
     match service.has_prices_for_date(today) {
         Ok(false) => {

@@ -8,7 +8,6 @@ use crate::{
     },
 };
 use actix_web::{delete, get, post, put, web, HttpResponse, Responder};
-use chrono::{Local, Utc};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -277,7 +276,7 @@ pub async fn create_rule(
         Ok(rule) => {
             // Compute schedules for this new rule (today and tomorrow)
             let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
-            let today = Local::now().date_naive();
+            let today = crate::time::today();
             let tomorrow = today + chrono::Duration::days(1);
 
             if let Err(e) = schedule_service.compute_schedule_for_rule(rule.id, today) {
@@ -349,7 +348,7 @@ pub async fn update_rule(
     }
 
     // Build update query
-    let now = Utc::now().naive_utc();
+    let now = crate::time::now_naive();
 
     // Update each field if provided
     if let Some(ref name) = body.name {
@@ -408,7 +407,7 @@ pub async fn update_rule(
 
     if should_recompute {
         let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
-        let today = Local::now().date_naive();
+        let today = crate::time::today();
         let tomorrow = today + chrono::Duration::days(1);
 
         // Delete old schedules and recompute
@@ -501,7 +500,7 @@ pub async fn toggle_rule(
 
     // Toggle enabled status
     let new_status = !rule.is_enabled;
-    let now = Utc::now().naive_utc();
+    let now = crate::time::now_naive();
 
     diesel::update(automation_rules::table.filter(automation_rules::id.eq(rule_id)))
         .set((
@@ -513,7 +512,7 @@ pub async fn toggle_rule(
 
     // Recompute schedules based on new enabled status
     let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
-    let today = Local::now().date_naive();
+    let today = crate::time::today();
     let tomorrow = today + chrono::Duration::days(1);
 
     // Delete old schedules and recompute
