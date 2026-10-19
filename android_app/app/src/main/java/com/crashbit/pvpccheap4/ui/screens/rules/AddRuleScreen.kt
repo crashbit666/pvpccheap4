@@ -28,9 +28,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -50,8 +50,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.crashbit.pvpccheap4.data.model.Device
@@ -71,19 +73,46 @@ data class AddRuleUiState(
     val error: String? = null,
     val isSuccess: Boolean = false,
     val devices: List<Device> = emptyList(),
-    val isLoadingDevices: Boolean = true
+    val isLoadingDevices: Boolean = true,
+    /** Rule being edited, null when creating a new one */
+    val editingRule: Rule? = null,
+    val isLoadingRule: Boolean = false
 )
 
 @HiltViewModel
 class AddRuleViewModel @Inject constructor(
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AddRuleUiState())
+    /** Set by the "edit_rule/{ruleId}" route */
+    private val ruleId: Int? = savedStateHandle.get<Int>("ruleId")
+
+    private val _uiState = MutableStateFlow(AddRuleUiState(isLoadingRule = ruleId != null))
     val uiState: StateFlow<AddRuleUiState> = _uiState.asStateFlow()
 
     init {
         loadDevices()
+        ruleId?.let { loadRule(it) }
+    }
+
+    private fun loadRule(id: Int) {
+        viewModelScope.launch {
+            when (val result = deviceRepository.getRules()) {
+                is Result.Success -> {
+                    val rule = result.data.firstOrNull { it.id == id }
+                    _uiState.value = _uiState.value.copy(
+                        editingRule = rule,
+                        isLoadingRule = false,
+                        error = if (rule == null) "No s'ha trobat la regla" else null
+                    )
+                }
+                is Result.Error -> {
+                    _uiState.value = _uiState.value.copy(error = result.message, isLoadingRule = false)
+                }
+                is Result.Loading -> {}
+            }
+        }
     }
 
     private fun loadDevices() {
@@ -106,11 +135,19 @@ class AddRuleViewModel @Inject constructor(
         }
     }
 
-    fun createRule(rule: Rule) {
+    /** Creates the rule, or updates the one being edited keeping its enabled state. */
+    fun saveRule(rule: Rule) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
-            when (val result = deviceRepository.createRule(rule)) {
+            val editing = _uiState.value.editingRule
+            val result = if (editing?.id != null) {
+                deviceRepository.updateRule(editing.id, rule.copy(isEnabled = editing.isEnabled))
+            } else {
+                deviceRepository.createRule(rule)
+            }
+
+            when (result) {
                 is Result.Success -> {
                     _uiState.value = _uiState.value.copy(isSuccess = true, isLoading = false)
                 }
@@ -200,9 +237,40 @@ fun AddRuleScreen(
         }
     }
 
-    // Auto-select first device when loaded
+    val isEditing = uiState.editingRule != null || uiState.isLoadingRule
+
+    // Fill the form once with the rule being edited
+    var prefilled by remember { mutableStateOf(false) }
+    LaunchedEffect(uiState.editingRule, uiState.devices) {
+        val rule = uiState.editingRule ?: return@LaunchedEffect
+        if (prefilled || uiState.devices.isEmpty()) return@LaunchedEffect
+        prefilled = true
+
+        ruleName = rule.name
+        selectedRuleType = RuleType.entries.firstOrNull { it.id == rule.ruleType } ?: RuleType.MANUAL
+        selectedDevice = uiState.devices.firstOrNull { it.id == rule.deviceId.toString() }
+        val config = rule.config
+        when (selectedRuleType) {
+            RuleType.CHEAPEST_HOURS -> {
+                config.cheapestHours?.let { cheapestHours = it.toFloat() }
+                if (config.timeRangeStart != null && config.timeRangeEnd != null) {
+                    cheapestHoursLimitTimeWindow = true
+                    cheapestHoursTimeStart = config.timeRangeStart
+                    cheapestHoursTimeEnd = config.timeRangeEnd
+                }
+            }
+            RuleType.PRICE_THRESHOLD -> config.priceThreshold?.let { priceThreshold = it.toString() }
+            RuleType.TIME_SCHEDULE -> {
+                config.timeRangeStart?.let { timeRangeStart = it }
+                config.timeRangeEnd?.let { timeRangeEnd = it }
+            }
+            RuleType.MANUAL -> {}
+        }
+    }
+
+    // Auto-select first device when loaded (new rules only)
     LaunchedEffect(uiState.devices) {
-        if (selectedDevice == null && uiState.devices.isNotEmpty()) {
+        if (!isEditing && selectedDevice == null && uiState.devices.isNotEmpty()) {
             selectedDevice = uiState.devices.first()
         }
     }
@@ -210,7 +278,7 @@ fun AddRuleScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nova regla") },
+                title = { Text(if (isEditing) "Editar regla" else "Nova regla") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Enrere")
@@ -250,8 +318,18 @@ fun AddRuleScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (uiState.isLoadingDevices) {
+            if (uiState.isLoadingDevices || uiState.isLoadingRule) {
                 CircularProgressIndicator(modifier = Modifier.height(20.dp))
+            } else if (isEditing) {
+                // The backend keeps the device of an existing rule
+                OutlinedTextField(
+                    value = selectedDevice?.name ?: uiState.editingRule?.deviceName ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = false,
+                    supportingText = { Text("Per canviar de dispositiu, crea una regla nova") },
+                    modifier = Modifier.fillMaxWidth()
+                )
             } else if (uiState.devices.isEmpty()) {
                 Text(
                     text = "No hi ha dispositius. Afegeix una integració primer.",
@@ -344,17 +422,33 @@ fun AddRuleScreen(
 
             when (selectedRuleType) {
                 RuleType.CHEAPEST_HOURS -> {
-                    Text(
-                        text = "Nombre d'hores: ${cheapestHours.toInt()}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Slider(
-                        value = cheapestHours,
-                        onValueChange = { cheapestHours = it },
-                        valueRange = 1f..12f,
-                        steps = 10,
+                    // Stepper instead of a slider: with 24 positions a slider can't hit
+                    // an exact value reliably with a finger
+                    val hours = cheapestHours.toInt()
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
-                    )
+                    ) {
+                        Text(
+                            text = "Nombre d'hores",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedButton(
+                            onClick = { cheapestHours = (hours - 1).coerceAtLeast(1).toFloat() },
+                            enabled = hours > 1
+                        ) { Text("−", style = MaterialTheme.typography.titleLarge) }
+                        Text(
+                            text = "$hours h",
+                            style = MaterialTheme.typography.titleLarge,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.width(72.dp)
+                        )
+                        OutlinedButton(
+                            onClick = { cheapestHours = (hours + 1).coerceAtMost(24).toFloat() },
+                            enabled = hours < 24
+                        ) { Text("+", style = MaterialTheme.typography.titleLarge) }
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -523,10 +617,11 @@ fun AddRuleScreen(
                             config = config,
                             isEnabled = true
                         )
-                        viewModel.createRule(rule)
+                        viewModel.saveRule(rule)
                     }
                 },
-                enabled = !uiState.isLoading && selectedDevice != null && uiState.devices.isNotEmpty() && configError == null,
+                enabled = !uiState.isLoading && !uiState.isLoadingRule && selectedDevice != null &&
+                    uiState.devices.isNotEmpty() && configError == null,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (uiState.isLoading) {
@@ -535,7 +630,7 @@ fun AddRuleScreen(
                         modifier = Modifier.height(20.dp)
                     )
                 } else {
-                    Text("Crear regla")
+                    Text(if (isEditing) "Desar canvis" else "Crear regla")
                 }
             }
         }

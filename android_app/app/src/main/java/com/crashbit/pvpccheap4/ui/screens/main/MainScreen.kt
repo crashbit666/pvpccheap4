@@ -21,7 +21,9 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import androidx.navigation.NavType
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.crashbit.pvpccheap4.ui.screens.devices.AddIntegrationScreen
@@ -121,6 +123,9 @@ fun MainScreen(
                     onAddRule = {
                         navController.navigate("add_rule")
                     },
+                    onEditRule = { ruleId ->
+                        navController.navigate("edit_rule/$ruleId")
+                    },
                     shouldRefresh = shouldRefresh,
                     onRefreshConsumed = {
                         backStackEntry.savedStateHandle.remove<Boolean>("refresh")
@@ -132,6 +137,19 @@ fun MainScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onSuccess = {
                         // Set a flag to indicate refresh is needed, then navigate back
+                        navController.previousBackStackEntry?.savedStateHandle?.set("refresh", true)
+                        navController.popBackStack()
+                    }
+                )
+            }
+            // Same screen in edit mode: AddRuleViewModel reads ruleId from the route
+            composable(
+                route = "edit_rule/{ruleId}",
+                arguments = listOf(navArgument("ruleId") { type = NavType.IntType })
+            ) {
+                AddRuleScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onSuccess = {
                         navController.previousBackStackEntry?.savedStateHandle?.set("refresh", true)
                         navController.popBackStack()
                     }

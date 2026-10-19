@@ -51,6 +51,7 @@ import com.crashbit.pvpccheap4.data.model.Rule
 @Composable
 fun RulesScreen(
     onAddRule: () -> Unit = {},
+    onEditRule: (Int) -> Unit = {},
     shouldRefresh: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
     viewModel: RulesViewModel = hiltViewModel()
@@ -104,6 +105,7 @@ fun RulesScreen(
                     items(uiState.rules) { rule ->
                         RuleCard(
                             rule = rule,
+                            onClick = { rule.id?.let(onEditRule) },
                             onToggle = { viewModel.toggleRule(rule) },
                             onDelete = { viewModel.deleteRule(rule) }
                         )
@@ -127,6 +129,7 @@ fun RulesScreen(
 @Composable
 fun RuleCard(
     rule: Rule,
+    onClick: () -> Unit,
     onToggle: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -156,6 +159,7 @@ fun RuleCard(
     }
 
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)

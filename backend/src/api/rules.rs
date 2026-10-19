@@ -143,7 +143,7 @@ pub async fn list_rules(pool: web::Data<DbPool>, claims: Claims) -> impl Respond
         .inner_join(devices::table)
         .filter(automation_rules::user_id.eq(user_id))
         .select((AutomationRule::as_select(), devices::name))
-        .order(automation_rules::priority.asc())
+        .order((automation_rules::priority.asc(), automation_rules::id.asc())) // id breaks ties: stable list
         .load(&mut conn)
     {
         Ok(r) => r,
