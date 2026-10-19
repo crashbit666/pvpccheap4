@@ -372,15 +372,19 @@ impl WindowGroup {
     }
 }
 
-/// Window groups of the rule's instance that starts on `date`. Each window
-/// starts on `date` and, if it crosses midnight, ends on the next day.
+/// Window groups of the rule's instance for `date`: the windows that end on
+/// `date`. A window crossing midnight belongs to the day it ends, so with
+/// 14:00-16:00 and 20:00-06:00 the day is "last night + this afternoon": all of
+/// it priced by ~20:15 the evening before, in time to choose before it starts.
+/// (Anchoring on the start day would put this afternoon with tonight, whose
+/// prices only arrive after the afternoon is over.)
 fn instance_groups(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGroup> {
     let at = |d: NaiveDate, hour: u32| d.and_hms_opt(0, 0, 0).unwrap() + Duration::hours(hour as i64);
     let span = |w: &WindowSpec| {
         if w.start < w.end {
             (at(date, w.start), at(date, w.end))
         } else {
-            (at(date, w.start), at(date + Duration::days(1), w.end))
+            (at(date - Duration::days(1), w.start), at(date, w.end))
         }
     };
     let whole_day = WindowSpec { start: 0, end: 24, hours: None };
@@ -500,7 +504,7 @@ mod tests {
         );
         assert_eq!(
             groups(rule("cheapest_hours", json!({"cheapest_hours": 6, "time_range_start": "19:00", "time_range_end": "07:00"}))),
-            vec![(vec![(dt(19, 19), dt(20, 7))], Some(6))]
+            vec![(vec![(dt(18, 19), dt(19, 7))], Some(6))]
         );
         assert_eq!(
             groups(rule("time_schedule", json!({"time_range_start": "22:00", "time_range_end": "23:59"}))),
@@ -522,14 +526,14 @@ mod tests {
         // Total: one budget across both windows
         assert_eq!(
             groups(rule("cheapest_hours", json!({"cheapest_hours": 3, "windows": windows, "distribution": "total"}))),
-            vec![(vec![(dt(19, 14), dt(19, 16)), (dt(19, 20), dt(20, 6))], Some(3))]
+            vec![(vec![(dt(19, 14), dt(19, 16)), (dt(18, 20), dt(19, 6))], Some(3))]
         );
         // Per window: each window with its own budget
         assert_eq!(
             groups(rule("cheapest_hours", json!({"cheapest_hours": 3, "windows": windows, "distribution": "per_window"}))),
             vec![
                 (vec![(dt(19, 14), dt(19, 16))], Some(1)),
-                (vec![(dt(19, 20), dt(20, 6))], Some(4))
+                (vec![(dt(18, 20), dt(19, 6))], Some(4))
             ]
         );
         // Time schedule: every hour of every window
@@ -537,7 +541,7 @@ mod tests {
             groups(rule("time_schedule", json!({"windows": windows}))),
             vec![
                 (vec![(dt(19, 14), dt(19, 16))], None),
-                (vec![(dt(19, 20), dt(20, 6))], None)
+                (vec![(dt(18, 20), dt(19, 6))], None)
             ]
         );
     }

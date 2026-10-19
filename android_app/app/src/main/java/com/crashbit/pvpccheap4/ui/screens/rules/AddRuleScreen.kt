@@ -259,8 +259,11 @@ fun AddRuleScreen(
         when (selectedRuleType) {
             RuleType.CHEAPEST_HOURS -> {
                 config.cheapestHours?.let { cheapestHours = it }
-                cheapestWindows = windowsFromConfig(config)
                 perWindow = config.distribution == "per_window"
+                // Windows saved with one total budget start with it, so switching mode keeps it
+                cheapestWindows = windowsFromConfig(config).map {
+                    if (perWindow) it else it.copy(hours = cheapestHours.coerceAtMost(it.length))
+                }
             }
             RuleType.PRICE_THRESHOLD -> config.priceThreshold?.let { priceThreshold = it.toString() }
             RuleType.TIME_SCHEDULE -> {
@@ -372,10 +375,13 @@ fun AddRuleScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Rule type selector
-            Text(
-                text = "Tipus de regla",
-                style = MaterialTheme.typography.titleMedium
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Tipus de regla",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                InfoButton(RuleHelp.ruleType)
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -424,7 +430,7 @@ fun AddRuleScreen(
 
             when (selectedRuleType) {
                 RuleType.CHEAPEST_HOURS -> {
-                    Text("Quan pot encendre's", style = MaterialTheme.typography.titleSmall)
+                    SectionTitle("Quan pot encendre's", RuleHelp.windows)
                     Spacer(modifier = Modifier.height(8.dp))
                     TimeWindowsEditor(
                         windows = cheapestWindows,
@@ -435,7 +441,7 @@ fun AddRuleScreen(
 
                     if (cheapestWindows.size > 1) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Com es trien les hores", style = MaterialTheme.typography.titleSmall)
+                        SectionTitle("Com es trien les hores", RuleHelp.distribution)
                         Column(Modifier.selectableGroup()) {
                             listOf(
                                 false to "Les més barates entre totes les franges",
@@ -447,7 +453,19 @@ fun AddRuleScreen(
                                         .fillMaxWidth()
                                         .selectable(
                                             selected = perWindow == value,
-                                            onClick = { perWindow = value },
+                                            onClick = {
+                                                if (value != perWindow) {
+                                                    // Keep the hours when switching: split the total between the
+                                                    // windows, or add the per-window hours back into one total
+                                                    if (value) {
+                                                        val share = (cheapestHours / cheapestWindows.size).coerceAtLeast(1)
+                                                        cheapestWindows = cheapestWindows.map { it.copy(hours = share.coerceAtMost(it.length)) }
+                                                    } else {
+                                                        cheapestHours = cheapestWindows.sumOf { it.hours }.coerceIn(1, 24)
+                                                    }
+                                                }
+                                                perWindow = value
+                                            },
                                             role = Role.RadioButton
                                         )
                                         .padding(vertical = 6.dp)
@@ -465,9 +483,10 @@ fun AddRuleScreen(
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = "Nombre d'hores",
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f)
+                                style = MaterialTheme.typography.bodyLarge
                             )
+                            InfoButton(RuleHelp.hours)
+                            Spacer(modifier = Modifier.weight(1f))
                             HoursStepper(
                                 value = cheapestHours,
                                 max = if (cheapestWindows.isEmpty()) 24 else windowHoursTotal.coerceAtLeast(1),
@@ -489,6 +508,7 @@ fun AddRuleScreen(
                         value = priceThreshold,
                         onValueChange = { priceThreshold = it },
                         label = { Text("Llindar de preu (€/kWh)") },
+                        trailingIcon = { InfoButton(RuleHelp.threshold) },
                         singleLine = true,
                         isError = parsePrice(priceThreshold) == null,
                         keyboardOptions = KeyboardOptions(
@@ -506,6 +526,8 @@ fun AddRuleScreen(
                 }
 
                 RuleType.TIME_SCHEDULE -> {
+                    SectionTitle("Quan s'encén", RuleHelp.schedule)
+                    Spacer(modifier = Modifier.height(8.dp))
                     TimeWindowsEditor(
                         windows = scheduleWindows,
                         onChange = { scheduleWindows = it },
