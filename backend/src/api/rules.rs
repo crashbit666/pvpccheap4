@@ -1,12 +1,15 @@
 use crate::{
     db::DbPool,
+    integrations::ProviderRegistry,
     models::{AutomationRule, NewAutomationRule, RuleExecution},
     schema::{automation_rules, devices, rule_executions, user_integrations},
     services::{
         auth::Claims,
+        automation_engine::AutomationEngine,
         schedule_computation::{parse_time_of_day, ScheduleComputationService},
     },
 };
+use std::sync::Arc;
 use actix_web::{delete, get, post, put, web, HttpResponse, Responder};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -47,6 +50,20 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
     }
 
     Ok(())
+}
+
+/// Turn off a rule's device if the rule switched it on for the current hour,
+/// used when the rule stops applying (disabled or about to be deleted).
+async fn release_device(pool: &web::Data<DbPool>, registry: &web::Data<ProviderRegistry>, rule_id: i32) {
+    let engine = AutomationEngine::new(pool.get_ref().clone(), Arc::new(registry.get_ref().clone()));
+    if let Some(result) = engine.release_device_for_rule(rule_id).await {
+        if !result.success {
+            log::warn!(
+                "Could not turn off device of rule {}: {:?}",
+                rule_id, result.error_message
+            );
+        }
+    }
 }
 
 // ============================================================================
@@ -274,16 +291,11 @@ pub async fn create_rule(
         .get_result::<AutomationRule>(&mut conn)
     {
         Ok(rule) => {
-            // Compute schedules for this new rule (today and tomorrow)
+            // Compute schedules for this new rule; a pick for the current hour is
+            // executed by the cron's per-minute job
             let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
-            let today = crate::time::today();
-            let tomorrow = today + chrono::Duration::days(1);
-
-            if let Err(e) = schedule_service.compute_schedule_for_rule(rule.id, today) {
-                log::warn!("Failed to compute today's schedule for new rule: {}", e);
-            }
-            if let Err(e) = schedule_service.compute_schedule_for_rule(rule.id, tomorrow) {
-                log::warn!("Failed to compute tomorrow's schedule for new rule: {}", e);
+            if let Err(e) = schedule_service.refresh_rule(rule.id) {
+                log::warn!("Failed to compute schedule for new rule {}: {}", rule.id, e);
             }
 
             HttpResponse::Created().json(rule)
@@ -298,6 +310,7 @@ pub async fn create_rule(
 #[put("/{rule_id}")]
 pub async fn update_rule(
     pool: web::Data<DbPool>,
+    registry: web::Data<ProviderRegistry>,
     claims: Claims,
     path: web::Path<i32>,
     body: web::Json<UpdateRuleRequest>,
@@ -407,18 +420,13 @@ pub async fn update_rule(
 
     if should_recompute {
         let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
-        let today = crate::time::today();
-        let tomorrow = today + chrono::Duration::days(1);
-
-        // Delete old schedules and recompute
-        let _ = schedule_service.delete_schedule_for_rule(rule_id);
-
-        if let Err(e) = schedule_service.compute_schedule_for_rule(rule_id, today) {
-            log::warn!("Failed to recompute today's schedule for rule {}: {}", rule_id, e);
+        if let Err(e) = schedule_service.refresh_rule(rule_id) {
+            log::warn!("Failed to recompute schedule for rule {}: {}", rule_id, e);
         }
-        if let Err(e) = schedule_service.compute_schedule_for_rule(rule_id, tomorrow) {
-            log::warn!("Failed to recompute tomorrow's schedule for rule {}: {}", rule_id, e);
-        }
+    }
+
+    if body.is_enabled == Some(false) {
+        release_device(&pool, &registry, rule_id).await;
     }
 
     // Return updated rule
@@ -435,6 +443,7 @@ pub async fn update_rule(
 #[delete("/{rule_id}")]
 pub async fn delete_rule(
     pool: web::Data<DbPool>,
+    registry: web::Data<ProviderRegistry>,
     claims: Claims,
     path: web::Path<i32>,
 ) -> impl Responder {
@@ -461,6 +470,10 @@ pub async fn delete_rule(
         return HttpResponse::NotFound().body("Rule not found");
     }
 
+    // Turn the device off first if this rule has it on right now
+    // (the execution log cascades away with the rule)
+    release_device(&pool, &registry, rule_id).await;
+
     // Delete rule (executions will cascade)
     match diesel::delete(automation_rules::table.filter(automation_rules::id.eq(rule_id)))
         .execute(&mut conn)
@@ -474,6 +487,7 @@ pub async fn delete_rule(
 #[post("/{rule_id}/toggle")]
 pub async fn toggle_rule(
     pool: web::Data<DbPool>,
+    registry: web::Data<ProviderRegistry>,
     claims: Claims,
     path: web::Path<i32>,
 ) -> impl Responder {
@@ -510,22 +524,14 @@ pub async fn toggle_rule(
         .execute(&mut conn)
         .ok();
 
-    // Recompute schedules based on new enabled status
+    // Recompute schedules: enabled rules get their hours, disabled ones lose the pending ones
     let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
-    let today = crate::time::today();
-    let tomorrow = today + chrono::Duration::days(1);
+    if let Err(e) = schedule_service.refresh_rule(rule_id) {
+        log::warn!("Failed to recompute schedule for toggled rule {}: {}", rule_id, e);
+    }
 
-    // Delete old schedules and recompute
-    let _ = schedule_service.delete_schedule_for_rule(rule_id);
-
-    if new_status {
-        // Rule is now enabled, compute schedules
-        if let Err(e) = schedule_service.compute_schedule_for_rule(rule_id, today) {
-            log::warn!("Failed to compute today's schedule for toggled rule {}: {}", rule_id, e);
-        }
-        if let Err(e) = schedule_service.compute_schedule_for_rule(rule_id, tomorrow) {
-            log::warn!("Failed to compute tomorrow's schedule for toggled rule {}: {}", rule_id, e);
-        }
+    if !new_status {
+        release_device(&pool, &registry, rule_id).await;
     }
 
     HttpResponse::Ok().json(serde_json::json!({

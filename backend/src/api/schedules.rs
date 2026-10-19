@@ -66,11 +66,9 @@ pub async fn get_schedule(
         None => crate::time::today(),
     };
 
-    // Ensure schedules are computed for this date (in case they're missing)
+    // Schedules are computed by the cron and on rule changes; just make sure
+    // past hours show as missed rather than pending
     let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
-    let _ = schedule_service.compute_schedule_for_date(date);
-
-    // Mark any past hours as missed (important for displaying correct status)
     let _ = schedule_service.mark_missed_hours();
 
     // Get scheduled executions for this user's rules on the given date

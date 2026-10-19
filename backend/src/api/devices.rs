@@ -1,6 +1,6 @@
 use crate::{
     db::DbPool,
-    integrations::ProviderRegistry,
+    integrations::{ProviderError, ProviderRegistry},
     models::{Device, UserIntegration},
     schema::{devices, user_integrations},
     services::auth::Claims,
@@ -375,22 +375,48 @@ pub async fn control_device(
     };
 
     // Execute action
-    let result = match body.action.as_str() {
-        "turn_on" => provider.turn_on(&session, &device.external_id).await,
-        "turn_off" => provider.turn_off(&session, &device.external_id).await,
+    let turn_on = match body.action.as_str() {
+        "turn_on" => true,
+        "turn_off" => false,
         _ => return HttpResponse::BadRequest().body("Invalid action. Use 'turn_on' or 'turn_off'"),
     };
+    let run = |session: serde_json::Value| {
+        let provider = provider.clone();
+        let external_id = device.external_id.clone();
+        async move {
+            if turn_on {
+                provider.turn_on(&session, &external_id).await
+            } else {
+                provider.turn_off(&session, &external_id).await
+            }
+        }
+    };
+
+    let mut result = run(session.clone()).await;
+
+    // Stale token or key: log in again, store the new session and retry once
+    if let Err(ProviderError::AuthenticationFailed(_) | ProviderError::InvalidCredentials) = result {
+        log::warn!("Authentication failed for integration {}, refreshing credentials", integration.id);
+        match provider.refresh_credentials(&session).await {
+            Ok(new_session) => {
+                let _ = diesel::update(user_integrations::table.filter(user_integrations::id.eq(integration.id)))
+                    .set(user_integrations::credentials_json.eq(new_session.to_string()))
+                    .execute(&mut conn);
+                result = run(new_session).await;
+            }
+            Err(e) => log::error!("Failed to refresh credentials for integration {}: {}", integration.id, e),
+        }
+    }
 
     match result {
         Ok(action_result) => {
             // Update cached is_on state in database if action was successful
             if action_result.success {
-                if let Some(ref new_state) = action_result.new_state {
-                    let _ = diesel::update(devices::table.filter(devices::id.eq(device_id)))
-                        .set(devices::is_on.eq(new_state.is_on))
-                        .execute(&mut conn);
-                    log::info!("Updated device {} is_on state to {}", device_id, new_state.is_on);
-                }
+                let is_on = action_result.new_state.as_ref().map(|s| s.is_on).unwrap_or(turn_on);
+                let _ = diesel::update(devices::table.filter(devices::id.eq(device_id)))
+                    .set(devices::is_on.eq(is_on))
+                    .execute(&mut conn);
+                log::info!("Updated device {} is_on state to {}", device_id, is_on);
             }
             HttpResponse::Ok().json(action_result)
         }

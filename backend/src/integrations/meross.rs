@@ -452,14 +452,9 @@ impl SmartHomeProvider for MerossProvider {
                 result
             }
             Err(e) => {
+                // An unknown state is an error, not "off": callers keep the cached state
                 warn!("Meross MQTT connection failed for get_device_state: {}", e);
-                // Return default state on connection failure
-                Ok(DeviceState {
-                    is_on: false,
-                    brightness: None,
-                    temperature: None,
-                    power_consumption_watts: None,
-                })
+                Err(e)
             }
         }
     }
@@ -498,6 +493,7 @@ impl SmartHomeProvider for MerossProvider {
                 let _ = mqtt_client.disconnect().await;
                 result
             }
+            Err(e @ ProviderError::AuthenticationFailed(_)) => Err(e),
             Err(e) => {
                 error!("Meross MQTT connection failed for turn_on: {}", e);
                 Ok(DeviceActionResult {
@@ -543,6 +539,7 @@ impl SmartHomeProvider for MerossProvider {
                 let _ = mqtt_client.disconnect().await;
                 result
             }
+            Err(e @ ProviderError::AuthenticationFailed(_)) => Err(e),
             Err(e) => {
                 error!("Meross MQTT connection failed for turn_off: {}", e);
                 Ok(DeviceActionResult {

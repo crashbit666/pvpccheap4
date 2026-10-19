@@ -241,6 +241,8 @@ pub struct Schedule {
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionStatus {
     Pending,
+    /// Claimed by a runner that is sending the command right now
+    Executing,
     Executed,
     Failed,
     Retrying,
@@ -251,6 +253,7 @@ impl ExecutionStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
             ExecutionStatus::Pending => "pending",
+            ExecutionStatus::Executing => "executing",
             ExecutionStatus::Executed => "executed",
             ExecutionStatus::Failed => "failed",
             ExecutionStatus::Retrying => "retrying",
@@ -261,6 +264,7 @@ impl ExecutionStatus {
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(ExecutionStatus::Pending),
+            "executing" => Some(ExecutionStatus::Executing),
             "executed" => Some(ExecutionStatus::Executed),
             "failed" => Some(ExecutionStatus::Failed),
             "retrying" => Some(ExecutionStatus::Retrying),

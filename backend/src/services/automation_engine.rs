@@ -536,6 +536,19 @@ impl AutomationEngine {
                     .execute(&mut conn)
                     .ok();
 
+                // Keep the cached device state in step with what we just did
+                let is_on = result.new_state.as_ref().map(|s| s.is_on).or(match evaluation.action {
+                    RuleAction::TurnOn => Some(true),
+                    RuleAction::TurnOff => Some(false),
+                    RuleAction::Toggle => None,
+                });
+                if let (true, Some(is_on)) = (result.success, is_on) {
+                    diesel::update(devices::table.filter(devices::id.eq(rule.device_id)))
+                        .set(devices::is_on.eq(is_on))
+                        .execute(&mut conn)
+                        .ok();
+                }
+
                 ExecutionResult {
                     rule_id: rule.id,
                     success: result.success,
@@ -690,6 +703,7 @@ impl AutomationEngine {
                 .inner_join(automation_rules::table)
                 .filter(scheduled_executions::scheduled_hour.eq(current_hour_start))
                 .filter(scheduled_executions::status.eq(ExecutionStatus::Pending.as_str()))
+                .filter(automation_rules::is_enabled.eq(true))
                 .select((ScheduledExecution::as_select(), AutomationRule::as_select()))
                 .load(&mut conn)
                 .unwrap_or_default();
@@ -715,8 +729,9 @@ impl AutomationEngine {
 
         // Execute scheduled actions (turn on)
         for (scheduled, rule) in pending_executions {
-            let result = self.execute_scheduled_execution(&scheduled, &rule).await;
-            results.push(result);
+            if let Some(result) = self.claim_and_execute(&scheduled, &rule).await {
+                results.push(result);
+            }
         }
 
         // Find rules that should turn OFF (not scheduled for current hour but have "turn_on" action).
@@ -887,12 +902,21 @@ impl AutomationEngine {
             }
         };
 
-        // Get executions that are in "retrying" status and due for retry
+        // Executions due now: retries whose time has come, and pending hours of
+        // the current hour (e.g. a rule created or enabled in the middle of it)
+        let current_hour = crate::time::current_hour();
         let retrying_executions: Vec<(ScheduledExecution, AutomationRule)> =
             scheduled_executions::table
                 .inner_join(automation_rules::table)
-                .filter(scheduled_executions::status.eq(ExecutionStatus::Retrying.as_str()))
-                .filter(scheduled_executions::next_retry_at.le(now))
+                .filter(automation_rules::is_enabled.eq(true))
+                .filter(
+                    scheduled_executions::status
+                        .eq(ExecutionStatus::Retrying.as_str())
+                        .and(scheduled_executions::next_retry_at.le(now))
+                        .or(scheduled_executions::status
+                            .eq(ExecutionStatus::Pending.as_str())
+                            .and(scheduled_executions::scheduled_hour.eq(current_hour))),
+                )
                 .select((ScheduledExecution::as_select(), AutomationRule::as_select()))
                 .load(&mut conn)
                 .unwrap_or_default();
@@ -924,11 +948,152 @@ impl AutomationEngine {
                     "Scheduled execution {} for rule {} marked as missed - hour passed",
                     scheduled.id, rule.id
                 );
-            } else {
-                // Try again
-                let result = self.execute_scheduled_execution(&scheduled, &rule).await;
+            } else if let Some(result) = self.claim_and_execute(&scheduled, &rule).await {
                 results.push(result);
             }
+        }
+
+        results.extend(self.retry_failed_turn_offs().await);
+        results
+    }
+
+    /// Execute a scheduled hour unless another runner already took it. The row is
+    /// moved to "executing" atomically, so the hourly and per-minute jobs (or two
+    /// overlapping per-minute passes) never send the same command twice.
+    async fn claim_and_execute(
+        &self,
+        scheduled: &ScheduledExecution,
+        rule: &AutomationRule,
+    ) -> Option<ExecutionResult> {
+        let mut conn = self.pool.get().ok()?;
+        let claimed = diesel::update(
+            scheduled_executions::table
+                .filter(scheduled_executions::id.eq(scheduled.id))
+                .filter(scheduled_executions::status.eq_any([
+                    ExecutionStatus::Pending.as_str(),
+                    ExecutionStatus::Retrying.as_str(),
+                ])),
+        )
+        .set(scheduled_executions::status.eq(ExecutionStatus::Executing.as_str()))
+        .execute(&mut conn)
+        .unwrap_or(0);
+
+        if claimed == 0 {
+            return None;
+        }
+        Some(self.execute_scheduled_execution(scheduled, rule).await)
+    }
+
+    /// Turn a rule's device off if the rule switched it on for the current hour
+    /// and no other enabled rule keeps it on. Used when a rule is disabled or
+    /// about to be deleted. Returns None when nothing had to be done.
+    pub async fn release_device_for_rule(&self, rule_id: i32) -> Option<ExecutionResult> {
+        let mut conn = self.pool.get().ok()?;
+        let current_hour = crate::time::current_hour();
+
+        let rule: AutomationRule = automation_rules::table.find(rule_id).first(&mut conn).ok()?;
+        if rule.action != "turn_on" {
+            return None;
+        }
+
+        let switched_on_now = scheduled_executions::table
+            .filter(scheduled_executions::rule_id.eq(rule.id))
+            .filter(scheduled_executions::scheduled_hour.eq(current_hour))
+            .filter(scheduled_executions::status.eq_any(["executed", "executing", "retrying"]))
+            .select(scheduled_executions::id)
+            .first::<i32>(&mut conn)
+            .is_ok();
+        if !switched_on_now {
+            return None;
+        }
+
+        let kept_on_by_other_rule = scheduled_executions::table
+            .inner_join(automation_rules::table)
+            .filter(automation_rules::device_id.eq(rule.device_id))
+            .filter(automation_rules::id.ne(rule.id))
+            .filter(automation_rules::is_enabled.eq(true))
+            .filter(scheduled_executions::scheduled_hour.eq(current_hour))
+            .filter(scheduled_executions::status.ne(ExecutionStatus::Missed.as_str()))
+            .select(scheduled_executions::id)
+            .first::<i32>(&mut conn)
+            .is_ok();
+        if kept_on_by_other_rule {
+            return None;
+        }
+
+        info!("Rule {} no longer applies, turning off device {}", rule.id, rule.device_id);
+        let evaluation = RuleEvaluation {
+            rule_id: rule.id,
+            should_trigger: true,
+            action: RuleAction::TurnOff,
+            reason: "Rule disabled or deleted - turn off".to_string(),
+        };
+        let current_price = self.get_current_price(&crate::time::now_naive());
+        let result = self.execute_rule(&rule, &evaluation, current_price).await;
+        self.log_execution(&result, &evaluation);
+        Some(result)
+    }
+
+    /// Retry the hourly inverse turn-off when it failed, up to 5 attempts per hour.
+    async fn retry_failed_turn_offs(&self) -> Vec<ExecutionResult> {
+        const MAX_ATTEMPTS: usize = 5;
+        let mut results = Vec::new();
+        let Ok(mut conn) = self.pool.get() else {
+            return results;
+        };
+        let current_hour = crate::time::current_hour();
+
+        // Turn-offs logged this hour, newest first
+        let attempts: Vec<(i32, bool)> = rule_executions::table
+            .filter(rule_executions::executed_at.ge(current_hour))
+            .filter(rule_executions::action_taken.eq(RuleAction::TurnOff.as_str()))
+            .order(rule_executions::executed_at.desc())
+            .select((rule_executions::rule_id, rule_executions::success))
+            .load(&mut conn)
+            .unwrap_or_default();
+
+        let mut seen: Vec<i32> = Vec::new();
+        for (rule_id, success) in &attempts {
+            if seen.contains(rule_id) {
+                continue;
+            }
+            seen.push(*rule_id);
+            let tries = attempts.iter().filter(|(id, _)| id == rule_id).count();
+            if *success || tries >= MAX_ATTEMPTS {
+                continue;
+            }
+
+            // Only while the rule is still enabled and not scheduled for this hour
+            let Ok(rule) = automation_rules::table
+                .find(rule_id)
+                .filter(automation_rules::is_enabled.eq(true))
+                .first::<AutomationRule>(&mut conn)
+            else {
+                continue;
+            };
+            let scheduled_now = scheduled_executions::table
+                .inner_join(automation_rules::table)
+                .filter(automation_rules::device_id.eq(rule.device_id))
+                .filter(scheduled_executions::scheduled_hour.eq(current_hour))
+                .filter(scheduled_executions::status.ne(ExecutionStatus::Missed.as_str()))
+                .select(scheduled_executions::id)
+                .first::<i32>(&mut conn)
+                .is_ok();
+            if scheduled_now {
+                continue;
+            }
+
+            warn!("Retrying turn-off of device {} (attempt {})", rule.device_id, tries + 1);
+            let evaluation = RuleEvaluation {
+                rule_id: rule.id,
+                should_trigger: true,
+                action: RuleAction::TurnOff,
+                reason: format!("Retry of failed auto turn off ({}/{})", tries + 1, MAX_ATTEMPTS),
+            };
+            let current_price = self.get_current_price(&crate::time::now_naive());
+            let result = self.execute_rule(&rule, &evaluation, current_price).await;
+            self.log_execution(&result, &evaluation);
+            results.push(result);
         }
 
         results

@@ -21,3 +21,10 @@ pub fn now_naive() -> NaiveDateTime {
 pub fn today() -> NaiveDate {
     now().date_naive()
 }
+
+/// Start of the current hour in Madrid wall time.
+pub fn current_hour() -> NaiveDateTime {
+    use chrono::Timelike;
+    let now = now_naive();
+    now.date().and_hms_opt(now.hour(), 0, 0).unwrap()
+}

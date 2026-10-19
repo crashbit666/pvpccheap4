@@ -220,9 +220,16 @@ impl MerossMqttClient {
             keep_alive_secs: 30,
         };
 
-        let connection = MqttConnection::connect(config)
-            .await
-            .map_err(|e| ProviderError::ConnectionError(e.to_string()))?;
+        let connection = MqttConnection::connect(config).await.map_err(|e| {
+            let msg = e.to_string();
+            // The broker rejects a stale user_id/key: report it as an auth failure
+            // so callers refresh the credentials instead of failing every hour
+            if msg.contains("BadUserNamePassword") || msg.contains("NotAuthorized") {
+                ProviderError::AuthenticationFailed(msg)
+            } else {
+                ProviderError::ConnectionError(msg)
+            }
+        })?;
 
         // Subscribe to client topic
         connection

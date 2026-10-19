@@ -134,12 +134,10 @@ async fn sync_prices_startup(pool: Arc<DbPool>) {
     }
 
     // If it's past 20:30, also try to sync tomorrow's prices
-    let mut have_tomorrow_prices = false;
     if now.hour() > 20 || (now.hour() == 20 && now.minute() >= 30) {
         match service.has_prices_for_date(tomorrow) {
             Ok(true) => {
                 log::info!("Tomorrow's prices ({}) already in database", tomorrow);
-                have_tomorrow_prices = true;
             }
             Ok(false) => {
                 log::info!(
@@ -147,10 +145,7 @@ async fn sync_prices_startup(pool: Arc<DbPool>) {
                     tomorrow
                 );
                 match service.sync_tomorrow().await {
-                    Ok(count) => {
-                        log::info!("Synced {} prices for tomorrow", count);
-                        have_tomorrow_prices = count as i64 >= expected_price_rows(tomorrow);
-                    }
+                    Ok(count) => log::info!("Synced {} prices for tomorrow", count),
                     Err(e) => log::warn!("Could not sync tomorrow's prices: {}", e),
                 }
             }
@@ -160,32 +155,14 @@ async fn sync_prices_startup(pool: Arc<DbPool>) {
         }
     }
 
-    // Compute schedules for today
-    log::info!("Computing schedules for today...");
-    match schedule_service.compute_schedule_for_date(today) {
-        Ok(count) => log::info!("Computed {} scheduled executions for today", count),
-        Err(e) => log::error!("Failed to compute today's schedules: {}", e),
+    // A crash while sending a command leaves rows in "executing": retry them
+    match schedule_service.reset_interrupted_executions() {
+        Ok(count) if count > 0 => log::info!("Re-queued {} interrupted executions", count),
+        Ok(_) => {}
+        Err(e) => log::warn!("Failed to re-queue interrupted executions: {}", e),
     }
 
-    // If we have tomorrow's prices, also recompute overnight rules
-    if have_tomorrow_prices {
-        log::info!("Recomputing overnight rules with complete price data...");
-        match schedule_service.recompute_overnight_rules() {
-            Ok(count) if count > 0 => {
-                log::info!("Recomputed {} overnight scheduled executions", count)
-            }
-            Ok(_) => log::info!("No overnight rules needed recomputation"),
-            Err(e) => log::error!("Failed to recompute overnight rules: {}", e),
-        }
-    }
-
-    // Mark any missed hours
-    match schedule_service.mark_missed_hours() {
-        Ok(count) if count > 0 => log::info!("Marked {} hours as missed", count),
-        _ => {}
-    }
-
-    // Run scheduled automation for current hour
+    // Computes schedules and runs the current hour
     log::info!("Running initial automation check...");
     run_scheduled_automation(pool).await;
 }
@@ -224,24 +201,9 @@ async fn sync_prices_daily(pool: Arc<DbPool>) {
                 log::info!("Synced {} prices for tomorrow", count);
                 success = true;
 
-                // Compute schedules for tomorrow now that we have prices
-                log::info!("Computing schedules for tomorrow...");
-                match schedule_service.compute_schedule_for_date(tomorrow) {
-                    Ok(sched_count) => {
-                        log::info!("Computed {} scheduled executions for tomorrow", sched_count)
-                    }
-                    Err(e) => log::error!("Failed to compute tomorrow's schedules: {}", e),
-                }
-
-                // Recompute overnight rules that span today and tomorrow
-                // Now that we have tomorrow's prices, we can calculate the full window
-                log::info!("Recomputing overnight rules with complete price data...");
-                match schedule_service.recompute_overnight_rules() {
-                    Ok(count) if count > 0 => {
-                        log::info!("Recomputed {} overnight scheduled executions", count)
-                    }
-                    Ok(_) => log::info!("No overnight rules needed recomputation"),
-                    Err(e) => log::error!("Failed to recompute overnight rules: {}", e),
+                // Tomorrow's windows and tonight's overnight windows can now be computed
+                if let Err(e) = schedule_service.refresh_all() {
+                    log::error!("Failed to compute schedules: {}", e);
                 }
             }
             Ok(count) => {
@@ -317,6 +279,13 @@ async fn run_automation(pool: Arc<DbPool>) {
 
 /// Run scheduled automation for the current hour
 async fn run_scheduled_automation(pool: Arc<DbPool>) {
+    // Catch up if the 20:30 sync failed or the cron was down: fetch missing
+    // prices and (re)compute schedules before acting on the current hour
+    ensure_prices(&pool).await;
+    if let Err(e) = ScheduleComputationService::new((*pool).clone()).refresh_all() {
+        log::error!("Failed to compute schedules: {}", e);
+    }
+
     let registry = Arc::new(ProviderRegistry::new());
     let engine = AutomationEngine::new((*pool).clone(), registry);
 
@@ -340,6 +309,28 @@ async fn run_scheduled_automation(pool: Arc<DbPool>) {
             if let Some(ref error) = result.error_message {
                 log::error!("Rule {} failed: {}", result.rule_id, error);
             }
+        }
+    }
+}
+
+/// Fetch today's prices, and tomorrow's after 20:30, when they are missing
+async fn ensure_prices(pool: &DbPool) {
+    let service = PriceService::new(pool.clone());
+    let now = backend::time::now();
+    let today = now.date_naive();
+    let mut dates = vec![today];
+    if now.hour() > 20 || (now.hour() == 20 && now.minute() >= 30) {
+        dates.push(today + chrono::Duration::days(1));
+    }
+
+    for date in dates {
+        if service.has_prices_for_date(date).unwrap_or(false) {
+            continue;
+        }
+        log::warn!("Prices for {} missing, fetching from ESIOS...", date);
+        match service.sync_prices_for_date(date).await {
+            Ok(count) => log::info!("Synced {} prices for {}", count, date),
+            Err(e) => log::error!("Failed to sync prices for {}: {}", date, e),
         }
     }
 }
