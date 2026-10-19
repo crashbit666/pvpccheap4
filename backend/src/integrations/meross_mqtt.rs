@@ -489,7 +489,7 @@ mod tests {
         });
 
         let client = MerossMqttClient::from_credentials(&credentials).unwrap();
-        assert_eq!(client.mqtt_domain, "eu-iotx.meross.com");
+        assert_eq!(client.mqtt_domain, "mqtt-eu-5.meross.com");
     }
 
     #[test]

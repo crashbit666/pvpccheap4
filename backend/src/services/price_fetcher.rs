@@ -293,7 +293,7 @@ fn merge_duplicate_hours(prices: Vec<PriceData>) -> Vec<PriceData> {
 
 /// Number of price rows a fully synced day has: 24, or 23 on the spring DST day.
 /// The autumn DST day has 25 hours but its repeated hour is merged into one row.
-fn expected_price_rows(date: NaiveDate) -> i64 {
+pub fn expected_price_rows(date: NaiveDate) -> i64 {
     let local_midnight = |d: NaiveDate| {
         Madrid
             .from_local_datetime(&d.and_hms_opt(0, 0, 0).unwrap())

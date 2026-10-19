@@ -700,24 +700,41 @@ impl AutomationEngine {
             current_hour_start
         );
 
-        // Execute scheduled actions (turn on)
-        let scheduled_rule_ids: Vec<i32> = pending_executions.iter().map(|(_, r)| r.id).collect();
+        // Rules and devices scheduled for this hour, whatever the status: an execution
+        // already done (e.g. before a cron restart) or being retried must not be undone
+        // by the inverse turn-off below.
+        let (scheduled_rule_ids, scheduled_device_ids): (Vec<i32>, Vec<i32>) =
+            scheduled_executions::table
+                .inner_join(automation_rules::table)
+                .filter(scheduled_executions::scheduled_hour.eq(current_hour_start))
+                .select((automation_rules::id, automation_rules::device_id))
+                .load::<(i32, i32)>(&mut conn)
+                .unwrap_or_default()
+                .into_iter()
+                .unzip();
 
+        // Execute scheduled actions (turn on)
         for (scheduled, rule) in pending_executions {
             let result = self.execute_scheduled_execution(&scheduled, &rule).await;
             results.push(result);
         }
 
-        // Find rules that should turn OFF (not scheduled for current hour but have "turn_on" action)
+        // Find rules that should turn OFF (not scheduled for current hour but have "turn_on" action).
+        // Skip devices that another rule keeps on this hour.
         let rules_to_turn_off: Vec<AutomationRule> = automation_rules::table
             .filter(automation_rules::is_enabled.eq(true))
             .filter(automation_rules::action.eq("turn_on"))
             .filter(automation_rules::id.ne_all(&scheduled_rule_ids))
+            .filter(automation_rules::device_id.ne_all(&scheduled_device_ids))
             .load(&mut conn)
             .unwrap_or_default();
 
-        // For each rule not scheduled this hour, turn off the device
+        // For each rule not scheduled this hour, turn off the device (once per device)
+        let mut turned_off_devices: Vec<i32> = Vec::new();
         for rule in rules_to_turn_off {
+            if turned_off_devices.contains(&rule.device_id) {
+                continue;
+            }
             // Check if this rule has any scheduled execution for today (to know if it's an automated rule)
             let today_start = now.date().and_hms_opt(0, 0, 0).unwrap();
             let today_end = now.date().and_hms_opt(23, 59, 59).unwrap();
@@ -745,6 +762,7 @@ impl AutomationEngine {
                     reason: format!("Not scheduled for hour {} - auto turn off", now.hour()),
                 };
 
+                turned_off_devices.push(rule.device_id);
                 let result = self.execute_rule(&rule, &evaluation, current_price).await;
                 self.log_execution(&result, &evaluation);
                 results.push(result);

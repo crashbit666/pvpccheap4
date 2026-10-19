@@ -18,7 +18,7 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use backend::db::{self, DbPool};
 use backend::integrations::ProviderRegistry;
 use backend::services::automation_engine::AutomationEngine;
-use backend::services::price_fetcher::PriceService;
+use backend::services::price_fetcher::{expected_price_rows, PriceService};
 use backend::services::schedule_computation::ScheduleComputationService;
 
 #[tokio::main]
@@ -149,7 +149,7 @@ async fn sync_prices_startup(pool: Arc<DbPool>) {
                 match service.sync_tomorrow().await {
                     Ok(count) => {
                         log::info!("Synced {} prices for tomorrow", count);
-                        have_tomorrow_prices = count >= 24;
+                        have_tomorrow_prices = count as i64 >= expected_price_rows(tomorrow);
                     }
                     Err(e) => log::warn!("Could not sync tomorrow's prices: {}", e),
                 }
@@ -220,7 +220,7 @@ async fn sync_prices_daily(pool: Arc<DbPool>) {
         }
 
         match service.sync_tomorrow().await {
-            Ok(count) if count >= 24 => {
+            Ok(count) if count as i64 >= expected_price_rows(tomorrow) => {
                 log::info!("Synced {} prices for tomorrow", count);
                 success = true;
 
@@ -246,8 +246,9 @@ async fn sync_prices_daily(pool: Arc<DbPool>) {
             }
             Ok(count) => {
                 log::warn!(
-                    "Only got {} prices for tomorrow (expected 24), will retry...",
-                    count
+                    "Only got {} prices for tomorrow (expected {}), will retry...",
+                    count,
+                    expected_price_rows(tomorrow)
                 );
                 attempt += 1;
             }
