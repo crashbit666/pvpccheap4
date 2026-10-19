@@ -6,7 +6,7 @@ use crate::{
     services::{
         auth::Claims,
         automation_engine::AutomationEngine,
-        schedule_computation::{parse_time_of_day, ScheduleComputationService},
+        schedule_computation::{parse_time_of_day, window_specs, ScheduleComputationService},
     },
 };
 use std::sync::Arc;
@@ -47,6 +47,62 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
         && config.get("time_range_start").is_some() != config.get("time_range_end").is_some()
     {
         return Err("time_range_start and time_range_end must be set together".to_string());
+    }
+
+    validate_windows(config)
+}
+
+/// Check the "windows" list: valid times, no overlaps, and per-window hours that fit.
+fn validate_windows(config: &JsonValue) -> Result<(), String> {
+    const MAX_WINDOWS: usize = 8;
+
+    if let Some(distribution) = config.get("distribution") {
+        if !matches!(distribution.as_str(), Some("total") | Some("per_window")) {
+            return Err("distribution must be \"total\" or \"per_window\"".to_string());
+        }
+    }
+
+    let Some(list) = config.get("windows") else {
+        return Ok(());
+    };
+    let Some(list) = list.as_array() else {
+        return Err("windows must be a list".to_string());
+    };
+    if list.len() > MAX_WINDOWS {
+        return Err(format!("At most {} windows", MAX_WINDOWS));
+    }
+    for (i, w) in list.iter().enumerate() {
+        for key in ["start", "end"] {
+            if w.get(key).and_then(|v| v.as_str()).and_then(parse_time_of_day).is_none() {
+                return Err(format!("Window {}: {} must be a time in HH:MM format", i + 1, key));
+            }
+        }
+        if let Some(hours) = w.get("hours") {
+            if !matches!(hours.as_i64(), Some(1..=24)) {
+                return Err(format!("Window {}: hours must be an integer between 1 and 24", i + 1));
+            }
+        }
+    }
+
+    let specs = window_specs(config);
+    let per_window = config.get("distribution").and_then(|d| d.as_str()) == Some("per_window");
+    let mut used = [false; 24];
+    for (i, spec) in specs.iter().enumerate() {
+        let hours = spec.hours_of_day();
+        if hours.iter().any(|h| used[*h as usize]) {
+            return Err(format!("Window {} overlaps another window", i + 1));
+        }
+        hours.iter().for_each(|h| used[*h as usize] = true);
+        if per_window {
+            if let Some(n) = spec.hours.filter(|n| *n > hours.len()) {
+                return Err(format!(
+                    "Window {} lasts {} h and cannot hold {} h",
+                    i + 1,
+                    hours.len(),
+                    n
+                ));
+            }
+        }
     }
 
     Ok(())
@@ -662,6 +718,28 @@ mod tests {
         assert!(ok("price_threshold", serde_json::json!({"price_threshold": 0.12})));
         assert!(!ok("price_threshold", serde_json::json!({"price_threshold": "0,12"})));
         assert!(ok("manual", serde_json::json!({})));
+
+        let windows = |w: JsonValue, distribution: &str| {
+            serde_json::json!({"cheapest_hours": 3, "windows": w, "distribution": distribution})
+        };
+        assert!(ok("cheapest_hours", windows(serde_json::json!([
+            {"start": "14:00", "end": "16:00", "hours": 1},
+            {"start": "20:00", "end": "06:00", "hours": 4}
+        ]), "per_window")));
+        // Overlap (15:00 in both)
+        assert!(!ok("cheapest_hours", windows(serde_json::json!([
+            {"start": "14:00", "end": "16:00"}, {"start": "15:00", "end": "18:00"}
+        ]), "total")));
+        // Overlap across midnight
+        assert!(!ok("cheapest_hours", windows(serde_json::json!([
+            {"start": "22:00", "end": "02:00"}, {"start": "01:00", "end": "03:00"}
+        ]), "total")));
+        // 3 h do not fit in a 2 h window
+        assert!(!ok("cheapest_hours", windows(serde_json::json!([
+            {"start": "14:00", "end": "16:00", "hours": 3}
+        ]), "per_window")));
+        assert!(!ok("cheapest_hours", windows(serde_json::json!([{"start": "14h", "end": "16:00"}]), "total")));
+        assert!(!ok("cheapest_hours", windows(serde_json::json!([]), "random")));
         assert!(!ok("manual", serde_json::json!([])));
     }
 }

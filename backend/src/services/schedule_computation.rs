@@ -78,60 +78,86 @@ impl ScheduleComputationService {
         rule: &AutomationRule,
         date: NaiveDate,
     ) -> Result<usize, String> {
-        let Some((window_start, window_end)) = instance_window(rule, date) else {
+        let mut total = 0;
+        for group in instance_groups(rule, date) {
+            total += self.recompute_group(conn, rule, &group)?;
+        }
+        Ok(total)
+    }
+
+    /// Replace the pending hours of one group of windows (they share an hour budget).
+    fn recompute_group(
+        &self,
+        conn: &mut PgConnection,
+        rule: &AutomationRule,
+        group: &WindowGroup,
+    ) -> Result<usize, String> {
+        let (Some(span_start), Some(span_end)) = (
+            group.windows.iter().map(|w| w.0).min(),
+            group.windows.iter().map(|w| w.1).max(),
+        ) else {
             return Ok(0);
         };
 
-        let in_window = scheduled_executions::rule_id
-            .eq(rule.id)
-            .and(scheduled_executions::scheduled_hour.ge(window_start))
-            .and(scheduled_executions::scheduled_hour.lt(window_end));
+        // Rows of this group: the rule's rows inside any of its windows
+        let rows: Vec<(i32, NaiveDateTime, String)> = scheduled_executions::table
+            .filter(scheduled_executions::rule_id.eq(rule.id))
+            .filter(scheduled_executions::scheduled_hour.ge(span_start))
+            .filter(scheduled_executions::scheduled_hour.lt(span_end))
+            .select((
+                scheduled_executions::id,
+                scheduled_executions::scheduled_hour,
+                scheduled_executions::status,
+            ))
+            .load(conn)
+            .map_err(|e| e.to_string())?;
+        let (pending, handled): (Vec<_>, Vec<_>) = rows
+            .into_iter()
+            .filter(|(_, hour, _)| group.contains(hour))
+            .partition(|(_, _, status)| status == ExecutionStatus::Pending.as_str());
 
-        diesel::delete(
-            scheduled_executions::table
-                .filter(in_window)
-                .filter(scheduled_executions::status.eq(ExecutionStatus::Pending.as_str())),
-        )
-        .execute(conn)
-        .map_err(|e| e.to_string())?;
+        let pending_ids: Vec<i32> = pending.iter().map(|(id, _, _)| *id).collect();
+        diesel::delete(scheduled_executions::table.filter(scheduled_executions::id.eq_any(pending_ids)))
+            .execute(conn)
+            .map_err(|e| e.to_string())?;
 
         if !rule.is_enabled {
             return Ok(0);
         }
 
-        // Hours of this instance that are already past the pending stage
-        let handled: Vec<(NaiveDateTime, String)> = scheduled_executions::table
-            .filter(in_window)
-            .select((scheduled_executions::scheduled_hour, scheduled_executions::status))
-            .load(conn)
-            .map_err(|e| e.to_string())?;
-        let handled_hours: HashSet<NaiveDateTime> = handled.iter().map(|(h, _)| *h).collect();
+        // Hours already past the pending stage stay as they are
+        let handled_hours: HashSet<NaiveDateTime> = handled.iter().map(|(_, h, _)| *h).collect();
         let acted = handled
             .iter()
-            .filter(|(_, status)| ACTED_STATUSES.contains(&status.as_str()))
+            .filter(|(_, _, status)| ACTED_STATUSES.contains(&status.as_str()))
             .count();
-
-        let now = crate::time::now_naive();
-        let current_hour = now.date().and_hms_opt(now.hour(), 0, 0).unwrap();
-        let from = window_start.max(current_hour);
         let is_free = |h: &NaiveDateTime| !handled_hours.contains(h);
+        let current_hour = crate::time::current_hour();
 
         let picks: Vec<NaiveDateTime> = match rule.rule_type.as_str() {
             "cheapest_hours" => {
-                if !self.prices_complete(window_start, window_end) {
+                if let Some(&(start, end)) = group
+                    .windows
+                    .iter()
+                    .find(|(start, end)| !self.prices_complete(*start, *end))
+                {
                     // Picking from a partial window would choose expensive hours
                     // (e.g. only the evening of an overnight window)
                     info!(
                         "Rule {}: prices for {}..{} not complete yet, not scheduling",
-                        rule.id, window_start, window_end
+                        rule.id, start, end
                     );
                     return Ok(0);
                 }
-                let hours_needed = cheapest_hours_needed(rule).saturating_sub(acted);
-                let mut candidates: Vec<Price> = load_prices(conn, from, window_end)?
-                    .into_iter()
-                    .filter(|p| is_free(&p.timestamp))
-                    .collect();
+                let hours_needed = group.hours.unwrap_or(0).saturating_sub(acted);
+                let mut candidates: Vec<Price> = Vec::new();
+                for &(start, end) in &group.windows {
+                    candidates.extend(
+                        load_prices(conn, start.max(current_hour), end)?
+                            .into_iter()
+                            .filter(|p| is_free(&p.timestamp)),
+                    );
+                }
                 candidates.sort_by(|a, b| {
                     a.price
                         .total_cmp(&b.price)
@@ -149,20 +175,27 @@ impl ScheduleComputationService {
                     .get("price_threshold")
                     .and_then(|v| v.as_f64())
                     .unwrap_or(0.10);
-                load_prices(conn, from, window_end)?
-                    .into_iter()
-                    .filter(|p| p.price <= threshold && is_free(&p.timestamp))
-                    .map(|p| p.timestamp)
-                    .collect()
+                let mut hours = Vec::new();
+                for &(start, end) in &group.windows {
+                    hours.extend(
+                        load_prices(conn, start.max(current_hour), end)?
+                            .into_iter()
+                            .filter(|p| p.price <= threshold && is_free(&p.timestamp))
+                            .map(|p| p.timestamp),
+                    );
+                }
+                hours
             }
             "time_schedule" => {
                 let mut hours = Vec::new();
-                let mut h = from;
-                while h < window_end {
-                    if is_free(&h) {
-                        hours.push(h);
+                for &(start, end) in &group.windows {
+                    let mut h = start.max(current_hour);
+                    while h < end {
+                        if is_free(&h) {
+                            hours.push(h);
+                        }
+                        h += Duration::hours(1);
                     }
-                    h += Duration::hours(1);
                 }
                 hours
             }
@@ -276,30 +309,114 @@ fn load_prices(
         .map_err(|e| e.to_string())
 }
 
-/// [start, end) of the rule's window that starts on `date`, or None for rules
-/// that are never scheduled. A window whose end is not after its start crosses
-/// midnight and ends on the next day.
-fn instance_window(rule: &AutomationRule, date: NaiveDate) -> Option<(NaiveDateTime, NaiveDateTime)> {
+/// A time window of a rule, in whole hours: [start, end), crossing midnight
+/// when end <= start. `hours` is its own budget in "per_window" mode.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WindowSpec {
+    pub start: u32,
+    pub end: u32,
+    pub hours: Option<usize>,
+}
+
+impl WindowSpec {
+    /// Hours of the day (0-23) the window covers.
+    pub fn hours_of_day(&self) -> Vec<u32> {
+        if self.start < self.end {
+            (self.start..self.end).collect()
+        } else {
+            (self.start..24).chain(0..self.end).collect()
+        }
+    }
+}
+
+/// The windows of a rule: the "windows" list, or the legacy single
+/// time_range_start/time_range_end pair. Empty when the rule has none.
+pub fn window_specs(config: &serde_json::Value) -> Vec<WindowSpec> {
+    if let Some(list) = config.get("windows").and_then(|w| w.as_array()) {
+        return list
+            .iter()
+            .filter_map(|w| {
+                let (start, _) = parse_time_of_day(w.get("start")?.as_str()?)?;
+                let (end_h, end_m) = parse_time_of_day(w.get("end")?.as_str()?)?;
+                Some(WindowSpec {
+                    start,
+                    end: if end_m == 0 { end_h } else { end_h + 1 },
+                    hours: w.get("hours").and_then(|h| h.as_u64()).map(|h| h as usize),
+                })
+            })
+            .collect();
+    }
+    match (window_start_hour(config), window_end_hour(config)) {
+        (Some(start), Some(end)) => vec![WindowSpec { start, end, hours: None }],
+        _ => vec![],
+    }
+}
+
+/// True when a cheapest_hours rule picks its hours separately in each window.
+fn is_per_window(config: &serde_json::Value) -> bool {
+    config.get("distribution").and_then(|d| d.as_str()) == Some("per_window")
+}
+
+/// Windows of one rule instance that share an hour budget.
+#[derive(Debug, PartialEq)]
+struct WindowGroup {
+    /// Concrete [start, end) spans
+    windows: Vec<(NaiveDateTime, NaiveDateTime)>,
+    /// cheapest_hours: how many hours to pick; unused by the other rule types
+    hours: Option<usize>,
+}
+
+impl WindowGroup {
+    fn contains(&self, hour: &NaiveDateTime) -> bool {
+        self.windows.iter().any(|(start, end)| start <= hour && hour < end)
+    }
+}
+
+/// Window groups of the rule's instance that starts on `date`. Each window
+/// starts on `date` and, if it crosses midnight, ends on the next day.
+fn instance_groups(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGroup> {
     let at = |d: NaiveDate, hour: u32| d.and_hms_opt(0, 0, 0).unwrap() + Duration::hours(hour as i64);
-    let whole_day = (at(date, 0), at(date, 24));
-
-    let (start, end) = match rule.rule_type.as_str() {
-        "cheapest_hours" => match (window_start_hour(&rule.config), window_end_hour(&rule.config)) {
-            (Some(start), Some(end)) => (start, end),
-            _ => return Some(whole_day),
-        },
-        "time_schedule" => (
-            window_start_hour(&rule.config).unwrap_or(0),
-            window_end_hour(&rule.config).unwrap_or(24),
-        ),
-        "price_threshold" => return Some(whole_day),
-        _ => return None,
+    let span = |w: &WindowSpec| {
+        if w.start < w.end {
+            (at(date, w.start), at(date, w.end))
+        } else {
+            (at(date, w.start), at(date + Duration::days(1), w.end))
+        }
     };
+    let whole_day = WindowSpec { start: 0, end: 24, hours: None };
 
-    if start < end {
-        Some((at(date, start), at(date, end)))
-    } else {
-        Some((at(date, start), at(date + Duration::days(1), end)))
+    let mut specs = window_specs(&rule.config);
+    match rule.rule_type.as_str() {
+        "cheapest_hours" => {
+            if specs.is_empty() {
+                specs.push(whole_day);
+            }
+            let total = cheapest_hours_needed(rule);
+            if is_per_window(&rule.config) {
+                specs
+                    .iter()
+                    .map(|w| WindowGroup { windows: vec![span(w)], hours: Some(w.hours.unwrap_or(total)) })
+                    .collect()
+            } else {
+                vec![WindowGroup { windows: specs.iter().map(span).collect(), hours: Some(total) }]
+            }
+        }
+        "time_schedule" => {
+            if specs.is_empty() {
+                // Legacy: a missing bound means the start or end of the day
+                specs.push(WindowSpec {
+                    start: window_start_hour(&rule.config).unwrap_or(0),
+                    end: window_end_hour(&rule.config).unwrap_or(24),
+                    hours: None,
+                });
+            }
+            specs
+                .iter()
+                .map(|w| WindowGroup { windows: vec![span(w)], hours: None })
+                .collect()
+        }
+        "price_threshold" => vec![WindowGroup { windows: vec![span(&whole_day)], hours: None }],
+        _ => vec![],
     }
 }
 
@@ -370,26 +487,67 @@ mod tests {
         NaiveDate::from_ymd_opt(2026, 10, d).unwrap().and_hms_opt(h, 0, 0).unwrap()
     }
 
-    #[test]
-    fn test_instance_window() {
+    fn groups(r: AutomationRule) -> Vec<(Vec<(NaiveDateTime, NaiveDateTime)>, Option<usize>)> {
         let date = NaiveDate::from_ymd_opt(2026, 10, 19).unwrap();
-        let w = |r: AutomationRule| instance_window(&r, date);
+        instance_groups(&r, date).into_iter().map(|g| (g.windows, g.hours)).collect()
+    }
 
-        assert_eq!(w(rule("cheapest_hours", json!({"cheapest_hours": 6}))), Some((dt(19, 0), dt(20, 0))));
+    #[test]
+    fn test_instance_groups_legacy() {
         assert_eq!(
-            w(rule("cheapest_hours", json!({"cheapest_hours": 6, "time_range_start": "06:00", "time_range_end": "22:00"}))),
-            Some((dt(19, 6), dt(19, 22)))
+            groups(rule("cheapest_hours", json!({"cheapest_hours": 6}))),
+            vec![(vec![(dt(19, 0), dt(20, 0))], Some(6))]
         );
         assert_eq!(
-            w(rule("cheapest_hours", json!({"cheapest_hours": 6, "time_range_start": "19:00", "time_range_end": "07:00"}))),
-            Some((dt(19, 19), dt(20, 7)))
+            groups(rule("cheapest_hours", json!({"cheapest_hours": 6, "time_range_start": "19:00", "time_range_end": "07:00"}))),
+            vec![(vec![(dt(19, 19), dt(20, 7))], Some(6))]
         );
         assert_eq!(
-            w(rule("time_schedule", json!({"time_range_start": "22:00", "time_range_end": "23:59"}))),
-            Some((dt(19, 22), dt(20, 0)))
+            groups(rule("time_schedule", json!({"time_range_start": "22:00", "time_range_end": "23:59"}))),
+            vec![(vec![(dt(19, 22), dt(20, 0))], None)]
         );
-        assert_eq!(w(rule("price_threshold", json!({"price_threshold": 0.1}))), Some((dt(19, 0), dt(20, 0))));
-        assert_eq!(w(rule("manual", json!({}))), None);
+        assert_eq!(
+            groups(rule("price_threshold", json!({"price_threshold": 0.1}))),
+            vec![(vec![(dt(19, 0), dt(20, 0))], None)]
+        );
+        assert!(groups(rule("manual", json!({}))).is_empty());
+    }
+
+    #[test]
+    fn test_instance_groups_several_windows() {
+        let windows = json!([
+            {"start": "14:00", "end": "16:00", "hours": 1},
+            {"start": "20:00", "end": "06:00", "hours": 4}
+        ]);
+        // Total: one budget across both windows
+        assert_eq!(
+            groups(rule("cheapest_hours", json!({"cheapest_hours": 3, "windows": windows, "distribution": "total"}))),
+            vec![(vec![(dt(19, 14), dt(19, 16)), (dt(19, 20), dt(20, 6))], Some(3))]
+        );
+        // Per window: each window with its own budget
+        assert_eq!(
+            groups(rule("cheapest_hours", json!({"cheapest_hours": 3, "windows": windows, "distribution": "per_window"}))),
+            vec![
+                (vec![(dt(19, 14), dt(19, 16))], Some(1)),
+                (vec![(dt(19, 20), dt(20, 6))], Some(4))
+            ]
+        );
+        // Time schedule: every hour of every window
+        assert_eq!(
+            groups(rule("time_schedule", json!({"windows": windows}))),
+            vec![
+                (vec![(dt(19, 14), dt(19, 16))], None),
+                (vec![(dt(19, 20), dt(20, 6))], None)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_window_hours_of_day() {
+        let w = |start, end| WindowSpec { start, end, hours: None };
+        assert_eq!(w(14, 16).hours_of_day(), vec![14, 15]);
+        assert_eq!(w(22, 2).hours_of_day(), vec![22, 23, 0, 1]);
+        assert_eq!(w(0, 0).hours_of_day().len(), 24);
     }
 
     #[test]
