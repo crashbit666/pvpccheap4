@@ -86,6 +86,7 @@ pub async fn list_devices(
     let results: Vec<(Device, String)> = match devices::table
         .inner_join(user_integrations::table)
         .filter(devices::integration_id.eq_any(&user_integration_ids))
+        .order(devices::id.asc()) // stable order, or switches move around in the app
         .select((Device::as_select(), user_integrations::provider_name))
         .load(&mut conn)
     {

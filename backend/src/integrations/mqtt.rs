@@ -298,6 +298,15 @@ impl MqttConnection {
                     debug!("MQTT subscription acknowledged");
                 }
                 Ok(_) => {}
+                Err(e) if conn_signal.is_none() => {
+                    // Already connected: this is the broker closing the socket, which
+                    // Meross does right after our disconnect. Pending requests time out
+                    // and are reported by their callers.
+                    debug!("MQTT connection closed: {}", e);
+                    *connected.lock().await = false;
+                    pending_requests.lock().await.clear();
+                    break;
+                }
                 Err(e) => {
                     error!("MQTT event loop error: {:?}", e);
                     error!("MQTT error details: {}", e);

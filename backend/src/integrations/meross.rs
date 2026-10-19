@@ -202,10 +202,10 @@ impl MerossProvider {
             .await
             .map_err(|e| ProviderError::Unknown(format!("Failed to read response: {}", e)))?;
 
-        debug!("Meross login response: {}", response_text);
-
+        // The body carries the session token and MQTT key: never log it
         let meross_response: MerossResponse<MerossLoginData> = serde_json::from_str(&response_text)
-            .map_err(|e| ProviderError::Unknown(format!("Failed to parse response: {}. Body: {}", e, response_text)))?;
+            .map_err(|e| ProviderError::Unknown(format!("Failed to parse login response: {}", e)))?;
+        debug!("Meross login response: apiStatus={}", meross_response.api_status);
 
         // Meross uses api_status 0 for success
         if meross_response.api_status != 0 {

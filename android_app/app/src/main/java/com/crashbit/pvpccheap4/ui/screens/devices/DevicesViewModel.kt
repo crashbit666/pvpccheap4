@@ -124,8 +124,27 @@ class DevicesViewModel @Inject constructor(
         }
     }
 
+    // A background state refresh takes seconds (the backend asks Meross for every
+    // device); one started before or during a toggle would bring back the old state
+    // and flip the switch back. Each toggle bumps the version so those are dropped.
+    private var deviceStateVersion = 0
+    private var togglesInFlight = 0
+
     fun toggleDevice(device: Device) {
+        deviceStateVersion++
+        togglesInFlight++
         viewModelScope.launch {
+            try {
+                toggleDeviceNow(device)
+            } finally {
+                togglesInFlight--
+                deviceStateVersion++
+            }
+        }
+    }
+
+    private suspend fun toggleDeviceNow(device: Device) {
+        run {
             val newState = !device.isOn
 
             // Optimistic update - update UI immediately
@@ -209,10 +228,14 @@ class DevicesViewModel @Inject constructor(
      * Uses refresh=true to fetch real states from providers.
      */
     fun refreshDeviceStates() {
+        val versionAtStart = deviceStateVersion
         viewModelScope.launch {
             when (val result = deviceRepository.getDevices(refresh = true)) {
                 is Result.Success -> {
-                    _uiState.value = _uiState.value.copy(devices = result.data)
+                    // Stale if a toggle started or finished meanwhile
+                    if (togglesInFlight == 0 && versionAtStart == deviceStateVersion) {
+                        _uiState.value = _uiState.value.copy(devices = result.data)
+                    }
                 }
                 is Result.Error -> {
                     // Silent fail - don't show error for background refresh
