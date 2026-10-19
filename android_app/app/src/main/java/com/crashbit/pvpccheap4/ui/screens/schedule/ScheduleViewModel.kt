@@ -74,6 +74,7 @@ class ScheduleViewModel @Inject constructor(
             "retrying" -> ScheduleStatus.RETRYING
             "missed" -> ScheduleStatus.MISSED
             "pending" -> ScheduleStatus.PENDING
+            "executing" -> ScheduleStatus.EXECUTING
             else -> ScheduleStatus.PENDING
         }
     }

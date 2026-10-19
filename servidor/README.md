@@ -13,7 +13,10 @@ amb el 8080 obert a Internet saltant-se el Caddy.
 - **Prioritat**: els altres projectes tenen prioritat de memòria; aquí, límits per contenidor
   i `--oom-score-adj` 300–400. La compilació de Rust també va limitada.
 - **Secrets**: `servidor/.env` (fora de git); cada contenidor només rep el seu
-  `.env.d/<servei>.env`.
+  `.env.d/<servei>.env`. El backend no arrenca sense `JWT_SECRET` (ni amb
+  `secret` o el valor del `.env.example`); genera'l amb `openssl rand -hex 32`.
+  Canviar-lo tanca la sessió de tots els usuaris: l'app rep un 401 i torna a
+  la pantalla d'inici de sessió.
 - **Còpies**: `bin/copia-pvpccheap.sh` cada dia a les 03:15 (hora de Madrid):
   bolcat xifrat a `~/copies/arxius` (clau a `~/copies/clau`, desada també
   fora del servidor) i replicat fora del servidor (destí a `~/copies/desti`).

@@ -764,7 +764,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_get_device_state_fallback_on_connection_failure() {
+    async fn test_get_device_state_errors_on_connection_failure() {
         let provider = MerossProvider::new();
         // Credentials with MQTT info but will fail to connect
         let credentials = serde_json::json!({
@@ -776,10 +776,8 @@ mod tests {
 
         let result = provider.get_device_state(&credentials, "device_123").await;
 
-        // Should return Ok with default state on connection failure
-        assert!(result.is_ok());
-        let state = result.unwrap();
-        assert!(!state.is_on); // Default state
+        // An unreachable broker is an error, not "off": callers keep the cached state
+        assert!(matches!(result, Err(ProviderError::ConnectionError(_))));
     }
 
     #[test]

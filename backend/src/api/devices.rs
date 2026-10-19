@@ -239,11 +239,21 @@ pub async fn sync_devices(
         Err(_) => return HttpResponse::InternalServerError().body("Invalid stored credentials"),
     };
 
-    // First, login to get a fresh token
-    let session = match provider.login(&credentials).await {
+    // First, login to get a fresh token (login() alone would reuse the stored one,
+    // so a revoked token could never be replaced from the app)
+    let session = match provider.refresh_credentials(&credentials).await {
         Ok(s) => s,
         Err(e) => {
-            return HttpResponse::BadRequest().body(format!("Failed to authenticate: {}", e))
+            log::warn!(
+                "Fresh login failed for integration {}: {}, using stored session",
+                integration.id, e
+            );
+            match provider.login(&credentials).await {
+                Ok(s) => s,
+                Err(e) => {
+                    return HttpResponse::BadRequest().body(format!("Failed to authenticate: {}", e))
+                }
+            }
         }
     };
 

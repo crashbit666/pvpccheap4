@@ -60,7 +60,8 @@ enum class ScheduleStatus {
     FAILED,
     RETRYING,
     MISSED,
-    PENDING
+    PENDING,
+    EXECUTING
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -227,6 +228,7 @@ fun StatusBadge(status: ScheduleStatus) {
         ScheduleStatus.RETRYING -> Triple("Reintentant", Color(0xFFFF9800).copy(alpha = 0.2f), Color(0xFFFF9800))
         ScheduleStatus.MISSED -> Triple("Perdut", Color(0xFF9E9E9E).copy(alpha = 0.2f), Color(0xFF757575))
         ScheduleStatus.PENDING -> Triple("Pendent", Color(0xFF9E9E9E).copy(alpha = 0.2f), Color(0xFF9E9E9E))
+        ScheduleStatus.EXECUTING -> Triple("Executant", Color(0xFF2196F3).copy(alpha = 0.1f), Color(0xFF2196F3))
     }
 
     Box(
