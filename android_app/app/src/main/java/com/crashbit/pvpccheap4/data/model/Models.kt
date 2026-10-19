@@ -129,7 +129,18 @@ data class RuleConfig(
     @SerializedName("time_range_start")
     val timeRangeStart: String? = null,
     @SerializedName("time_range_end")
-    val timeRangeEnd: String? = null
+    val timeRangeEnd: String? = null,
+    /** Time windows ("HH:00"); replaces time_range_start/end */
+    val windows: List<TimeWindow>? = null,
+    /** cheapest_hours with windows: "total" (N hours across all) or "per_window" */
+    val distribution: String? = null
+)
+
+data class TimeWindow(
+    val start: String,
+    val end: String,
+    /** Hours to pick in this window ("per_window" only) */
+    val hours: Int? = null
 )
 
 // Schedule models

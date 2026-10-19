@@ -244,15 +244,17 @@ fun EmptyRulesMessage(modifier: Modifier = Modifier) {
 
 private fun getRuleConfigSummary(rule: Rule): String? {
     val config = rule.config
-    val window = if (config.timeRangeStart != null && config.timeRangeEnd != null) {
-        "${config.timeRangeStart}–${config.timeRangeEnd}"
-    } else null
+    val windows = windowsFromConfig(config)
+    val labels = windows.joinToString(", ") { it.label }
     return when (rule.ruleType) {
-        "cheapest_hours" -> config.cheapestHours?.let { hours ->
-            if (window != null) "$hours hores més barates entre $window" else "$hours hores més barates"
+        "cheapest_hours" -> when {
+            windows.isEmpty() -> config.cheapestHours?.let { "$it h més barates del dia" }
+            config.distribution == "per_window" && windows.size > 1 ->
+                windows.joinToString(" · ") { "${it.hours} h a ${it.label}" }
+            else -> config.cheapestHours?.let { "$it h més barates · $labels" }
         }
         "price_threshold" -> config.priceThreshold?.let { "Preu ≤ $it €/kWh" }
-        "time_schedule" -> window?.let { "Cada dia $it" }
+        "time_schedule" -> labels.takeIf { it.isNotEmpty() }?.let { "Cada dia $it" }
         else -> null
     }
 }

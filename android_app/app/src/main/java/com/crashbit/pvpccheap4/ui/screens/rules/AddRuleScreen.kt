@@ -2,7 +2,6 @@ package com.crashbit.pvpccheap4.ui.screens.rules
 
 import com.crashbit.pvpccheap4.R
 import androidx.compose.ui.res.painterResource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +16,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,7 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -40,17 +37,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -171,15 +167,20 @@ enum class RuleType(val id: String, val displayName: String, val description: St
     MANUAL("manual", "Manual", "Control manual sense automatització")
 }
 
-private val TIME_OF_DAY = Regex("^([01]?\\d|2[0-3]):[0-5]\\d$")
-
-/** Same format the backend accepts: "HH:MM", 00:00–23:59. */
-private fun isValidTime(value: String) = TIME_OF_DAY.matches(value.trim())
-
 /** Accepts both "0,12" (Catalan keyboard) and "0.12". */
 private fun parsePrice(value: String) = value.trim().replace(',', '.').toDoubleOrNull()
 
-private const val TIME_FORMAT_ERROR = "Format HH:MM"
+/** Plain-language description of what a cheapest_hours rule will do. */
+private fun cheapestSummary(windows: List<HourWindow>, perWindow: Boolean, hours: Int): String = when {
+    windows.isEmpty() ->
+        "S'encendrà les $hours hores més barates de cada dia."
+    perWindow ->
+        "S'encendrà " + windows.joinToString(", ") { "${it.hours.coerceAtMost(it.length)} h entre ${it.label}" } +
+            ", triant sempre les més barates de cada franja."
+    else ->
+        "S'encendrà les $hours hores més barates del conjunt ${windows.joinToString(" i ") { it.label }}. " +
+            "Poden caure totes a la mateixa franja si és la més barata."
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,30 +198,35 @@ fun AddRuleScreen(
     var selectedDevice by remember { mutableStateOf<Device?>(null) }
     var deviceDropdownExpanded by remember { mutableStateOf(false) }
 
-    // cheapest_hours config
-    var cheapestHours by remember { mutableFloatStateOf(3f) }
-    var cheapestHoursLimitTimeWindow by remember { mutableStateOf(false) }
-    var cheapestHoursTimeStart by remember { mutableStateOf("06:00") }
-    var cheapestHoursTimeEnd by remember { mutableStateOf("22:00") }
+    // cheapest_hours config: no windows means the whole day
+    var cheapestHours by remember { mutableIntStateOf(3) }
+    var cheapestWindows by remember { mutableStateOf(listOf<HourWindow>()) }
+    var perWindow by remember { mutableStateOf(false) }
 
     // price_threshold config
     var priceThreshold by remember { mutableStateOf("0.10") }
 
     // time_schedule config
-    var timeRangeStart by remember { mutableStateOf("22:00") }
-    var timeRangeEnd by remember { mutableStateOf("08:00") }
+    var scheduleWindows by remember { mutableStateOf(listOf(HourWindow(22, 8))) }
+
+    // Per-window budgets only make sense with more than one window
+    val usePerWindow = perWindow && cheapestWindows.size > 1
+    val windowHoursTotal = cheapestWindows.sumOf { it.length }
 
     val configError: String? = when (selectedRuleType) {
-        RuleType.CHEAPEST_HOURS ->
-            if (cheapestHoursLimitTimeWindow && !(isValidTime(cheapestHoursTimeStart) && isValidTime(cheapestHoursTimeEnd)))
-                "Les hores de la franja han de tenir el format HH:MM (per exemple 07:00)"
-            else null
+        RuleType.CHEAPEST_HOURS -> when {
+            cheapestWindows.overlap() -> "Les franges no es poden encavalcar"
+            !usePerWindow && cheapestWindows.isNotEmpty() && cheapestHours > windowHoursTotal ->
+                "Les franges sumen $windowHoursTotal h: no hi caben $cheapestHours h"
+            else -> null
+        }
         RuleType.PRICE_THRESHOLD ->
             if (parsePrice(priceThreshold) == null) "Escriu un preu vàlid, per exemple 0,12" else null
-        RuleType.TIME_SCHEDULE ->
-            if (!(isValidTime(timeRangeStart) && isValidTime(timeRangeEnd)))
-                "Les hores de la franja han de tenir el format HH:MM (per exemple 07:00)"
-            else null
+        RuleType.TIME_SCHEDULE -> when {
+            scheduleWindows.isEmpty() -> "Afegeix almenys una franja"
+            scheduleWindows.overlap() -> "Les franges no es poden encavalcar"
+            else -> null
+        }
         RuleType.MANUAL -> null
     }
 
@@ -252,17 +258,13 @@ fun AddRuleScreen(
         val config = rule.config
         when (selectedRuleType) {
             RuleType.CHEAPEST_HOURS -> {
-                config.cheapestHours?.let { cheapestHours = it.toFloat() }
-                if (config.timeRangeStart != null && config.timeRangeEnd != null) {
-                    cheapestHoursLimitTimeWindow = true
-                    cheapestHoursTimeStart = config.timeRangeStart
-                    cheapestHoursTimeEnd = config.timeRangeEnd
-                }
+                config.cheapestHours?.let { cheapestHours = it }
+                cheapestWindows = windowsFromConfig(config)
+                perWindow = config.distribution == "per_window"
             }
             RuleType.PRICE_THRESHOLD -> config.priceThreshold?.let { priceThreshold = it.toString() }
             RuleType.TIME_SCHEDULE -> {
-                config.timeRangeStart?.let { timeRangeStart = it }
-                config.timeRangeEnd?.let { timeRangeEnd = it }
+                windowsFromConfig(config).takeIf { it.isNotEmpty() }?.let { scheduleWindows = it }
             }
             RuleType.MANUAL -> {}
         }
@@ -422,92 +424,61 @@ fun AddRuleScreen(
 
             when (selectedRuleType) {
                 RuleType.CHEAPEST_HOURS -> {
-                    // Stepper instead of a slider: with 24 positions a slider can't hit
-                    // an exact value reliably with a finger
-                    val hours = cheapestHours.toInt()
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Nombre d'hores",
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedButton(
-                            onClick = { cheapestHours = (hours - 1).coerceAtLeast(1).toFloat() },
-                            enabled = hours > 1
-                        ) { Text("−", style = MaterialTheme.typography.titleLarge) }
-                        Text(
-                            text = "$hours h",
-                            style = MaterialTheme.typography.titleLarge,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.width(72.dp)
-                        )
-                        OutlinedButton(
-                            onClick = { cheapestHours = (hours + 1).coerceAtMost(24).toFloat() },
-                            enabled = hours < 24
-                        ) { Text("+", style = MaterialTheme.typography.titleLarge) }
+                    Text("Quan pot encendre's", style = MaterialTheme.typography.titleSmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TimeWindowsEditor(
+                        windows = cheapestWindows,
+                        onChange = { cheapestWindows = it },
+                        perWindowHours = usePerWindow,
+                        emptyText = "Sense franges: qualsevol hora del dia"
+                    )
+
+                    if (cheapestWindows.size > 1) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Com es trien les hores", style = MaterialTheme.typography.titleSmall)
+                        Column(Modifier.selectableGroup()) {
+                            listOf(
+                                false to "Les més barates entre totes les franges",
+                                true to "Les més barates de cada franja"
+                            ).forEach { (value, label) ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .selectable(
+                                            selected = perWindow == value,
+                                            onClick = { perWindow = value },
+                                            role = Role.RadioButton
+                                        )
+                                        .padding(vertical = 6.dp)
+                                ) {
+                                    RadioButton(selected = perWindow == value, onClick = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(label, style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = cheapestHoursLimitTimeWindow,
-                                onClick = { cheapestHoursLimitTimeWindow = !cheapestHoursLimitTimeWindow },
-                                role = Role.Checkbox
-                            )
-                            .padding(vertical = 8.dp)
-                    ) {
-                        Checkbox(
-                            checked = cheapestHoursLimitTimeWindow,
-                            onCheckedChange = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Limitar a franja horària",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-
-                    if (cheapestHoursLimitTimeWindow) {
+                    if (!usePerWindow) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = cheapestHoursTimeStart,
-                                onValueChange = { cheapestHoursTimeStart = it },
-                                label = { Text("Inici") },
-                                singleLine = true,
-                                isError = !isValidTime(cheapestHoursTimeStart),
-                                supportingText = if (!isValidTime(cheapestHoursTimeStart)) { { Text(TIME_FORMAT_ERROR) } } else null,
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "Nombre d'hores",
+                                style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f)
                             )
-                            OutlinedTextField(
-                                value = cheapestHoursTimeEnd,
-                                onValueChange = { cheapestHoursTimeEnd = it },
-                                label = { Text("Fi") },
-                                singleLine = true,
-                                isError = !isValidTime(cheapestHoursTimeEnd),
-                                supportingText = if (!isValidTime(cheapestHoursTimeEnd)) { { Text(TIME_FORMAT_ERROR) } } else null,
-                                modifier = Modifier.weight(1f)
+                            HoursStepper(
+                                value = cheapestHours,
+                                max = if (cheapestWindows.isEmpty()) 24 else windowHoursTotal.coerceAtLeast(1),
+                                onChange = { cheapestHours = it }
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = if (cheapestHoursLimitTimeWindow) {
-                            "El dispositiu s'encendrà durant les ${cheapestHours.toInt()} hores més barates entre $cheapestHoursTimeStart i $cheapestHoursTimeEnd"
-                        } else {
-                            "El dispositiu s'encendrà durant les ${cheapestHours.toInt()} hores més barates del dia"
-                        },
+                        text = cheapestSummary(cheapestWindows, usePerWindow, cheapestHours),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -535,32 +506,16 @@ fun AddRuleScreen(
                 }
 
                 RuleType.TIME_SCHEDULE -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = timeRangeStart,
-                            onValueChange = { timeRangeStart = it },
-                            label = { Text("Inici") },
-                            singleLine = true,
-                            isError = !isValidTime(timeRangeStart),
-                            supportingText = if (!isValidTime(timeRangeStart)) { { Text(TIME_FORMAT_ERROR) } } else null,
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = timeRangeEnd,
-                            onValueChange = { timeRangeEnd = it },
-                            label = { Text("Fi") },
-                            singleLine = true,
-                            isError = !isValidTime(timeRangeEnd),
-                            supportingText = if (!isValidTime(timeRangeEnd)) { { Text(TIME_FORMAT_ERROR) } } else null,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    TimeWindowsEditor(
+                        windows = scheduleWindows,
+                        onChange = { scheduleWindows = it },
+                        perWindowHours = false,
+                        emptyText = "Afegeix les franges en què s'ha d'encendre"
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "El dispositiu s'encendrà cada dia de $timeRangeStart a $timeRangeEnd, sigui quin sigui el preu",
+                        text = if (scheduleWindows.isEmpty()) "" else
+                            "El dispositiu s'encendrà cada dia ${scheduleWindows.joinToString(" i ") { it.label }}, sigui quin sigui el preu",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -590,22 +545,20 @@ fun AddRuleScreen(
                 onClick = {
                     selectedDevice?.let { device ->
                         val config = when (selectedRuleType) {
-                            RuleType.CHEAPEST_HOURS -> {
-                                if (cheapestHoursLimitTimeWindow) {
-                                    RuleConfig(
-                                        cheapestHours = cheapestHours.toInt(),
-                                        timeRangeStart = cheapestHoursTimeStart.trim(),
-                                        timeRangeEnd = cheapestHoursTimeEnd.trim()
-                                    )
-                                } else {
-                                    RuleConfig(cheapestHours = cheapestHours.toInt())
+                            RuleType.CHEAPEST_HOURS -> RuleConfig(
+                                // In per-window mode the total is the sum, kept for summaries
+                                cheapestHours = if (usePerWindow) {
+                                    cheapestWindows.sumOf { it.hours.coerceAtMost(it.length) }
+                                } else cheapestHours,
+                                windows = cheapestWindows.takeIf { it.isNotEmpty() }?.toApi(withHours = usePerWindow),
+                                distribution = when {
+                                    cheapestWindows.isEmpty() -> null
+                                    usePerWindow -> "per_window"
+                                    else -> "total"
                                 }
-                            }
-                            RuleType.PRICE_THRESHOLD -> RuleConfig(priceThreshold = parsePrice(priceThreshold))
-                            RuleType.TIME_SCHEDULE -> RuleConfig(
-                                timeRangeStart = timeRangeStart.trim(),
-                                timeRangeEnd = timeRangeEnd.trim()
                             )
+                            RuleType.PRICE_THRESHOLD -> RuleConfig(priceThreshold = parsePrice(priceThreshold))
+                            RuleType.TIME_SCHEDULE -> RuleConfig(windows = scheduleWindows.toApi(withHours = false))
                             RuleType.MANUAL -> RuleConfig()
                         }
 
