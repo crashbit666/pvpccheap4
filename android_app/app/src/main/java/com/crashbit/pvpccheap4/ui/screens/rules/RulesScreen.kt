@@ -1,5 +1,7 @@
 package com.crashbit.pvpccheap4.ui.screens.rules
 
+import com.crashbit.pvpccheap4.R
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -44,7 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.crashbit.pvpccheap4.data.model.Rule
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,7 +79,7 @@ fun RulesScreen(
                 onClick = onAddRule,
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Afegir regla")
+                Icon(painterResource(R.drawable.ic_add), contentDescription = "Afegir regla")
             }
         }
     ) { padding ->
@@ -205,7 +204,7 @@ fun RuleCard(
 
             IconButton(onClick = { showDeleteDialog = true }) {
                 Icon(
-                    Icons.Default.Delete,
+                    painterResource(R.drawable.ic_delete),
                     contentDescription = "Eliminar regla",
                     tint = MaterialTheme.colorScheme.error
                 )

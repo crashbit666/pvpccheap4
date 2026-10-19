@@ -1,5 +1,7 @@
 package com.crashbit.pvpccheap4.ui.screens.devices
 
+import com.crashbit.pvpccheap4.R
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,12 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,7 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.Integration
 
@@ -127,12 +123,12 @@ fun DevicesScreen(
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Icon(Icons.Default.Refresh, contentDescription = "Sincronitzar")
+                                Icon(painterResource(R.drawable.ic_refresh), contentDescription = "Sincronitzar")
                             }
                         }
                     }
                     IconButton(onClick = onLogout) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sortir")
+                        Icon(painterResource(R.drawable.ic_logout), contentDescription = "Sortir")
                     }
                 }
             )
@@ -142,7 +138,7 @@ fun DevicesScreen(
                 onClick = onAddIntegration,
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Afegir integració")
+                Icon(painterResource(R.drawable.ic_add), contentDescription = "Afegir integració")
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -260,7 +256,7 @@ fun IntegrationCard(
                 }
                 IconButton(onClick = onDelete) {
                     Icon(
-                        Icons.Default.Delete,
+                        painterResource(R.drawable.ic_delete),
                         contentDescription = "Eliminar",
                         tint = MaterialTheme.colorScheme.error
                     )
@@ -349,7 +345,7 @@ fun ConnectionErrorMessage(
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Filled.Warning,
+            painter = painterResource(R.drawable.ic_warning),
             contentDescription = null,
             modifier = Modifier.size(64.dp),
             tint = MaterialTheme.colorScheme.error
@@ -370,7 +366,7 @@ fun ConnectionErrorMessage(
         Spacer(modifier = Modifier.height(24.dp))
         TextButton(onClick = onRetry) {
             Icon(
-                Icons.Default.Refresh,
+                painterResource(R.drawable.ic_refresh),
                 contentDescription = null,
                 modifier = Modifier.padding(end = 8.dp)
             )

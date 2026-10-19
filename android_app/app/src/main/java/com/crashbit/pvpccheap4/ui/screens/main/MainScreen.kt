@@ -1,13 +1,9 @@
 package com.crashbit.pvpccheap4.ui.screens.main
 
+import com.crashbit.pvpccheap4.R
+import androidx.compose.ui.res.painterResource
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.outlined.DateRange
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -16,7 +12,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -36,35 +31,35 @@ import com.crashbit.pvpccheap4.ui.screens.schedule.ScheduleScreen
 sealed class BottomNavItem(
     val route: String,
     val title: String,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector
+    @param:DrawableRes val selectedIcon: Int,
+    @param:DrawableRes val unselectedIcon: Int
 ) {
     data object Devices : BottomNavItem(
         route = "devices",
         title = "Dispositius",
-        selectedIcon = Icons.Filled.Home,
-        unselectedIcon = Icons.Outlined.Home
+        selectedIcon = R.drawable.ic_home_fill,
+        unselectedIcon = R.drawable.ic_home
     )
 
     data object Rules : BottomNavItem(
         route = "rules",
         title = "Regles",
-        selectedIcon = Icons.Filled.List,
-        unselectedIcon = Icons.Outlined.List
+        selectedIcon = R.drawable.ic_rule_fill,
+        unselectedIcon = R.drawable.ic_rule
     )
 
     data object Schedule : BottomNavItem(
         route = "schedule",
         title = "Horari",
-        selectedIcon = Icons.Filled.DateRange,
-        unselectedIcon = Icons.Outlined.DateRange
+        selectedIcon = R.drawable.ic_calendar_month_fill,
+        unselectedIcon = R.drawable.ic_calendar_month
     )
 
     data object Prices : BottomNavItem(
         route = "prices",
         title = "Preus",
-        selectedIcon = Icons.Filled.DateRange, // Will use custom euro icon
-        unselectedIcon = Icons.Outlined.DateRange
+        selectedIcon = R.drawable.ic_euro_fill,
+        unselectedIcon = R.drawable.ic_euro
     )
 }
 
@@ -180,7 +175,7 @@ fun BottomNavigationBar(
             NavigationBarItem(
                 icon = {
                     Icon(
-                        imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
+                        painter = painterResource(if (selected) item.selectedIcon else item.unselectedIcon),
                         contentDescription = item.title
                     )
                 },

@@ -1,5 +1,7 @@
 package com.crashbit.pvpccheap4.ui.screens.schedule
 
+import com.crashbit.pvpccheap4.R
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,9 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,7 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -70,7 +69,7 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val dateFormatter = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", Locale("ca"))
+    val dateFormatter = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", Locale.forLanguageTag("ca"))
 
     // Refresh data when screen becomes visible
     LaunchedEffect(Unit) {
@@ -102,7 +101,7 @@ fun ScheduleScreen(
             ) {
                 IconButton(onClick = { viewModel.previousDay() }) {
                     Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        painterResource(R.drawable.ic_chevron_left),
                         contentDescription = "Dia anterior"
                     )
                 }
@@ -114,7 +113,7 @@ fun ScheduleScreen(
 
                 IconButton(onClick = { viewModel.nextDay() }) {
                     Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        painterResource(R.drawable.ic_chevron_right),
                         contentDescription = "Dia següent"
                     )
                 }
