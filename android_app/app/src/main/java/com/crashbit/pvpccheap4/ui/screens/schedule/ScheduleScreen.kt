@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -138,7 +140,20 @@ fun ScheduleScreen(
                         modifier = Modifier.align(Alignment.Center)
                     )
                 } else {
+                    val listState = rememberLazyListState()
+
+                    // Today opens at the current hour, with what already ran above
+                    LaunchedEffect(uiState.selectedDate, uiState.scheduleItems.size) {
+                        val index = if (uiState.selectedDate == LocalDate.now()) {
+                            uiState.scheduleItems
+                                .indexOfFirst { it.startHour >= LocalTime.now().hour }
+                                .let { if (it < 0) uiState.scheduleItems.lastIndex else it }
+                        } else 0
+                        listState.scrollToItem(index)
+                    }
+
                     LazyColumn(
+                        state = listState,
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {

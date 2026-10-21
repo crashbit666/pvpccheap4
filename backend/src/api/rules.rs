@@ -108,6 +108,26 @@ fn validate_windows(config: &JsonValue) -> Result<(), String> {
     Ok(())
 }
 
+/// Turn off the devices that their rules switched on for the current hour,
+/// used before the devices themselves are removed.
+pub(crate) async fn release_devices(
+    pool: &web::Data<DbPool>,
+    registry: &web::Data<ProviderRegistry>,
+    device_ids: &[i32],
+) {
+    let rule_ids: Vec<i32> = match pool.get() {
+        Ok(mut conn) => automation_rules::table
+            .filter(automation_rules::device_id.eq_any(device_ids))
+            .select(automation_rules::id)
+            .load(&mut conn)
+            .unwrap_or_default(),
+        Err(_) => return,
+    };
+    for rule_id in rule_ids {
+        release_device(pool, registry, rule_id).await;
+    }
+}
+
 /// Turn off a rule's device if the rule switched it on for the current hour,
 /// used when the rule stops applying (disabled or about to be deleted).
 async fn release_device(pool: &web::Data<DbPool>, registry: &web::Data<ProviderRegistry>, rule_id: i32) {

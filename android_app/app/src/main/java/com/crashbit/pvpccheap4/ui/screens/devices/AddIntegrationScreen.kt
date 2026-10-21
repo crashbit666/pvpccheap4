@@ -94,11 +94,9 @@ class AddIntegrationViewModel @Inject constructor(
     }
 }
 
+/** Providers the backend can control (Tuya, Shelly, etc. are not implemented yet) */
 enum class Provider(val id: String, val displayName: String) {
-    MEROSS("meross", "Meross"),
-    TUYA("tuya", "Tuya / Smart Life"),
-    HOME_ASSISTANT("home_assistant", "Home Assistant"),
-    SHELLY("shelly", "Shelly")
+    MEROSS("meross", "Meross")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -150,41 +148,43 @@ fun AddIntegrationScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Selecciona el proveïdor",
-                style = MaterialTheme.typography.titleMedium
-            )
+            if (Provider.entries.size > 1) {
+                Text(
+                    text = "Selecciona el proveïdor",
+                    style = MaterialTheme.typography.titleMedium
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Column(Modifier.selectableGroup()) {
-                Provider.entries.forEach { provider ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .selectable(
+                Column(Modifier.selectableGroup()) {
+                    Provider.entries.forEach { provider ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .selectable(
+                                    selected = (selectedProvider == provider),
+                                    onClick = { selectedProvider = provider },
+                                    role = Role.RadioButton
+                                )
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
                                 selected = (selectedProvider == provider),
-                                onClick = { selectedProvider = provider },
-                                role = Role.RadioButton
+                                onClick = null
                             )
-                            .padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = (selectedProvider == provider),
-                            onClick = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = provider.displayName,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = provider.displayName,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
             Text(
                 text = "Credencials de ${selectedProvider.displayName}",
@@ -196,7 +196,7 @@ fun AddIntegrationScreen(
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Email") },
+                label = { Text("Correu electrònic") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,

@@ -55,14 +55,32 @@ pub async fn add_integration(
 
     info!("Integration login successful for provider: {}", item.provider);
 
-    let new_integration = diesel::insert_into(user_integrations::table)
-        .values((
-            user_integrations::user_id.eq(user_id),
-            user_integrations::provider_name.eq(&item.provider),
-            user_integrations::credentials_json.eq(final_credentials.to_string()),
-            user_integrations::is_active.eq(true),
-        ))
-        .get_result::<UserIntegration>(&mut conn);
+    // Adding the same provider again (e.g. after changing its password)
+    // updates the existing integration, so its devices and rules are kept
+    let existing = user_integrations::table
+        .filter(user_integrations::user_id.eq(user_id))
+        .filter(user_integrations::provider_name.eq(&item.provider))
+        .select(user_integrations::id)
+        .first::<i32>(&mut conn)
+        .optional()
+        .unwrap_or(None);
+
+    let new_integration = match existing {
+        Some(id) => diesel::update(user_integrations::table.find(id))
+            .set((
+                user_integrations::credentials_json.eq(final_credentials.to_string()),
+                user_integrations::is_active.eq(true),
+            ))
+            .get_result::<UserIntegration>(&mut conn),
+        None => diesel::insert_into(user_integrations::table)
+            .values((
+                user_integrations::user_id.eq(user_id),
+                user_integrations::provider_name.eq(&item.provider),
+                user_integrations::credentials_json.eq(final_credentials.to_string()),
+                user_integrations::is_active.eq(true),
+            ))
+            .get_result::<UserIntegration>(&mut conn),
+    };
 
     match new_integration {
         Ok(int) => HttpResponse::Ok().json(int),
@@ -88,6 +106,7 @@ pub async fn list_integrations(pool: web::Data<DbPool>, claims: Claims) -> impl 
 #[delete("/{id}")]
 pub async fn delete_integration(
     pool: web::Data<DbPool>,
+    registry: web::Data<ProviderRegistry>,
     claims: Claims,
     path: web::Path<i32>,
 ) -> impl Responder {
@@ -113,6 +132,14 @@ pub async fn delete_integration(
     if !integration_exists {
         return HttpResponse::NotFound().body("Integration not found");
     }
+
+    // Don't leave on a device that one of its rules switched on this hour
+    let device_ids: Vec<i32> = devices::table
+        .filter(devices::integration_id.eq(integration_id))
+        .select(devices::id)
+        .load(&mut conn)
+        .unwrap_or_default();
+    super::rules::release_devices(&pool, &registry, &device_ids).await;
 
     // Delete associated devices first
     let _ = diesel::delete(devices::table.filter(devices::integration_id.eq(integration_id)))

@@ -549,6 +549,7 @@ pub async fn update_device(
 #[delete("/{device_id}")]
 pub async fn delete_device(
     pool: web::Data<DbPool>,
+    registry: web::Data<ProviderRegistry>,
     claims: Claims,
     path: web::Path<i32>,
 ) -> impl Responder {
@@ -575,6 +576,9 @@ pub async fn delete_device(
     if !device_exists {
         return HttpResponse::NotFound().body("Device not found");
     }
+
+    // Don't leave it on if one of its rules switched it on this hour
+    super::rules::release_devices(&pool, &registry, &[device_id]).await;
 
     // Delete device
     match diesel::delete(devices::table.filter(devices::id.eq(device_id))).execute(&mut conn) {
