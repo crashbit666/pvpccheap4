@@ -21,6 +21,8 @@ pub struct DeviceResponse {
     /// Device on/off state - defaults to false since we don't query real state on list
     /// The actual state is determined by controlling the device
     pub is_on: bool,
+    /// Watts the appliance draws when on (set by the user), for the savings
+    pub power_watts: Option<i32>,
 }
 
 #[derive(Deserialize)]
@@ -44,6 +46,8 @@ pub struct DeviceActionRequest {
 pub struct UpdateDeviceRequest {
     pub is_managed: Option<bool>,
     pub name: Option<String>,
+    /// Watts when on; 0 clears it
+    pub power_watts: Option<i32>,
 }
 
 /// List all devices for the authenticated user
@@ -132,6 +136,7 @@ pub async fn list_devices(
                                 is_managed: device.is_managed,
                                 provider_name: provider_name.clone(),
                                 is_on: device.is_on,
+                                power_watts: device.power_watts,
                             });
                         }
                     }
@@ -172,6 +177,7 @@ pub async fn list_devices(
                     is_managed: device.is_managed,
                     provider_name: provider_name.clone(),
                     is_on,
+                    power_watts: device.power_watts,
                 });
             }
         }
@@ -191,6 +197,7 @@ pub async fn list_devices(
             is_managed: device.is_managed,
             provider_name,
             is_on: device.is_on, // Use cached state from database
+            power_watts: device.power_watts,
         })
         .collect();
 
@@ -525,6 +532,16 @@ pub async fn update_device(
     if let Some(is_managed) = body.is_managed {
         diesel::update(devices::table.filter(devices::id.eq(device_id)))
             .set(devices::is_managed.eq(is_managed))
+            .execute(&mut conn)
+            .ok();
+    }
+
+    if let Some(watts) = body.power_watts {
+        if !(0..=100_000).contains(&watts) {
+            return HttpResponse::BadRequest().body("power_watts must be between 0 and 100000");
+        }
+        diesel::update(devices::table.filter(devices::id.eq(device_id)))
+            .set(devices::power_watts.eq((watts > 0).then_some(watts)))
             .execute(&mut conn)
             .ok();
     }

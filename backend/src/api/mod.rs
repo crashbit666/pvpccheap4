@@ -7,6 +7,7 @@ pub mod devices;
 pub mod integrations;
 pub mod prices;
 pub mod rules;
+pub mod savings;
 pub mod schedules;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -21,6 +22,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 
     // Failed device actions (protected)
     cfg.service(web::scope("/api/alerts").service(alerts::list_alerts));
+
+    // What the rules saved (protected)
+    cfg.service(web::scope("/api/savings").service(savings::get_savings));
 
     // Integration routes (protected)
     cfg.service(

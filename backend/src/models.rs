@@ -68,6 +68,7 @@ pub struct Device {
     pub device_type: String,
     pub is_managed: bool,
     pub is_on: bool,
+    pub power_watts: Option<i32>,
 }
 
 #[derive(Insertable, Debug)]

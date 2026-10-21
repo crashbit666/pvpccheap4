@@ -13,6 +13,8 @@ import com.crashbit.pvpccheap4.data.model.LoginRequest
 import com.crashbit.pvpccheap4.data.model.PriceData
 import com.crashbit.pvpccheap4.data.model.RegisterRequest
 import com.crashbit.pvpccheap4.data.model.Rule
+import com.crashbit.pvpccheap4.data.model.Savings
+import com.crashbit.pvpccheap4.data.model.UpdateDeviceRequest
 import com.crashbit.pvpccheap4.data.model.ScheduleResponse
 import com.crashbit.pvpccheap4.data.model.SyncDevicesRequest
 import com.crashbit.pvpccheap4.data.model.SyncDevicesResponse
@@ -83,6 +85,16 @@ interface ApiService {
         @Path("id") id: String,
         @Body request: ControlDeviceRequest
     ): Response<DeviceActionResponse>
+
+    @POST("api/devices/{id}")
+    suspend fun updateDevice(@Path("id") id: String, @Body request: UpdateDeviceRequest): Response<Device>
+
+    // What the rules saved; default this month
+    @GET("api/savings")
+    suspend fun getSavings(
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null
+    ): Response<Savings>
 
     @GET("api/devices/{id}/state")
     suspend fun getDeviceState(@Path("id") id: String): Response<DeviceActionResponse>

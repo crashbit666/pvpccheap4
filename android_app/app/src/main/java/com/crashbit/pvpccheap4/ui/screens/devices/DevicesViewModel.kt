@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.Integration
+import com.crashbit.pvpccheap4.data.model.Savings
 import com.crashbit.pvpccheap4.data.repository.DeviceRepository
 import com.crashbit.pvpccheap4.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +26,8 @@ data class DevicesUiState(
     val rulesByDevice: Map<String, List<String>> = emptyMap(),
     /** Device actions that failed after the retries (last 48 h) */
     val alerts: List<Alert> = emptyList(),
+    /** This month's savings; null until loaded or if nothing ran yet */
+    val savings: Savings? = null,
     val syncMessage: String? = null
 )
 
@@ -60,6 +63,8 @@ class DevicesViewModel @Inject constructor(
             (deviceRepository.getAlerts() as? Result.Success)?.let {
                 _uiState.value = _uiState.value.copy(alerts = it.data)
             }
+
+            loadSavings()
 
             // Rules only label the devices: a failure here is not an error
             (deviceRepository.getRules() as? Result.Success)?.let { rules ->
@@ -224,6 +229,30 @@ class DevicesViewModel @Inject constructor(
                 is Result.Error -> {
                     _uiState.value = _uiState.value.copy(error = result.message)
                 }
+                is Result.Loading -> {}
+            }
+        }
+    }
+
+    private suspend fun loadSavings() {
+        (deviceRepository.getSavings() as? Result.Success)?.let {
+            _uiState.value = _uiState.value.copy(savings = it.data.takeIf { s -> s.hoursOn > 0 })
+        }
+    }
+
+    fun setDevicePower(device: Device, watts: Int) {
+        viewModelScope.launch {
+            when (val result = deviceRepository.setDevicePower(device.id, watts)) {
+                is Result.Success -> {
+                    val power = watts.takeIf { it > 0 }
+                    _uiState.value = _uiState.value.copy(
+                        devices = _uiState.value.devices.map {
+                            if (it.id == device.id) it.copy(powerWatts = power) else it
+                        }
+                    )
+                    loadSavings()
+                }
+                is Result.Error -> _uiState.value = _uiState.value.copy(error = result.message)
                 is Result.Loading -> {}
             }
         }

@@ -76,8 +76,16 @@ data class Device(
     val integrationId: String,
     @SerializedName("is_on")
     val isOn: Boolean = false,
+    /** Watts the appliance draws when on, set by the user (for the savings in euros) */
+    @SerializedName("power_watts")
+    val powerWatts: Int? = null,
     @SerializedName("created_at")
     val createdAt: String? = null
+)
+
+data class UpdateDeviceRequest(
+    @SerializedName("power_watts")
+    val powerWatts: Int? = null
 )
 
 data class DeviceActionResponse(
@@ -200,3 +208,41 @@ data class Alert(
     val detail: String
         get() = "A les ${failedAt.substringAfter('T').take(5)} del ${failedAt.take(10).split('-').reversed().joinToString("/")} · regla $ruleName"
 }
+
+// Savings
+data class DeviceSavings(
+    @SerializedName("device_id")
+    val deviceId: Int,
+    @SerializedName("device_name")
+    val deviceName: String,
+    @SerializedName("hours_on")
+    val hoursOn: Int,
+    @SerializedName("avg_price_paid")
+    val avgPricePaid: Double,
+    @SerializedName("avg_price_reference")
+    val avgPriceReference: Double,
+    @SerializedName("saving_ratio")
+    val savingRatio: Double,
+    @SerializedName("power_watts")
+    val powerWatts: Int? = null,
+    @SerializedName("cost_eur")
+    val costEur: Double? = null,
+    @SerializedName("saved_eur")
+    val savedEur: Double? = null
+)
+
+data class Savings(
+    val from: String,
+    val to: String,
+    @SerializedName("hours_on")
+    val hoursOn: Int,
+    @SerializedName("saving_ratio")
+    val savingRatio: Double,
+    @SerializedName("cost_eur")
+    val costEur: Double? = null,
+    @SerializedName("saved_eur")
+    val savedEur: Double? = null,
+    @SerializedName("devices_without_power")
+    val devicesWithoutPower: Int = 0,
+    val devices: List<DeviceSavings> = emptyList()
+)

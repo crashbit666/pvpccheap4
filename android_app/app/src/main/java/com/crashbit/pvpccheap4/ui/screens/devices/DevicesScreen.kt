@@ -66,6 +66,17 @@ fun DevicesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var editingPower by remember { mutableStateOf<Device?>(null) }
+    editingPower?.let { device ->
+        DevicePowerDialog(
+            device = device,
+            onDismiss = { editingPower = null },
+            onSave = { watts ->
+                editingPower = null
+                viewModel.setDevicePower(device, watts)
+            }
+        )
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // Refresh data when screen becomes visible (e.g., returning from AddIntegrationScreen)
@@ -170,6 +181,10 @@ fun DevicesScreen(
                         items(uiState.alerts.reversed()) { alert -> AlertCard(alert) }
                     }
 
+                    uiState.savings?.let { savings ->
+                        item { SavingsCard(savings) }
+                    }
+
                     // Integrations section
                     if (uiState.integrations.isNotEmpty()) {
                         item {
@@ -219,7 +234,8 @@ fun DevicesScreen(
                             DeviceCard(
                                 device = device,
                                 rules = uiState.rulesByDevice[device.id].orEmpty(),
-                                onToggle = { viewModel.toggleDevice(device) }
+                                onToggle = { viewModel.toggleDevice(device) },
+                                onClick = { editingPower = device }
                             )
                         }
                     }
@@ -339,9 +355,11 @@ fun IntegrationCard(
 fun DeviceCard(
     device: Device,
     rules: List<String>,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onClick: () -> Unit
 ) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -363,7 +381,8 @@ fun DeviceCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 // A rule switches it every hour, so a manual change only lasts until then
                 Text(
-                    text = if (rules.isEmpty()) "Manual" else "Automàtic · ${rules.joinToString()}",
+                    text = (if (rules.isEmpty()) "Manual" else "Automàtic · ${rules.joinToString()}") +
+                        (device.powerWatts?.let { " · $it W" } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (rules.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
                     else MaterialTheme.colorScheme.primary

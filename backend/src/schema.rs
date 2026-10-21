@@ -10,6 +10,7 @@ diesel::table! {
         device_type -> Text,
         is_managed -> Bool,
         is_on -> Bool,
+        power_watts -> Nullable<Int4>,
     }
 }
 

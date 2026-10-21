@@ -8,6 +8,8 @@ import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
 import com.crashbit.pvpccheap4.data.model.Integration
 import com.crashbit.pvpccheap4.data.model.Rule
+import com.crashbit.pvpccheap4.data.model.Savings
+import com.crashbit.pvpccheap4.data.model.UpdateDeviceRequest
 import com.crashbit.pvpccheap4.data.model.ScheduleResponse
 import com.crashbit.pvpccheap4.data.model.SyncDevicesRequest
 import com.crashbit.pvpccheap4.data.model.SyncDevicesResponse
@@ -25,6 +27,33 @@ class DeviceRepository @Inject constructor(
                 Result.Success(response.body()!!)
             } else {
                 Result.Error("No s'han pogut carregar els avisos", response.code())
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    /** [watts] = 0 clears it */
+    suspend fun setDevicePower(id: String, watts: Int): Result<Device> {
+        return try {
+            val response = apiService.updateDevice(id, UpdateDeviceRequest(powerWatts = watts))
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("No s'ha pogut desar la potència", response.code())
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    suspend fun getSavings(): Result<Savings> {
+        return try {
+            val response = apiService.getSavings()
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("No s'ha pogut calcular l'estalvi", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
