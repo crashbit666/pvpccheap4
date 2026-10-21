@@ -298,6 +298,15 @@ impl MerossMqttClient {
             .parse_json()
             .map_err(|e| ProviderError::Unknown(format!("Failed to parse response: {}", e)))?;
 
+        // The device answers with the same message id even when it rejects
+        // the command, so only an ACK counts as done
+        if response_msg.header.method == "ERROR" {
+            return Err(ProviderError::Unknown(format!(
+                "Device rejected {} {}: {}",
+                method, namespace, response_msg.payload
+            )));
+        }
+
         Ok(response_msg.payload)
     }
 

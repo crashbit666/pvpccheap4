@@ -69,7 +69,7 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val dateFormatter = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", Locale.forLanguageTag("ca"))
+    val dateFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.forLanguageTag("ca"))
 
     // Refresh data when screen becomes visible
     LaunchedEffect(Unit) {
