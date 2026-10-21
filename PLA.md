@@ -29,9 +29,11 @@ fet i afegeix la data.
 
 ## 2. Intel·ligència: el que el fa diferent
 
-- [ ] **Estalvi mesurat**: amb endolls que mesuren potència, calcular el
-      consum real i mostrar «aquest mes has estalviat X €» respecte del preu
-      mitjà. És el principal argument de venda.
+- [x] **Estalvi estimat**: «aquest mes has estalviat X €» respecte del preu
+      mitjà del dia, amb la potència que indica l'usuari (valors típics per
+      tipus d'aparell). *Fet 21/10/2026.*
+- [ ] **Estalvi mesurat**: amb endolls que mesuren potència, fer servir el
+      consum real en lloc de la potència indicada.
 - [ ] Aturar quan l'aparell ha acabat (la potència baixa, p. ex. el patinet
       carregat) i aprendre quantes hores necessita cada aparell.
 - [ ] **Objectius en lloc d'hores**: «el patinet carregat abans de les 8:00»,
