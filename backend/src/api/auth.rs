@@ -69,7 +69,7 @@ pub async fn login(pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> imp
             match auth::verify_password(&item.password, &user.password_hash) {
                 Ok(true) => {
                     // Generate JWT
-                    match auth::create_jwt(user.id) {
+                    match auth::create_jwt(user.id, user.token_version) {
                         Ok(token) => HttpResponse::Ok().json(serde_json::json!({"token": token})),
                         Err(_) => HttpResponse::InternalServerError().body("Error creating token"),
                     }
@@ -127,12 +127,18 @@ pub async fn change_password(
     let Ok(hashed) = auth::hash_password(&item.new_password) else {
         return HttpResponse::InternalServerError().body("Error hashing password");
     };
-    match diesel::update(users::table.find(user.id))
-        .set(users::password_hash.eq(hashed))
+    // Bumping the version logs out every session; this one gets a new token
+    let version = user.token_version + 1;
+    if diesel::update(users::table.find(user.id))
+        .set((users::password_hash.eq(hashed), users::token_version.eq(version)))
         .execute(&mut conn)
+        .is_err()
     {
-        Ok(_) => HttpResponse::Ok().json(serde_json::json!({"changed": true})),
-        Err(_) => HttpResponse::InternalServerError().body("Error saving password"),
+        return HttpResponse::InternalServerError().body("Error saving password");
+    }
+    match auth::create_jwt(user.id, version) {
+        Ok(token) => HttpResponse::Ok().json(serde_json::json!({"changed": true, "token": token})),
+        Err(_) => HttpResponse::InternalServerError().body("Error creating token"),
     }
 }
 

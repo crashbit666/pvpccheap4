@@ -229,7 +229,10 @@ fun AccountScreen(
                 }
             }
 
-            SettingsCard(title = "Seguretat", text = "Canvia la contrasenya amb què entres a l'app.") {
+            SettingsCard(
+                title = "Seguretat",
+                text = "Canvia la contrasenya amb què entres a l'app. Es tancarà la sessió als altres mòbils."
+            ) {
                 OutlinedButton(onClick = { showChangePassword = true }) { Text("Canviar la contrasenya") }
             }
 

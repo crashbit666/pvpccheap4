@@ -22,8 +22,8 @@ fet i afegeix la data.
 - [ ] Monitoratge del servidor amb alertes (parlar-ne amb qui gestiona el VPS
       compartit, per si ja n'hi ha).
 - [ ] Política de privacitat i condicions (RGPD) abans de publicar a Google Play.
-- [ ] Invalidar les sessions antigues quan es canvia la contrasenya (ara el
-      JWT dura 90 dies).
+- [x] Invalidar les sessions antigues quan es canvia la contrasenya
+      (`users.token_version` dins el JWT). *Fet 21/10/2026.*
 - [ ] Risc: l'API del núvol de Meross no és oficial; pot canviar o tallar-se.
       Mitigació: suportar més proveïdors (punt 3).
 

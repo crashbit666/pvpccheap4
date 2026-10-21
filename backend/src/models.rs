@@ -14,6 +14,7 @@ pub struct User {
     pub username: String,
     pub password_hash: String,
     pub created_at: NaiveDateTime,
+    pub token_version: i32,
 }
 
 #[derive(Queryable, Selectable, Insertable, Serialize, Deserialize, Debug, Clone)]

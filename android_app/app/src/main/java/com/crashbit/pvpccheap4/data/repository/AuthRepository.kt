@@ -102,7 +102,11 @@ class AuthRepository @Inject constructor(
         return try {
             val response = apiService.changePassword(ChangePasswordRequest(current, new))
             when {
-                response.isSuccessful -> Result.Success(Unit)
+                response.isSuccessful -> {
+                    // The other sessions are closed; this one continues with a new token
+                    response.body()?.token?.let { tokenManager.saveToken(it) }
+                    Result.Success(Unit)
+                }
                 response.code() == 403 -> Result.Error("La contrasenya actual no és correcta", 403)
                 response.code() == 400 -> Result.Error("La contrasenya nova ha de tenir almenys 8 caràcters", 400)
                 else -> Result.Error("No s'ha pogut canviar la contrasenya", response.code())

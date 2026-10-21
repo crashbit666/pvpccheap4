@@ -39,7 +39,7 @@ interface ApiService {
     suspend fun getCurrentUser(): Response<AuthResponse>
 
     @PUT("api/auth/password")
-    suspend fun changePassword(@Body request: ChangePasswordRequest): Response<Unit>
+    suspend fun changePassword(@Body request: ChangePasswordRequest): Response<AuthResponse>
 
     @HTTP(method = "DELETE", path = "api/auth/account", hasBody = true)
     suspend fun deleteAccount(@Body request: DeleteAccountRequest): Response<Unit>

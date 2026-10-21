@@ -6,9 +6,12 @@ use jsonwebtoken::{EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use actix_web::{FromRequest, HttpRequest, dev::Payload, error::ErrorUnauthorized};
+use actix_web::{FromRequest, HttpRequest, dev::Payload, error::ErrorUnauthorized, web};
+use diesel::prelude::*;
+use std::{future::Future, pin::Pin};
 use jsonwebtoken::{DecodingKey, Validation, decode};
-use std::future::{Ready, ready};
+
+use crate::{db::DbPool, schema::users};
 
 /// Below this length JWT_SECRET is accepted but logged as weak
 /// (`openssl rand -hex 32` gives 64 characters).
@@ -48,33 +51,53 @@ fn jwt_secret() -> String {
 pub struct Claims {
     pub sub: String, // Subject (User ID)
     pub exp: usize,  // Expiration
+    /// User's token_version when it was signed; tokens from before it existed are 0
+    #[serde(default)]
+    pub ver: i32,
+}
+
+fn decode_token(req: &HttpRequest) -> Result<Claims, actix_web::Error> {
+    let token_str = req
+        .headers()
+        .get("Authorization")
+        .ok_or_else(|| ErrorUnauthorized("No Auth header"))?
+        .to_str()
+        .map_err(|_| ErrorUnauthorized("Invalid Auth header"))?
+        .replace("Bearer ", "");
+
+    decode::<Claims>(
+        &token_str,
+        &DecodingKey::from_secret(jwt_secret().as_bytes()),
+        &Validation::default(),
+    )
+    .map(|data| data.claims)
+    .map_err(|_| ErrorUnauthorized("Invalid Token"))
 }
 
 impl FromRequest for Claims {
     type Error = actix_web::Error;
-    type Future = Ready<Result<Self, Self::Error>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let auth_header = match req.headers().get("Authorization") {
-            Some(h) => h,
-            None => return ready(Err(ErrorUnauthorized("No Auth header"))),
-        };
-
-        let token_str = match auth_header.to_str() {
-            Ok(s) => s.replace("Bearer ", ""),
-            Err(_) => return ready(Err(ErrorUnauthorized("Invalid Auth header"))),
-        };
-
-        let secret = jwt_secret();
-
-        match decode::<Claims>(
-            &token_str,
-            &DecodingKey::from_secret(secret.as_bytes()),
-            &Validation::default(),
-        ) {
-            Ok(token_data) => ready(Ok(token_data.claims)),
-            Err(_) => ready(Err(ErrorUnauthorized("Invalid Token"))),
-        }
+        let claims = decode_token(req);
+        let pool = req.app_data::<web::Data<DbPool>>().cloned();
+        Box::pin(async move {
+            let claims = claims?;
+            // A password change bumps the user's token_version and logs out
+            // every other session (unit tests have no pool)
+            let Some(pool) = pool else { return Ok(claims) };
+            let user_id: i32 = claims.sub.parse().map_err(|_| ErrorUnauthorized("Invalid Token"))?;
+            let current = web::block(move || -> Option<i32> {
+                let mut conn = pool.get().ok()?;
+                users::table.find(user_id).select(users::token_version).first(&mut conn).ok()
+            })
+            .await
+            .map_err(|_| ErrorUnauthorized("Invalid Token"))?;
+            match current {
+                Some(version) if version == claims.ver => Ok(claims),
+                _ => Err(ErrorUnauthorized("Session expired")),
+            }
+        })
     }
 }
 
@@ -96,7 +119,7 @@ pub fn verify_password(password: &str, password_hash: &str) -> Result<bool, Stri
         .is_ok())
 }
 
-pub fn create_jwt(user_id: i32) -> Result<String, String> {
+pub fn create_jwt(user_id: i32, token_version: i32) -> Result<String, String> {
     let expiration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
@@ -106,6 +129,7 @@ pub fn create_jwt(user_id: i32) -> Result<String, String> {
     let claims = Claims {
         sub: user_id.to_string(),
         exp: expiration,
+        ver: token_version,
     };
 
     let secret = jwt_secret();
@@ -181,7 +205,7 @@ mod tests {
     #[test]
     fn test_create_jwt_returns_valid_token() {
         let user_id = 42;
-        let result = create_jwt(user_id);
+        let result = create_jwt(user_id, 0);
 
         assert!(result.is_ok());
         let token = result.unwrap();
@@ -193,7 +217,7 @@ mod tests {
     #[test]
     fn test_create_jwt_contains_correct_user_id() {
         let user_id = 123;
-        let token = create_jwt(user_id).unwrap();
+        let token = create_jwt(user_id, 0).unwrap();
 
         let secret = jwt_secret();
         let token_data = decode::<Claims>(
@@ -207,9 +231,25 @@ mod tests {
     }
 
     #[test]
+    fn test_token_carries_version_and_old_tokens_are_version_0() {
+        let token = create_jwt(7, 3).unwrap();
+        let claims = decode::<Claims>(
+            &token,
+            &DecodingKey::from_secret(jwt_secret().as_bytes()),
+            &Validation::default(),
+        )
+        .unwrap()
+        .claims;
+        assert_eq!(claims.ver, 3);
+
+        let old: Claims = serde_json::from_str(r#"{"sub":"7","exp":1}"#).unwrap();
+        assert_eq!(old.ver, 0);
+    }
+
+    #[test]
     fn test_jwt_expiration_is_in_future() {
         let user_id = 1;
-        let token = create_jwt(user_id).unwrap();
+        let token = create_jwt(user_id, 0).unwrap();
 
         let secret = jwt_secret();
         let token_data = decode::<Claims>(
