@@ -36,8 +36,9 @@ fet i afegeix la data.
       consum real en lloc de la potència indicada.
 - [ ] Aturar quan l'aparell ha acabat (la potència baixa, p. ex. el patinet
       carregat) i aprendre quantes hores necessita cada aparell.
-- [ ] **Objectius en lloc d'hores**: «el patinet carregat abans de les 8:00»,
-      «aigua calenta a les 7:00». La base de franges ja hi és.
+- [x] **Objectius en lloc d'hores**: regla «Llest abans d'una hora» (N hores
+      més barates entre l'hora d'inici i l'hora límit). *Fet 21/10/2026.*
+- [ ] Objectius d'un sol cop (només per aquesta nit), sense regla diària.
 - [ ] **Regles en llenguatge natural amb IA**: el text es converteix en la
       configuració JSON de la regla i la valida `validate_rule_config`.
 - [ ] Temps i temperatura per a la calefacció (previsió, termòstat).
