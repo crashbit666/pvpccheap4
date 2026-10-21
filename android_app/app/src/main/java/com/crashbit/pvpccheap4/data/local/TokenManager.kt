@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,6 +24,7 @@ class TokenManager @Inject constructor(
         private val TOKEN_KEY = stringPreferencesKey("jwt_token")
         private val USER_EMAIL_KEY = stringPreferencesKey("user_email")
         private val USER_NAME_KEY = stringPreferencesKey("user_name")
+        private val LAST_ALERT_KEY = intPreferencesKey("last_notified_alert")
     }
 
     val token: Flow<String?> = context.dataStore.data.map { preferences ->
@@ -56,9 +58,17 @@ class TokenManager @Inject constructor(
         return context.dataStore.data.first()[TOKEN_KEY]
     }
 
+    /** Highest alert (execution id) already shown as a notification */
+    suspend fun lastNotifiedAlert(): Int = context.dataStore.data.first()[LAST_ALERT_KEY] ?: 0
+
+    suspend fun setLastNotifiedAlert(id: Int) {
+        context.dataStore.edit { it[LAST_ALERT_KEY] = id }
+    }
+
     suspend fun clearSession() {
         context.dataStore.edit { preferences ->
             preferences.remove(TOKEN_KEY)
+            preferences.remove(LAST_ALERT_KEY)
             preferences.remove(USER_EMAIL_KEY)
             preferences.remove(USER_NAME_KEY)
         }

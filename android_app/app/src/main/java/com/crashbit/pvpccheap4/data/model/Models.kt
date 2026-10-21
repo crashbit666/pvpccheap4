@@ -166,3 +166,37 @@ data class ScheduledHour(
     @SerializedName("price_formatted")
     val priceFormatted: String? = null
 )
+
+// Account models
+data class ChangePasswordRequest(
+    @SerializedName("current_password")
+    val currentPassword: String,
+    @SerializedName("new_password")
+    val newPassword: String
+)
+
+data class DeleteAccountRequest(val password: String)
+
+/** A device action that failed and the automatic retries could not fix */
+data class Alert(
+    @SerializedName("execution_id")
+    val executionId: Int,
+    @SerializedName("rule_id")
+    val ruleId: Int,
+    @SerializedName("rule_name")
+    val ruleName: String,
+    @SerializedName("device_name")
+    val deviceName: String,
+    val action: String,
+    @SerializedName("failed_at")
+    val failedAt: String,
+    val error: String? = null
+) {
+    /** "No s'ha pogut apagar Enchufe caldera" */
+    val title: String
+        get() = "No s'ha pogut ${if (action == "turn_on") "encendre" else "apagar"} $deviceName"
+
+    /** "a les 01:00 (regla patinet)" */
+    val detail: String
+        get() = "A les ${failedAt.substringAfter('T').take(5)} del ${failedAt.take(10).split('-').reversed().joinToString("/")} · regla $ruleName"
+}

@@ -51,13 +51,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.Integration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DevicesScreen(
-    onLogout: () -> Unit,
+    onOpenAccount: () -> Unit,
     onAddIntegration: () -> Unit = {},
     shouldRefresh: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
@@ -130,8 +131,8 @@ fun DevicesScreen(
                             }
                         }
                     }
-                    IconButton(onClick = onLogout) {
-                        Icon(painterResource(R.drawable.ic_logout), contentDescription = "Sortir")
+                    IconButton(onClick = onOpenAccount) {
+                        Icon(painterResource(R.drawable.ic_account_circle), contentDescription = "Compte")
                     }
                 }
             )
@@ -164,6 +165,11 @@ fun DevicesScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // Failures the retries could not fix, first of all
+                    if (uiState.alerts.isNotEmpty()) {
+                        items(uiState.alerts.reversed()) { alert -> AlertCard(alert) }
+                    }
+
                     // Integrations section
                     if (uiState.integrations.isNotEmpty()) {
                         item {
@@ -218,6 +224,35 @@ fun DevicesScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun AlertCard(alert: Alert) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painterResource(R.drawable.ic_warning),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    alert.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    alert.detail + ". Comprova que l'endoll estigui connectat a la wifi.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
             }
         }
     }

@@ -2,6 +2,7 @@ package com.crashbit.pvpccheap4.ui.screens.devices
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.Integration
 import com.crashbit.pvpccheap4.data.repository.DeviceRepository
@@ -22,6 +23,8 @@ data class DevicesUiState(
     val integrations: List<Integration> = emptyList(),
     /** Names of the enabled rules that control each device, by device id */
     val rulesByDevice: Map<String, List<String>> = emptyMap(),
+    /** Device actions that failed after the retries (last 48 h) */
+    val alerts: List<Alert> = emptyList(),
     val syncMessage: String? = null
 )
 
@@ -51,6 +54,11 @@ class DevicesViewModel @Inject constructor(
                     if (result.isConnectionError) return@launch
                 }
                 is Result.Loading -> {}
+            }
+
+            // Like the rules below, alerts are extra: a failure here is not an error
+            (deviceRepository.getAlerts() as? Result.Success)?.let {
+                _uiState.value = _uiState.value.copy(alerts = it.data)
             }
 
             // Rules only label the devices: a failure here is not an error

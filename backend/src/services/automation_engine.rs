@@ -497,7 +497,7 @@ impl AutomationEngine {
         };
 
         // Parse credentials
-        let mut credentials: JsonValue = match serde_json::from_str(&credentials_json) {
+        let mut credentials: JsonValue = match crate::services::credentials::decrypt(&credentials_json) {
             Ok(c) => c,
             Err(e) => {
                 return ExecutionResult {
@@ -638,8 +638,7 @@ impl AutomationEngine {
     fn update_integration_credentials(&self, integration_id: i32, new_credentials: &JsonValue) -> Result<(), String> {
         let mut conn = self.pool.get().map_err(|e| e.to_string())?;
 
-        let credentials_str = serde_json::to_string(new_credentials)
-            .map_err(|e| format!("Failed to serialize credentials: {}", e))?;
+        let credentials_str = crate::services::credentials::encrypt(new_credentials);
 
         diesel::update(user_integrations::table.filter(user_integrations::id.eq(integration_id)))
             .set(user_integrations::credentials_json.eq(credentials_str))

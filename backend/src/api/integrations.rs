@@ -1,6 +1,6 @@
 use crate::{
     db::DbPool, integrations::ProviderRegistry, models::UserIntegration,
-    schema::{devices, user_integrations}, services::auth::Claims,
+    schema::{devices, user_integrations}, services::{auth::Claims, credentials},
 };
 use actix_web::{HttpResponse, Responder, delete, get, post, web};
 use diesel::prelude::*;
@@ -68,7 +68,7 @@ pub async fn add_integration(
     let new_integration = match existing {
         Some(id) => diesel::update(user_integrations::table.find(id))
             .set((
-                user_integrations::credentials_json.eq(final_credentials.to_string()),
+                user_integrations::credentials_json.eq(credentials::encrypt(&final_credentials)),
                 user_integrations::is_active.eq(true),
             ))
             .get_result::<UserIntegration>(&mut conn),
@@ -76,7 +76,7 @@ pub async fn add_integration(
             .values((
                 user_integrations::user_id.eq(user_id),
                 user_integrations::provider_name.eq(&item.provider),
-                user_integrations::credentials_json.eq(final_credentials.to_string()),
+                user_integrations::credentials_json.eq(credentials::encrypt(&final_credentials)),
                 user_integrations::is_active.eq(true),
             ))
             .get_result::<UserIntegration>(&mut conn),

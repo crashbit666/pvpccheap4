@@ -9,7 +9,12 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -21,6 +26,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.crashbit.pvpccheap4.alerts.AlertsWorker
+import com.crashbit.pvpccheap4.ui.screens.account.AccountScreen
 import com.crashbit.pvpccheap4.ui.screens.devices.AddIntegrationScreen
 import com.crashbit.pvpccheap4.ui.screens.devices.DevicesScreen
 import com.crashbit.pvpccheap4.ui.screens.prices.PricesScreen
@@ -75,6 +82,18 @@ fun MainScreen(
         BottomNavItem.Prices
     )
 
+    // Warn about plugs that could not be switched, also with the app closed
+    val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(Unit) {
+        AlertsWorker.schedule(context)
+        if (!AlertsWorker.canNotify(context)) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     Scaffold(
         bottomBar = {
             BottomNavigationBar(navController = navController, items = items)
@@ -90,7 +109,7 @@ fun MainScreen(
                 val shouldRefresh = backStackEntry.savedStateHandle.get<Boolean>("refresh") == true
 
                 DevicesScreen(
-                    onLogout = onLogout,
+                    onOpenAccount = { navController.navigate("account") },
                     onAddIntegration = {
                         navController.navigate("add_integration")
                     },
@@ -98,6 +117,12 @@ fun MainScreen(
                     onRefreshConsumed = {
                         backStackEntry.savedStateHandle.remove<Boolean>("refresh")
                     }
+                )
+            }
+            composable("account") {
+                AccountScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onLogout = onLogout
                 )
             }
             composable("add_integration") {

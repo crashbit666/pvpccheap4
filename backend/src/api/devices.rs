@@ -3,7 +3,7 @@ use crate::{
     integrations::{ProviderError, ProviderRegistry},
     models::{Device, UserIntegration},
     schema::{devices, user_integrations},
-    services::auth::Claims,
+    services::{auth::Claims, credentials},
 };
 use actix_web::{delete, get, post, web, HttpResponse, Responder};
 use diesel::prelude::*;
@@ -106,7 +106,7 @@ pub async fn list_devices(
             };
 
             let credentials: serde_json::Value =
-                match serde_json::from_str(&integration.credentials_json) {
+                match credentials::decrypt(&integration.credentials_json) {
                     Ok(c) => c,
                     Err(_) => continue,
                 };
@@ -235,7 +235,7 @@ pub async fn sync_devices(
     };
 
     // Parse stored credentials
-    let credentials: serde_json::Value = match serde_json::from_str(&integration.credentials_json) {
+    let credentials: serde_json::Value = match credentials::decrypt(&integration.credentials_json) {
         Ok(c) => c,
         Err(_) => return HttpResponse::InternalServerError().body("Invalid stored credentials"),
     };
@@ -259,7 +259,7 @@ pub async fn sync_devices(
     };
 
     // Update stored credentials with session data (contains user_id, key, mqtt_domain needed for MQTT)
-    let updated_credentials = session.to_string();
+    let updated_credentials = credentials::encrypt(&session);
     log::info!(
         "Updating credentials for integration {}: has user_id={}, has key={}, has mqtt_domain={}",
         integration.id,
@@ -373,7 +373,7 @@ pub async fn control_device(
     };
 
     // Parse credentials and login
-    let credentials: serde_json::Value = match serde_json::from_str(&integration.credentials_json) {
+    let credentials: serde_json::Value = match credentials::decrypt(&integration.credentials_json) {
         Ok(c) => c,
         Err(_) => return HttpResponse::InternalServerError().body("Invalid stored credentials"),
     };
@@ -411,7 +411,7 @@ pub async fn control_device(
         match provider.refresh_credentials(&session).await {
             Ok(new_session) => {
                 let _ = diesel::update(user_integrations::table.filter(user_integrations::id.eq(integration.id)))
-                    .set(user_integrations::credentials_json.eq(new_session.to_string()))
+                    .set(user_integrations::credentials_json.eq(credentials::encrypt(&new_session)))
                     .execute(&mut conn);
                 result = run(new_session).await;
             }
@@ -471,7 +471,7 @@ pub async fn get_device_state(
         None => return HttpResponse::InternalServerError().body("Provider not available"),
     };
 
-    let credentials: serde_json::Value = match serde_json::from_str(&integration.credentials_json) {
+    let credentials: serde_json::Value = match credentials::decrypt(&integration.credentials_json) {
         Ok(c) => c,
         Err(_) => return HttpResponse::InternalServerError().body("Invalid stored credentials"),
     };

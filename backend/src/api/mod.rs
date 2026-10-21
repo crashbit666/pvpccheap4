@@ -1,5 +1,6 @@
 use actix_web::web;
 
+pub mod alerts;
 pub mod auth;
 pub mod automation;
 pub mod devices;
@@ -13,8 +14,13 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/auth")
             .service(auth::register)
-            .service(auth::login),
+            .service(auth::login)
+            .service(auth::change_password)
+            .service(auth::delete_account),
     );
+
+    // Failed device actions (protected)
+    cfg.service(web::scope("/api/alerts").service(alerts::list_alerts));
 
     // Integration routes (protected)
     cfg.service(

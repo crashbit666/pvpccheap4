@@ -3,6 +3,8 @@ package com.crashbit.pvpccheap4.data.repository
 import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.local.TokenManager
 import com.crashbit.pvpccheap4.data.model.AuthResponse
+import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
+import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
 import com.crashbit.pvpccheap4.data.model.LoginRequest
 import com.crashbit.pvpccheap4.data.model.RegisterRequest
 import kotlinx.coroutines.flow.Flow
@@ -86,9 +88,41 @@ class AuthRepository @Inject constructor(
             } else {
                 Result.Error(
                     if (response.code() == 409) "Aquest nom d'usuari ja existeix"
+                    else if (response.code() == 400) "La contrasenya ha de tenir almenys 8 caràcters"
                     else "No s'ha pogut crear el compte (error ${response.code()})",
                     response.code()
                 )
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    suspend fun changePassword(current: String, new: String): Result<Unit> {
+        return try {
+            val response = apiService.changePassword(ChangePasswordRequest(current, new))
+            when {
+                response.isSuccessful -> Result.Success(Unit)
+                response.code() == 403 -> Result.Error("La contrasenya actual no és correcta", 403)
+                response.code() == 400 -> Result.Error("La contrasenya nova ha de tenir almenys 8 caràcters", 400)
+                else -> Result.Error("No s'ha pogut canviar la contrasenya", response.code())
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    /** Deletes the account on the server and, if it worked, the local session. */
+    suspend fun deleteAccount(password: String): Result<Unit> {
+        return try {
+            val response = apiService.deleteAccount(DeleteAccountRequest(password))
+            when {
+                response.isSuccessful -> {
+                    tokenManager.clearSession()
+                    Result.Success(Unit)
+                }
+                response.code() == 403 -> Result.Error("La contrasenya no és correcta", 403)
+                else -> Result.Error("No s'ha pogut esborrar el compte", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)

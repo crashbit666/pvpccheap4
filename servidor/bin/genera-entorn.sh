@@ -36,6 +36,7 @@ serveis = {
     "backend": {
         "DATABASE_URL": cal("DATABASE_URL"),
         "JWT_SECRET": cal("JWT_SECRET"),
+        "CREDENTIALS_KEY": cal("CREDENTIALS_KEY"),
         "RUST_LOG": env.get("RUST_LOG") or "info",
         "HOST": "0.0.0.0",
         "PORT": "8080",
@@ -44,6 +45,7 @@ serveis = {
     "cron": {
         "DATABASE_URL": cal("DATABASE_URL"),
         "ESIOS_TOKEN": cal("ESIOS_TOKEN"),
+        "CREDENTIALS_KEY": cal("CREDENTIALS_KEY"),
         "RUST_LOG": env.get("RUST_LOG") or "info",
         "TZ": "Europe/Madrid",
     },

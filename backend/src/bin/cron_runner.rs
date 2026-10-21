@@ -26,6 +26,9 @@ async fn main() {
     // Initialize logging
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
+    // Device actions need to decrypt the provider credentials
+    backend::services::credentials::ensure_credentials_key();
+
     // Initialize database pool
     let database_url = match env::var("DATABASE_URL") {
         Ok(url) => url,

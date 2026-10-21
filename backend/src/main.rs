@@ -44,10 +44,17 @@ async fn main() -> std::io::Result<()> {
 
     // Refuse to start without a real JWT signing secret
     services::auth::ensure_jwt_secret();
+    // ...nor without the key that encrypts the provider credentials
+    services::credentials::ensure_credentials_key();
 
     // DB Pool initialization
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = db::init_pool(&database_url);
+    if let Ok(mut conn) = pool.get() {
+        if let Err(e) = services::credentials::encrypt_legacy_rows(&mut conn) {
+            log::error!("Could not encrypt stored credentials: {}", e);
+        }
+    }
 
     // Provider registry
     let provider_registry = ProviderRegistry::new();

@@ -1,6 +1,9 @@
 package com.crashbit.pvpccheap4.data.api
 
 import com.crashbit.pvpccheap4.data.model.AddIntegrationRequest
+import com.crashbit.pvpccheap4.data.model.Alert
+import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
+import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
 import com.crashbit.pvpccheap4.data.model.AuthResponse
 import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
 import com.crashbit.pvpccheap4.data.model.Device
@@ -17,6 +20,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -33,6 +37,16 @@ interface ApiService {
 
     @GET("api/auth/me")
     suspend fun getCurrentUser(): Response<AuthResponse>
+
+    @PUT("api/auth/password")
+    suspend fun changePassword(@Body request: ChangePasswordRequest): Response<Unit>
+
+    @HTTP(method = "DELETE", path = "api/auth/account", hasBody = true)
+    suspend fun deleteAccount(@Body request: DeleteAccountRequest): Response<Unit>
+
+    // Device actions that failed after the retries
+    @GET("api/alerts")
+    suspend fun getAlerts(@Query("since") since: String? = null): Response<List<Alert>>
 
     // Prices endpoints
     @GET("api/prices")

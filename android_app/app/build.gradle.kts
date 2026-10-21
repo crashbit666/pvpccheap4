@@ -102,6 +102,7 @@ dependencies {
 
     // DataStore
     implementation(libs.datastore.preferences)
+    implementation(libs.work.runtime.ktx)
 
     // Testing
     testImplementation(libs.junit)

@@ -17,6 +17,10 @@ amb el 8080 obert a Internet saltant-se el Caddy.
   `secret` o el valor del `.env.example`); genera'l amb `openssl rand -hex 32`.
   Canviar-lo tanca la sessió de tots els usuaris: l'app rep un 401 i torna a
   la pantalla d'inici de sessió.
+  `CREDENTIALS_KEY` (també `openssl rand -hex 32`) xifra les credencials de
+  Meross a la base de dades; backend i cron no arrenquen sense. Les còpies de
+  la base de dades no la porten: desa-la fora del servidor. Si es perd, cal
+  tornar a afegir Meross des de l'app (dispositius i regles es mantenen).
 - **Còpies**: `bin/copia-pvpccheap.sh` cada dia a les 03:15 (hora de Madrid):
   bolcat xifrat a `~/copies/arxius` (clau a `~/copies/clau`, desada també
   fora del servidor) i replicat fora del servidor (destí a `~/copies/desti`).

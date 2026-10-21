@@ -2,6 +2,7 @@ package com.crashbit.pvpccheap4.data.repository
 
 import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.model.AddIntegrationRequest
+import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
@@ -17,6 +18,19 @@ import javax.inject.Singleton
 class DeviceRepository @Inject constructor(
     private val apiService: ApiService
 ) {
+    suspend fun getAlerts(since: String? = null): Result<List<Alert>> {
+        return try {
+            val response = apiService.getAlerts(since)
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("No s'han pogut carregar els avisos", response.code())
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
     // Integrations
     suspend fun getIntegrations(): Result<List<Integration>> {
         return try {
