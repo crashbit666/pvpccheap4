@@ -1,5 +1,5 @@
 # Use the official Rust image as a builder
-FROM docker.io/library/rust:1.92 AS builder
+FROM docker.io/library/rust:1.99 AS builder
 
 WORKDIR /usr/src/app
 

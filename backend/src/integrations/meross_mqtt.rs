@@ -3,10 +3,10 @@
 //! Meross devices use MQTT for real-time control and state queries.
 //! This module implements the Meross-specific MQTT protocol.
 
-use super::mqtt::{MqttConfig, MqttConnection, MqttError};
+use super::mqtt::{MqttConfig, MqttConnection};
 use super::{DeviceActionResult, DeviceState, ProviderError};
-use log::{debug, error, info, warn};
-use rand::Rng;
+use log::{debug, error, info};
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
