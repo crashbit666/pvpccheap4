@@ -1,5 +1,6 @@
 package com.crashbit.pvpccheap4.ui.screens.rules
 
+import com.crashbit.pvpccheap4.ui.formatPrice
 import com.crashbit.pvpccheap4.R
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Arrangement
@@ -253,7 +254,7 @@ private fun getRuleConfigSummary(rule: Rule): String? {
                 windows.joinToString(" · ") { "${it.hours} h a ${it.label}" }
             else -> config.cheapestHours?.let { "$it h més barates · $labels" }
         }
-        "price_threshold" -> config.priceThreshold?.let { "Preu ≤ $it €/kWh" }
+        "price_threshold" -> config.priceThreshold?.let { "Preu ≤ ${formatPrice(it)}" }
         "time_schedule" -> labels.takeIf { it.isNotEmpty() }?.let { "Cada dia $it" }
         else -> null
     }

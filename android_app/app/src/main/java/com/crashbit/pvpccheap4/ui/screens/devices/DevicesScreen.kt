@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,7 +37,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -173,6 +176,7 @@ fun DevicesScreen(
                         items(uiState.integrations) { integration ->
                             IntegrationCard(
                                 integration = integration,
+                                deviceCount = uiState.devices.count { it.integrationId == integration.id?.toString() },
                                 onDelete = { integration.id?.let { viewModel.deleteIntegration(it) } },
                                 onSync = { integration.id?.let { viewModel.syncDevices() } }
                             )
@@ -208,6 +212,7 @@ fun DevicesScreen(
                         items(uiState.devices) { device ->
                             DeviceCard(
                                 device = device,
+                                rules = uiState.rulesByDevice[device.id].orEmpty(),
                                 onToggle = { viewModel.toggleDevice(device) }
                             )
                         }
@@ -221,9 +226,38 @@ fun DevicesScreen(
 @Composable
 fun IntegrationCard(
     integration: Integration,
+    deviceCount: Int,
     onDelete: () -> Unit,
     onSync: () -> Unit
 ) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    val providerName = integration.providerName.replaceFirstChar { it.uppercase() }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Eliminar $providerName") },
+            text = {
+                Text(
+                    "Es treuran de l'app els seus $deviceCount dispositius i totes les regles " +
+                        "que els controlen. Els endolls no s'esborren de $providerName, però l'app " +
+                        "ja no els encendrà ni apagarà."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    onDelete()
+                }) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("Cancel·lar") }
+            }
+        )
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -239,7 +273,7 @@ fun IntegrationCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = integration.providerName.replaceFirstChar { it.uppercase() },
+                    text = providerName,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium
                 )
@@ -252,9 +286,9 @@ fun IntegrationCard(
 
             Row {
                 TextButton(onClick = onSync) {
-                    Text("Sync")
+                    Text("Sincronitzar")
                 }
-                IconButton(onClick = onDelete) {
+                IconButton(onClick = { confirmDelete = true }) {
                     Icon(
                         painterResource(R.drawable.ic_delete),
                         contentDescription = "Eliminar",
@@ -269,6 +303,7 @@ fun IntegrationCard(
 @Composable
 fun DeviceCard(
     device: Device,
+    rules: List<String>,
     onToggle: () -> Unit
 ) {
     Card(
@@ -291,10 +326,12 @@ fun DeviceCard(
                     fontWeight = FontWeight.Medium
                 )
                 Spacer(modifier = Modifier.height(4.dp))
+                // A rule switches it every hour, so a manual change only lasts until then
                 Text(
-                    text = device.deviceType,
+                    text = if (rules.isEmpty()) "Manual" else "Automàtic · ${rules.joinToString()}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (rules.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.primary
                 )
             }
 

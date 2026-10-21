@@ -1,5 +1,6 @@
 package com.crashbit.pvpccheap4.ui.screens.rules
 
+import com.crashbit.pvpccheap4.ui.formatPrice
 import com.crashbit.pvpccheap4.R
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Column
@@ -162,7 +163,7 @@ class AddRuleViewModel @Inject constructor(
 
 enum class RuleType(val id: String, val displayName: String, val description: String) {
     CHEAPEST_HOURS("cheapest_hours", "Hores més barates", "Encén el dispositiu durant les X hores més barates del dia"),
-    PRICE_THRESHOLD("price_threshold", "Llindar de preu", "Encén quan el preu està per sota d'un llindar"),
+    PRICE_THRESHOLD("price_threshold", "Llindar de preu", "Encén les hores en què el preu és igual o més baix que el que triïs"),
     TIME_SCHEDULE("time_schedule", "Franja horària", "Encén cada dia durant una franja horària fixa, sense mirar el preu"),
     MANUAL("manual", "Manual", "Control manual sense automatització")
 }
@@ -519,7 +520,9 @@ fun AddRuleScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "El dispositiu s'encendrà quan el preu estigui per sota de ${priceThreshold}€/kWh",
+                        text = parsePrice(priceThreshold)?.let {
+                            "S'encendrà les hores en què el preu sigui de ${formatPrice(it)} o menys"
+                        } ?: "Escriu un preu, per exemple 0,12",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -1,5 +1,6 @@
 package com.crashbit.pvpccheap4.ui.screens.schedule
 
+import com.crashbit.pvpccheap4.ui.formatPrice
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.crashbit.pvpccheap4.data.repository.DeviceRepository
@@ -42,7 +43,7 @@ class ScheduleViewModel @Inject constructor(
                             endHour = (hour.hour + 1) % 24,
                             deviceName = hour.deviceName,
                             status = mapStatus(hour.status),
-                            price = hour.priceFormatted
+                            price = hour.price?.let(::formatPrice) ?: hour.priceFormatted
                         )
                     }
                     _uiState.value = _uiState.value.copy(

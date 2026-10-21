@@ -19,10 +19,10 @@ class PriceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to get prices", response.code())
+                Result.Error("No s'han pogut carregar els preus", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -33,10 +33,10 @@ class PriceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to get tomorrow's prices", response.code())
+                Result.Error("No s'han pogut carregar els preus de demà", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 
@@ -46,10 +46,10 @@ class PriceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to get cheapest hours", response.code())
+                Result.Error("No s'han pogut carregar les hores més barates", response.code())
             }
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Network error")
+            Result.fromException(e)
         }
     }
 }

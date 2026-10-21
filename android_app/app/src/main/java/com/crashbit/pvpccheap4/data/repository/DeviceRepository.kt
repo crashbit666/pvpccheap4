@@ -24,7 +24,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to get integrations", response.code())
+                Result.Error("No s'han pogut carregar les integracions", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -38,7 +38,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to create integration: ${response.message()}", response.code())
+                Result.Error("No s'ha pogut afegir la integració. Revisa el correu i la contrasenya", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -51,7 +51,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful) {
                 Result.Success(Unit)
             } else {
-                Result.Error("Failed to delete integration", response.code())
+                Result.Error("No s'ha pogut eliminar la integració", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -69,7 +69,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to get devices", response.code())
+                Result.Error("No s'han pogut carregar els dispositius", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -83,7 +83,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to sync devices: ${response.message()}", response.code())
+                Result.Error("No s'han pogut sincronitzar els dispositius", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -97,7 +97,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to control device", response.code())
+                Result.Error("No s'ha pogut controlar el dispositiu", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -118,7 +118,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to get device state", response.code())
+                Result.Error("No s'ha pogut llegir l'estat del dispositiu", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -132,7 +132,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to get rules", response.code())
+                Result.Error("No s'han pogut carregar les regles", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -171,7 +171,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful) {
                 Result.Success(Unit)
             } else {
-                Result.Error("Failed to delete rule", response.code())
+                Result.Error("No s'ha pogut eliminar la regla", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -184,7 +184,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to toggle rule", response.code())
+                Result.Error("No s'ha pogut canviar la regla", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -198,7 +198,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to get schedule", response.code())
+                Result.Error("No s'ha pogut carregar l'horari", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)

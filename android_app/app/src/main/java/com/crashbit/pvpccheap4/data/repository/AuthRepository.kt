@@ -62,10 +62,14 @@ class AuthRepository @Inject constructor(
                     tokenManager.saveUserInfo(username, username)
                     Result.Success(authResponse)
                 } else {
-                    Result.Error(authResponse.error ?: "Login failed")
+                    Result.Error(authResponse.error ?: "No s'ha pogut entrar")
                 }
             } else {
-                Result.Error("Login failed: ${response.message()}", response.code())
+                Result.Error(
+                    if (response.code() == 401) "Usuari o contrasenya incorrectes"
+                    else "No s'ha pogut entrar (error ${response.code()})",
+                    response.code()
+                )
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -80,7 +84,11 @@ class AuthRepository @Inject constructor(
                 // Registration successful, now login
                 return login(username, password)
             } else {
-                Result.Error("Registration failed: ${response.message()}", response.code())
+                Result.Error(
+                    if (response.code() == 409) "Aquest nom d'usuari ja existeix"
+                    else "No s'ha pogut crear el compte (error ${response.code()})",
+                    response.code()
+                )
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -97,7 +105,7 @@ class AuthRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("Failed to get user", response.code())
+                Result.Error("No s'ha pogut obtenir l'usuari", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)

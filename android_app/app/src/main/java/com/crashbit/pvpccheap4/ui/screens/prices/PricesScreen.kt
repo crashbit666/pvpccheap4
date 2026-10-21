@@ -1,5 +1,6 @@
 package com.crashbit.pvpccheap4.ui.screens.prices
 
+import com.crashbit.pvpccheap4.ui.formatPrice
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -192,14 +193,14 @@ fun CurrentPriceSummary(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = currentPrice.priceFormatted,
+                text = formatPrice(currentPrice.price),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = if (isCheap) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${currentPrice.hour}:00 - ${currentPrice.hour + 1}:00",
+                text = "%02d:00 - %02d:00".format(currentPrice.hour, currentPrice.hour + 1),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -251,7 +252,7 @@ fun PriceItem(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = price.priceFormatted,
+                    text = formatPrice(price.price),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium,
                     color = when {

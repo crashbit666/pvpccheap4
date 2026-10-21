@@ -20,6 +20,8 @@ data class DevicesUiState(
     val isConnectionError: Boolean = false,
     val devices: List<Device> = emptyList(),
     val integrations: List<Integration> = emptyList(),
+    /** Names of the enabled rules that control each device, by device id */
+    val rulesByDevice: Map<String, List<String>> = emptyMap(),
     val syncMessage: String? = null
 )
 
@@ -49,6 +51,15 @@ class DevicesViewModel @Inject constructor(
                     if (result.isConnectionError) return@launch
                 }
                 is Result.Loading -> {}
+            }
+
+            // Rules only label the devices: a failure here is not an error
+            (deviceRepository.getRules() as? Result.Success)?.let { rules ->
+                _uiState.value = _uiState.value.copy(
+                    rulesByDevice = rules.data
+                        .filter { it.isEnabled }
+                        .groupBy({ it.deviceId.toString() }, { it.name })
+                )
             }
 
             // Load devices
@@ -177,7 +188,7 @@ class DevicesViewModel @Inject constructor(
                         }
                         _uiState.value = _uiState.value.copy(
                             devices = revertedDevices,
-                            error = result.data.message ?: "Error controlling device"
+                            error = result.data.message ?: "No s'ha pogut controlar el dispositiu"
                         )
                     }
                 }
