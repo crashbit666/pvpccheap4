@@ -188,7 +188,7 @@ fun RuleCard(
                     Spacer(modifier = Modifier.height(2.dp))
                 }
                 Text(
-                    text = getRuleTypeDescription(rule.ruleType),
+                    text = getRuleTypeDescription(rule),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -249,6 +249,9 @@ private fun getRuleConfigSummary(rule: Rule): String? {
     val labels = windows.joinToString(", ") { it.label }
     return when (rule.ruleType) {
         "cheapest_hours" -> when {
+            config.goal == "deadline" && windows.size == 1 -> config.cheapestHours?.let {
+                "$it h abans de les ${hh(windows[0].endHour)} (des de les ${hh(windows[0].startHour)})"
+            }
             windows.isEmpty() -> config.cheapestHours?.let { "$it h més barates del dia" }
             config.distribution == "per_window" && windows.size > 1 ->
                 windows.joinToString(" · ") { "${it.hours} h a ${it.label}" }
@@ -260,8 +263,9 @@ private fun getRuleConfigSummary(rule: Rule): String? {
     }
 }
 
-private fun getRuleTypeDescription(ruleType: String): String {
-    return when (ruleType) {
+private fun getRuleTypeDescription(rule: Rule): String {
+    if (rule.config.goal == "deadline") return "Llest abans d'una hora"
+    return when (val ruleType = rule.ruleType) {
         "cheapest_hours" -> "Hores més barates"
         "price_threshold" -> "Llindar de preu"
         "time_schedule" -> "Franja horària"

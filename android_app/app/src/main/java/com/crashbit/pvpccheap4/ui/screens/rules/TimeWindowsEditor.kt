@@ -55,7 +55,7 @@ data class HourWindow(val startHour: Int, val endHour: Int, val hours: Int = 1) 
     val label: String get() = "${hh(startHour)}–${hh(endHour)}"
 }
 
-private fun hh(hour: Int) = "%02d:00".format(hour)
+internal fun hh(hour: Int) = "%02d:00".format(hour)
 
 /** "HH:MM" → hour; an end with minutes rounds up, like the backend does. */
 private fun parseHour(time: String, isEnd: Boolean): Int? {
@@ -268,7 +268,7 @@ fun TimeWindowsEditor(
 /** Android time picker for a whole hour (minutes are ignored: prices are hourly). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HourPickerDialog(
+internal fun HourPickerDialog(
     title: String,
     initialHour: Int,
     onDismiss: () -> Unit,

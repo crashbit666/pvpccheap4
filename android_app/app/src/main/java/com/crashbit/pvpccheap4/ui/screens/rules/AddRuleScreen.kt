@@ -25,6 +25,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -161,8 +162,20 @@ class AddRuleViewModel @Inject constructor(
     }
 }
 
-enum class RuleType(val id: String, val displayName: String, val description: String) {
+/** [apiType] is what the backend stores; a deadline is a cheapest_hours rule with goal "deadline" */
+enum class RuleType(
+    val id: String,
+    val displayName: String,
+    val description: String,
+    val apiType: String = id
+) {
     CHEAPEST_HOURS("cheapest_hours", "Hores més barates", "Encén el dispositiu durant les X hores més barates del dia"),
+    DEADLINE(
+        "deadline",
+        "Llest abans d'una hora",
+        "Tria les hores més barates perquè estigui llest a l'hora que diguis, com el cotxe carregat a les 8:00",
+        apiType = "cheapest_hours"
+    ),
     PRICE_THRESHOLD("price_threshold", "Llindar de preu", "Encén les hores en què el preu és igual o més baix que el que triïs"),
     TIME_SCHEDULE("time_schedule", "Franja horària", "Encén cada dia durant una franja horària fixa, sense mirar el preu"),
     MANUAL("manual", "Manual", "Control manual sense automatització")
@@ -204,6 +217,13 @@ fun AddRuleScreen(
     var cheapestWindows by remember { mutableStateOf(listOf<HourWindow>()) }
     var perWindow by remember { mutableStateOf(false) }
 
+    // deadline config: [deadlineHours] cheapest hours from [deadlineFrom] to [deadlineAt]
+    var deadlineAt by remember { mutableIntStateOf(8) }
+    var deadlineFrom by remember { mutableIntStateOf(20) }
+    var deadlineHours by remember { mutableIntStateOf(4) }
+    var pickingDeadline by remember { mutableStateOf<Boolean?>(null) } // true = ready time, false = start
+    val deadlineWindow = HourWindow(deadlineFrom, deadlineAt)
+
     // price_threshold config
     var priceThreshold by remember { mutableStateOf("0.10") }
 
@@ -221,6 +241,10 @@ fun AddRuleScreen(
                 "Les franges sumen $windowHoursTotal h: no hi caben $cheapestHours h"
             else -> null
         }
+        RuleType.DEADLINE ->
+            if (deadlineHours > deadlineWindow.length)
+                "Entre les ${hh(deadlineFrom)} i les ${hh(deadlineAt)} només hi ha ${deadlineWindow.length} h"
+            else null
         RuleType.PRICE_THRESHOLD ->
             if (parsePrice(priceThreshold) == null) "Escriu un preu vàlid, per exemple 0,12" else null
         RuleType.TIME_SCHEDULE -> when {
@@ -254,7 +278,8 @@ fun AddRuleScreen(
         prefilled = true
 
         ruleName = rule.name
-        selectedRuleType = RuleType.entries.firstOrNull { it.id == rule.ruleType } ?: RuleType.MANUAL
+        selectedRuleType = if (rule.config.goal == "deadline") RuleType.DEADLINE
+        else RuleType.entries.firstOrNull { it.apiType == rule.ruleType } ?: RuleType.MANUAL
         selectedDevice = uiState.devices.firstOrNull { it.id == rule.deviceId.toString() }
         val config = rule.config
         when (selectedRuleType) {
@@ -265,6 +290,13 @@ fun AddRuleScreen(
                 cheapestWindows = windowsFromConfig(config).map {
                     if (perWindow) it else it.copy(hours = cheapestHours.coerceAtMost(it.length))
                 }
+            }
+            RuleType.DEADLINE -> {
+                windowsFromConfig(config).firstOrNull()?.let {
+                    deadlineFrom = it.startHour
+                    deadlineAt = it.endHour
+                }
+                config.cheapestHours?.let { deadlineHours = it }
             }
             RuleType.PRICE_THRESHOLD -> config.priceThreshold?.let { priceThreshold = it.toString() }
             RuleType.TIME_SCHEDULE -> {
@@ -504,6 +536,54 @@ fun AddRuleScreen(
                     )
                 }
 
+                RuleType.DEADLINE -> {
+                    SectionTitle("Quan ha d'estar llest", RuleHelp.deadline)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("Llest a les", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        OutlinedButton(onClick = { pickingDeadline = true }) {
+                            Text(hh(deadlineAt), style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("Pot començar a les", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        OutlinedButton(onClick = { pickingDeadline = false }) {
+                            Text(hh(deadlineFrom), style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    DayBar(listOf(deadlineWindow))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("Hores que necessita", style = MaterialTheme.typography.bodyLarge)
+                        InfoButton(RuleHelp.hours)
+                        Spacer(modifier = Modifier.weight(1f))
+                        HoursStepper(
+                            value = deadlineHours,
+                            max = deadlineWindow.length,
+                            onChange = { deadlineHours = it }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Cada dia triarà les $deadlineHours h més barates entre les ${hh(deadlineFrom)} " +
+                            "i les ${hh(deadlineAt)}, de manera que a les ${hh(deadlineAt)} ja haurà acabat.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    pickingDeadline?.let { isReadyTime ->
+                        HourPickerDialog(
+                            title = if (isReadyTime) "Ha d'estar llest a les" else "Pot començar a les",
+                            initialHour = if (isReadyTime) deadlineAt else deadlineFrom,
+                            onDismiss = { pickingDeadline = null },
+                            onConfirm = { hour ->
+                                pickingDeadline = null
+                                if (isReadyTime) deadlineAt = hour else deadlineFrom = hour
+                                deadlineHours = deadlineHours.coerceAtMost(HourWindow(deadlineFrom, deadlineAt).length)
+                            }
+                        )
+                    }
+                }
+
                 RuleType.PRICE_THRESHOLD -> {
                     OutlinedTextField(
                         value = priceThreshold,
@@ -582,6 +662,12 @@ fun AddRuleScreen(
                                     else -> "total"
                                 }
                             )
+                            RuleType.DEADLINE -> RuleConfig(
+                                cheapestHours = deadlineHours,
+                                windows = listOf(deadlineWindow).toApi(withHours = false),
+                                distribution = "total",
+                                goal = "deadline"
+                            )
                             RuleType.PRICE_THRESHOLD -> RuleConfig(priceThreshold = parsePrice(priceThreshold))
                             RuleType.TIME_SCHEDULE -> RuleConfig(windows = scheduleWindows.toApi(withHours = false))
                             RuleType.MANUAL -> RuleConfig()
@@ -590,7 +676,7 @@ fun AddRuleScreen(
                         val rule = Rule(
                             name = ruleName.ifBlank { "${selectedRuleType.displayName} - ${device.name}" },
                             deviceId = device.id.toIntOrNull() ?: 0,
-                            ruleType = selectedRuleType.id,
+                            ruleType = selectedRuleType.apiType,
                             action = "turn_on",
                             config = config,
                             isEnabled = true

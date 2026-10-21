@@ -49,7 +49,24 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
         return Err("time_range_start and time_range_end must be set together".to_string());
     }
 
+    validate_goal(rule_type, config)?;
     validate_windows(config)
+}
+
+/// "goal": "deadline" is a cheapest_hours rule with one window that ends at
+/// the time the device must be ready; the app shows it as its own rule kind.
+fn validate_goal(rule_type: &str, config: &JsonValue) -> Result<(), String> {
+    match config.get("goal").map(|g| g.as_str()) {
+        None => Ok(()),
+        Some(Some("deadline")) => {
+            let windows = config.get("windows").and_then(|w| w.as_array()).map_or(0, |w| w.len());
+            if rule_type != "cheapest_hours" || windows != 1 || config.get("cheapest_hours").is_none() {
+                return Err("a deadline rule needs cheapest_hours and exactly one window".to_string());
+            }
+            Ok(())
+        }
+        _ => Err("goal must be \"deadline\"".to_string()),
+    }
 }
 
 /// Check the "windows" list: valid times, no overlaps, and per-window hours that fit.
@@ -720,6 +737,26 @@ mod tests {
         let query: PaginationQuery = serde_json::from_str(json).unwrap();
         assert!(query.limit.is_none());
         assert!(query.offset.is_none());
+    }
+
+    #[test]
+    fn test_validate_deadline_goal() {
+        let ok = |t: &str, c: JsonValue| validate_rule_config(t, &c).is_ok();
+        let window = serde_json::json!([{"start": "20:00", "end": "08:00"}]);
+        assert!(ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4, "windows": window, "distribution": "total", "goal": "deadline"})
+        ));
+        // Needs exactly one window and a number of hours
+        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "goal": "deadline"})));
+        assert!(!ok("cheapest_hours", serde_json::json!({"windows": window, "goal": "deadline"})));
+        assert!(!ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 2, "goal": "deadline",
+                "windows": [{"start": "08:00", "end": "10:00"}, {"start": "20:00", "end": "22:00"}]})
+        ));
+        assert!(!ok("time_schedule", serde_json::json!({"windows": window, "goal": "deadline"})));
+        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "windows": window, "goal": "other"})));
     }
 
     #[test]

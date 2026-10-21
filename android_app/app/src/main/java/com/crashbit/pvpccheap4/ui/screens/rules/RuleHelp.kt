@@ -30,6 +30,8 @@ object RuleHelp {
         text = """
             • Hores més barates: cada dia tria les hores amb el preu més baix i només encén el dispositiu en aquestes hores. Va bé per carregar el patinet o escalfar l'aigua.
 
+            • Llest abans d'una hora: com l'anterior, però li dius a quina hora ha d'haver acabat (per exemple, el cotxe carregat a les 8:00) i des de quina hora pot començar.
+
             • Llindar de preu: encén el dispositiu a totes les hores en què el preu sigui igual o més baix del que triïs. Si un dia cap hora és prou barata, no s'encén.
 
             • Franja horària: encén el dispositiu cada dia a les hores que triïs, sense mirar el preu, com un temporitzador.
@@ -74,6 +76,19 @@ object RuleHelp {
             Quantes hores s'ha d'encendre el dispositiu cada dia. Es trien sempre les més barates.
 
             Si edites la regla quan ja s'ha encès algunes hores avui, aquestes hores compten i només es busquen les que falten.
+        """.trimIndent()
+    )
+
+    val deadline = Help(
+        title = "Llest abans d'una hora",
+        text = """
+            Cada dia tria les hores més barates entre l'hora en què pot començar i l'hora en què ha d'estar llest.
+
+            Exemple: el cotxe arriba a casa a les 20:00, necessita 4 hores de càrrega i ha d'estar carregat a les 8:00. Triarà les 4 hores més barates entre les 20:00 i les 8:00.
+
+            • L'hora límit no hi compta: a les 8:00 ja haurà acabat.
+            • Si les dues hores són iguals, pot fer servir les 24 hores abans de l'hora límit.
+            • Els preus de l'endemà es publiquen cap a les 20:15: si l'interval passa la nit, les hores es trien quan ja se saben, i abans d'aquesta hora no encén res.
         """.trimIndent()
     )
 

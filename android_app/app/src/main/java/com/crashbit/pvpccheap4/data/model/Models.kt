@@ -141,7 +141,9 @@ data class RuleConfig(
     /** Time windows ("HH:00"); replaces time_range_start/end */
     val windows: List<TimeWindow>? = null,
     /** cheapest_hours with windows: "total" (N hours across all) or "per_window" */
-    val distribution: String? = null
+    val distribution: String? = null,
+    /** "deadline": one window that ends when the device must be ready */
+    val goal: String? = null
 )
 
 data class TimeWindow(
