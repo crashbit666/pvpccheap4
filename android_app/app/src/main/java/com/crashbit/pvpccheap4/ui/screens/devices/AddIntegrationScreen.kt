@@ -246,7 +246,8 @@ fun AddIntegrationScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Les credencials s'utilitzen per connectar amb el servei del proveïdor i descobrir els teus dispositius.",
+                text = "Les credencials s'utilitzen per connectar amb el servei del proveïdor i descobrir els teus dispositius. " +
+                    "Si ja l'havies afegit, només se n'actualitzen les credencials: els dispositius i les regles es mantenen.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
