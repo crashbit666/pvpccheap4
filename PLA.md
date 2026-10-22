@@ -94,6 +94,8 @@ fet i afegeix la data.
 - [ ] Tarifes indexades del mercat lliure; Europa amb ENTSO-E.
 - [ ] Comprovar si el PVPC passa a franges de 15 minuts (el mercat diari ja és
       quarthorari) i preparar-hi el model.
+- [ ] Idiomes: anglès per defecte, català i castellà (app amb `strings.xml`,
+      correus, pàgines legals, respostes de la IA i fitxa de Google Play).
 - [ ] App per a iPhone (Kotlin/Compose Multiplatform) o versió web.
 
 ## 4. Escalar a molts clients
