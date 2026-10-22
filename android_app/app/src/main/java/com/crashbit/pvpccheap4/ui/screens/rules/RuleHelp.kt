@@ -101,6 +101,17 @@ object RuleHelp {
         """.trimIndent()
     )
 
+    val once = Help(
+        title = "Només un cop",
+        text = """
+            La regla s'aplica a la propera franja que encara no ha acabat, per exemple només aquesta nit, i després es desactiva sola.
+
+            Va bé quan una vegada necessites una cosa diferent del dia a dia: carregar el cotxe per a un viatge, fer una rentadora abans que tornis...
+
+            Si després la tornes a activar, s'aplicarà a la franja següent.
+        """.trimIndent()
+    )
+
     val stopWhenDone = Help(
         title = "Apagar quan hagi acabat",
         text = """

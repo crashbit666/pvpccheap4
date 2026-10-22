@@ -244,9 +244,16 @@ fun EmptyRulesMessage(modifier: Modifier = Modifier) {
 }
 
 private fun getRuleConfigSummary(rule: Rule): String? {
-    val summary = getRuleScheduleSummary(rule)
-    return if (rule.config.stopWhenDone == true) listOfNotNull(summary, "s'apaga quan acaba").joinToString(" · ")
-    else summary
+    val config = rule.config
+    val once = when {
+        config.once != true -> null
+        // "2026-10-23" → "només el 23/10"; disabled once its window is over
+        rule.isEnabled && config.onceDate != null ->
+            "només el ${config.onceDate.drop(8)}/${config.onceDate.drop(5).take(2)}"
+        else -> "un sol cop"
+    }
+    val stop = "s'apaga quan acaba".takeIf { config.stopWhenDone == true }
+    return listOfNotNull(getRuleScheduleSummary(rule), once, stop).joinToString(" · ").ifEmpty { null }
 }
 
 private fun getRuleScheduleSummary(rule: Rule): String? {

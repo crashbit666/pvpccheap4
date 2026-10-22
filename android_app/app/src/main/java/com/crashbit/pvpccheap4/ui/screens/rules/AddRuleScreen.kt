@@ -391,6 +391,7 @@ fun AddRuleScreen(
     var deadlineFrom by remember { mutableIntStateOf(20) }
     var deadlineHours by remember { mutableIntStateOf(4) }
     var stopWhenDone by remember { mutableStateOf(false) }
+    var once by remember { mutableStateOf(false) }
     // Only plugs that measure their power can tell when the appliance finished
     val canStopWhenDone = selectedDevice?.measuresPower == true && selectedRuleType != RuleType.MANUAL
     var pickingDeadline by remember { mutableStateOf<Boolean?>(null) } // true = ready time, false = start
@@ -450,6 +451,7 @@ fun AddRuleScreen(
         selectedDevice = uiState.devices.firstOrNull { it.id == rule.deviceId.toString() }
         val config = rule.config
         stopWhenDone = config.stopWhenDone == true
+        once = config.once == true
         when (selectedRuleType) {
             RuleType.CHEAPEST_HOURS -> {
                 config.cheapestHours?.let { cheapestHours = it }
@@ -853,6 +855,24 @@ fun AddRuleScreen(
                 }
             }
 
+            if (selectedRuleType != RuleType.MANUAL) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Només un cop", style = MaterialTheme.typography.titleSmall)
+                            InfoButton(RuleHelp.once)
+                        }
+                        Text(
+                            "S'aplicarà a la propera franja i després es desactivarà.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = once, onCheckedChange = { once = it })
+                }
+            }
+
             if (canStopWhenDone) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -914,7 +934,10 @@ fun AddRuleScreen(
                             deviceId = device.id.toIntOrNull() ?: 0,
                             ruleType = selectedRuleType.apiType,
                             action = "turn_on",
-                            config = config.copy(stopWhenDone = if (canStopWhenDone && stopWhenDone) true else null),
+                            config = config.copy(
+                                stopWhenDone = if (canStopWhenDone && stopWhenDone) true else null,
+                                once = if (once && selectedRuleType != RuleType.MANUAL) true else null
+                            ),
                             isEnabled = true
                         )
                         viewModel.saveRule(rule)

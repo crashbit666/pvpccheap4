@@ -31,6 +31,7 @@ impl ScheduleComputationService {
     /// Disabled rules lose their pending hours. Idempotent: safe to run every hour.
     pub fn refresh_all(&self) -> Result<usize, String> {
         self.mark_missed_hours()?;
+        self.disable_finished_once_rules()?;
 
         let mut conn = self.pool.get().map_err(|e| e.to_string())?;
         let rules: Vec<AutomationRule> = automation_rules::table
@@ -87,6 +88,48 @@ impl ScheduleComputationService {
             .set(scheduled_executions::status.eq(ExecutionStatus::Done.as_str()))
             .execute(&mut conn)
             .map_err(|e| e.to_string())
+    }
+
+    /// A one-off rule ("once") applies to the next window that has not ended
+    /// yet: stores its date in "once_date". Called when the user creates,
+    /// edits or enables the rule, so it is armed again.
+    pub fn arm_once(&self, rule_id: i32) -> Result<(), String> {
+        let mut conn = self.pool.get().map_err(|e| e.to_string())?;
+        let rule: AutomationRule = automation_rules::table
+            .find(rule_id)
+            .first(&mut conn)
+            .map_err(|e| e.to_string())?;
+        if !is_once(&rule.config) {
+            return Ok(());
+        }
+        let Some(date) = next_instance_date(&rule, crate::time::now_naive()) else {
+            return Ok(());
+        };
+        let mut config = rule.config.clone();
+        config["once_date"] = serde_json::Value::String(date.format("%Y-%m-%d").to_string());
+        diesel::update(automation_rules::table.find(rule_id))
+            .set(automation_rules::config.eq(config))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// One-off rules whose window is over are disabled (kept for the savings)
+    fn disable_finished_once_rules(&self) -> Result<(), String> {
+        let mut conn = self.pool.get().map_err(|e| e.to_string())?;
+        let rules: Vec<AutomationRule> = automation_rules::table
+            .filter(automation_rules::is_enabled.eq(true))
+            .load(&mut conn)
+            .map_err(|e| e.to_string())?;
+        let now = crate::time::now_naive();
+        for rule in rules.iter().filter(|r| once_finished(r, now)) {
+            info!("One-off rule {} is over, disabling it", rule.id);
+            diesel::update(automation_rules::table.find(rule.id))
+                .set(automation_rules::is_enabled.eq(false))
+                .execute(&mut conn)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 
     fn refresh_rule_instances(&self, conn: &mut PgConnection, rule: &AutomationRule) -> usize {
@@ -411,6 +454,15 @@ impl WindowGroup {
 /// (Anchoring on the start day would put this afternoon with tonight, whose
 /// prices only arrive after the afternoon is over.)
 fn instance_groups(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGroup> {
+    // A one-off rule has a single instance; not armed yet, none
+    if is_once(&rule.config) && once_date(&rule.config) != Some(date) {
+        return vec![];
+    }
+    windows_of_instance(rule, date)
+}
+
+/// The window groups of the instance for `date`, ignoring "once"
+fn windows_of_instance(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGroup> {
     let at = |d: NaiveDate, hour: u32| d.and_hms_opt(0, 0, 0).unwrap() + Duration::hours(hour as i64);
     let span = |w: &WindowSpec| {
         if w.start < w.end {
@@ -454,6 +506,37 @@ fn instance_groups(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGroup> {
         "price_threshold" => vec![WindowGroup { windows: vec![span(&whole_day)], hours: None }],
         _ => vec![],
     }
+}
+
+/// "once": true, the rule applies to one window only
+pub fn is_once(config: &serde_json::Value) -> bool {
+    config.get("once").and_then(|o| o.as_bool()) == Some(true)
+}
+
+/// The date of the only instance of a one-off rule, once armed
+fn once_date(config: &serde_json::Value) -> Option<NaiveDate> {
+    if !is_once(config) {
+        return None;
+    }
+    config.get("once_date")?.as_str().and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+}
+
+/// Where the instance of `date` ends (its last window's end)
+fn instance_end(rule: &AutomationRule, date: NaiveDate) -> Option<NaiveDateTime> {
+    windows_of_instance(rule, date).into_iter().flat_map(|g| g.windows).map(|w| w.1).max()
+}
+
+/// The first instance whose windows have not all ended at `now`
+fn next_instance_date(rule: &AutomationRule, now: NaiveDateTime) -> Option<NaiveDate> {
+    let today = now.date();
+    [today - Duration::days(1), today, today + Duration::days(1)]
+        .into_iter()
+        .find(|date| instance_end(rule, *date).is_some_and(|end| end > now))
+}
+
+/// A one-off rule whose window is over
+fn once_finished(rule: &AutomationRule, now: NaiveDateTime) -> bool {
+    once_date(&rule.config).is_some_and(|date| instance_end(rule, date).is_none_or(|end| end <= now))
 }
 
 /// Parse a rule config time ("HH:MM") into (hour, minute), rejecting out-of-range values.
@@ -517,6 +600,34 @@ mod tests {
             updated_at: NaiveDateTime::default(),
             last_triggered_at: None,
         }
+    }
+
+    #[test]
+    fn test_once_rule_picks_the_next_window() {
+        let window = json!([{"start": "22:00", "end": "08:00"}]);
+        let r = rule("cheapest_hours", json!({"cheapest_hours": 4, "windows": window, "once": true}));
+        // At 21:00 on the 19th, last night's window is over: tonight's ends on the 20th
+        assert_eq!(next_instance_date(&r, dt(19, 21)), NaiveDate::from_ymd_opt(2026, 10, 20));
+        // At 03:00 the night is still on
+        assert_eq!(next_instance_date(&r, dt(19, 3)), NaiveDate::from_ymd_opt(2026, 10, 19));
+        // Not armed: no hours at all
+        assert!(groups(r).is_empty());
+    }
+
+    #[test]
+    fn test_once_rule_has_one_instance_and_then_finishes() {
+        let window = json!([{"start": "22:00", "end": "08:00"}]);
+        let r = rule(
+            "cheapest_hours",
+            json!({"cheapest_hours": 4, "windows": window, "once": true, "once_date": "2026-10-19"}),
+        );
+        assert_eq!(groups(r.clone()).len(), 1);
+        assert!(instance_groups(&r, NaiveDate::from_ymd_opt(2026, 10, 20).unwrap()).is_empty());
+        assert!(!once_finished(&r, dt(19, 7)));
+        assert!(once_finished(&r, dt(19, 8)));
+        // A daily rule never finishes
+        let daily = rule("cheapest_hours", json!({"cheapest_hours": 4, "windows": window}));
+        assert!(!once_finished(&daily, dt(25, 8)));
     }
 
     fn dt(d: u32, h: u32) -> NaiveDateTime {

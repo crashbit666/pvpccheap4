@@ -173,7 +173,12 @@ data class RuleConfig(
     val goal: String? = null,
     /** Turn off when the measured power drops (the appliance finished) */
     @SerializedName("stop_when_done")
-    val stopWhenDone: Boolean? = null
+    val stopWhenDone: Boolean? = null,
+    /** One-off: only the next window, then the rule disables itself */
+    val once: Boolean? = null,
+    /** The date of that window ("YYYY-MM-DD"), set by the server */
+    @SerializedName("once_date")
+    val onceDate: String? = null
 )
 
 data class DraftRuleRequest(val text: String)

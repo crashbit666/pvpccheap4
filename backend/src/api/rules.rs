@@ -56,6 +56,21 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
         }
     }
 
+    // A one-off rule; "once_date" is set by the server when it is armed
+    if let Some(once) = config.get("once") {
+        if !once.is_boolean() {
+            return Err("once must be true or false".to_string());
+        }
+        if once.as_bool() == Some(true) && rule_type == "manual" {
+            return Err("a manual rule cannot be one-off".to_string());
+        }
+    }
+    if let Some(date) = config.get("once_date") {
+        if date.as_str().and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()).is_none() {
+            return Err("once_date must be a date in YYYY-MM-DD format".to_string());
+        }
+    }
+
     validate_goal(rule_type, config)?;
     validate_windows(config)
 }
@@ -394,10 +409,15 @@ pub async fn create_rule(
             // Compute schedules for this new rule; a pick for the current hour is
             // executed by the cron's per-minute job
             let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
+            if let Err(e) = schedule_service.arm_once(rule.id) {
+                log::warn!("Failed to arm one-off rule {}: {}", rule.id, e);
+            }
             if let Err(e) = schedule_service.refresh_rule(rule.id) {
                 log::warn!("Failed to compute schedule for new rule {}: {}", rule.id, e);
             }
 
+            // With "once_date" filled in
+            let rule = automation_rules::table.find(rule.id).first::<AutomationRule>(&mut conn).unwrap_or(rule);
             HttpResponse::Created().json(rule)
         }
         Err(e) => {
@@ -625,6 +645,12 @@ pub async fn update_rule(
 
     if should_recompute {
         let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
+        // Edited or enabled again: a one-off rule applies to the next window
+        if body.config.is_some() || body.is_enabled == Some(true) {
+            if let Err(e) = schedule_service.arm_once(rule_id) {
+                log::warn!("Failed to arm one-off rule {}: {}", rule_id, e);
+            }
+        }
         if let Err(e) = schedule_service.refresh_rule(rule_id) {
             log::warn!("Failed to recompute schedule for rule {}: {}", rule_id, e);
         }
@@ -731,6 +757,11 @@ pub async fn toggle_rule(
 
     // Recompute schedules: enabled rules get their hours, disabled ones lose the pending ones
     let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
+    if new_status {
+        if let Err(e) = schedule_service.arm_once(rule_id) {
+            log::warn!("Failed to arm one-off rule {}: {}", rule_id, e);
+        }
+    }
     if let Err(e) = schedule_service.refresh_rule(rule_id) {
         log::warn!("Failed to recompute schedule for toggled rule {}: {}", rule_id, e);
     }
@@ -849,6 +880,16 @@ mod tests {
         let query: PaginationQuery = serde_json::from_str(json).unwrap();
         assert!(query.limit.is_none());
         assert!(query.offset.is_none());
+    }
+
+    #[test]
+    fn test_validate_once() {
+        let ok = |t, c| validate_rule_config(t, &c).is_ok();
+        assert!(ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "once": true})));
+        assert!(ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "once": true, "once_date": "2026-10-23"})));
+        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "once": "yes"})));
+        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "once_date": "demà"})));
+        assert!(!ok("manual", serde_json::json!({"once": true})));
     }
 
     #[test]

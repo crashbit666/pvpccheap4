@@ -86,6 +86,7 @@ Rule types (rule_type), all repeated every day:
 - Ready by a time ("charged before 8", "the dishwasher done before I wake up"): a "cheapest_hours" rule with config.goal = "deadline", exactly one window from when it may start to when it must be ready, and config.cheapest_hours = hours it needs. If the start is not said, use "00:00" or the evening before when it makes sense (e.g. "22:00").
 - "price_threshold": on every hour the price is at or below config.price_threshold, in €/kWh (usual prices go from 0.02 to 0.30; "cheap" without a number is about 0.10).
 - "time_schedule": on during fixed config.windows, whatever the price.
+config.once = true makes it a one-off: it applies to the next window only and then disables itself. Use it when the user says so ("only tonight", "just tomorrow", "this time"); otherwise the rule repeats every day.
 config.stop_when_done = true switches the plug off when the appliance finishes (its power drops); only for devices with measures_power true, and never for heaters or anything with a thermostat. Use it when the user says so ("turn it off when it is charged").
 action is always "turn_on": the rules switch the device on in those hours and off in the rest. If the user wants something else, ask a question saying what the app can do.
 
@@ -126,7 +127,8 @@ fn tool_schema() -> Value {
                         "windows": {"type": "array", "items": window},
                         "distribution": {"type": "string", "enum": ["total", "per_window"]},
                         "goal": {"type": "string", "enum": ["deadline"]},
-                        "stop_when_done": {"type": "boolean"}
+                        "stop_when_done": {"type": "boolean"},
+                        "once": {"type": "boolean"}
                     }
                 },
                 "explanation": {"type": "string"}
