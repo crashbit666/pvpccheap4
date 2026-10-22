@@ -36,8 +36,9 @@ fet i afegeix la data.
 - [x] **Estalvi estimat**: «aquest mes has estalviat X €» respecte del preu
       mitjà del dia, amb la potència que indica l'usuari (valors típics per
       tipus d'aparell). *Fet 21/10/2026.*
-- [ ] **Estalvi mesurat**: amb endolls que mesuren potència, fer servir el
-      consum real en lloc de la potència indicada.
+- [x] **Estalvi mesurat**: cada 5 minuts es llegeix la potència dels endolls
+      encesos que la mesuren i l'estalvi fa servir aquest consum (si no, la
+      potència indicada). *Fet 22/10/2026.*
 - [ ] Aturar quan l'aparell ha acabat (la potència baixa, p. ex. el patinet
       carregat) i aprendre quantes hores necessita cada aparell.
 - [x] **Objectius en lloc d'hores**: regla «Llest abans d'una hora» (N hores
@@ -85,6 +86,6 @@ fet i afegeix la data.
 ## Ordre proposat
 
 1. Acabar el punt 1: recuperació per correu, monitoratge.
-2. Estalvi mesurat i visible.
+2. ~~Estalvi mesurat i visible.~~ Fet.
 3. Home Assistant i Shelly, amb execució local.
 4. Regles amb objectiu i en llenguatge natural.

@@ -79,6 +79,9 @@ data class Device(
     /** Watts the appliance draws when on, set by the user (for the savings in euros) */
     @SerializedName("power_watts")
     val powerWatts: Int? = null,
+    /** The plug reports its power, so the savings use what it measures */
+    @SerializedName("measures_power")
+    val measuresPower: Boolean = false,
     @SerializedName("created_at")
     val createdAt: String? = null
 )
@@ -227,6 +230,10 @@ data class DeviceSavings(
     val savingRatio: Double,
     @SerializedName("power_watts")
     val powerWatts: Int? = null,
+    @SerializedName("measured_hours")
+    val measuredHours: Int = 0,
+    @SerializedName("energy_kwh")
+    val energyKwh: Double? = null,
     @SerializedName("cost_eur")
     val costEur: Double? = null,
     @SerializedName("saved_eur")
@@ -246,5 +253,7 @@ data class Savings(
     val savedEur: Double? = null,
     @SerializedName("devices_without_power")
     val devicesWithoutPower: Int = 0,
+    @SerializedName("measured_hours")
+    val measuredHours: Int = 0,
     val devices: List<DeviceSavings> = emptyList()
 )

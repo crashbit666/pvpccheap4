@@ -382,7 +382,11 @@ fun DeviceCard(
                 // A rule switches it every hour, so a manual change only lasts until then
                 Text(
                     text = (if (rules.isEmpty()) "Manual" else "Automàtic · ${rules.joinToString()}") +
-                        (device.powerWatts?.let { " · $it W" } ?: ""),
+                        when {
+                            device.measuresPower -> " · mesura el consum"
+                            device.powerWatts != null -> " · ${device.powerWatts} W"
+                            else -> ""
+                        },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (rules.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
                     else MaterialTheme.colorScheme.primary

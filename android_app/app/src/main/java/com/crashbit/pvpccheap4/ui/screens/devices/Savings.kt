@@ -38,6 +38,8 @@ private fun euros(value: Double) = String.format(catalan, "%.2f €", value)
 
 private fun percent(ratio: Double) = "${(abs(ratio) * 100).roundToInt()} %"
 
+private fun kwh(value: Double) = String.format(catalan, "%.1f kWh", value)
+
 /** Typical power of common appliances, for users who don't know theirs */
 private val typicalPower = listOf(
     "Termo elèctric" to 1500,
@@ -84,6 +86,14 @@ fun SavingsCard(savings: Savings) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
+            if (savings.measuredHours > 0) {
+                Text(
+                    if (savings.measuredHours == savings.hoursOn) "Amb el consum que han mesurat els endolls."
+                    else "Amb el consum mesurat en ${savings.measuredHours} de ${savings.hoursOn} h; la resta, amb la potència indicada.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                )
+            }
             if (savings.devicesWithoutPower > 0) {
                 Text(
                     "Toca un dispositiu i indica'n la potència per veure-ho en euros.",
@@ -95,7 +105,7 @@ fun SavingsCard(savings: Savings) {
                 savings.devices.forEach { d ->
                     Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                         Text(
-                            d.deviceName,
+                            d.deviceName + (d.energyKwh?.let { " · ${kwh(it)}" } ?: ""),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f),
                             color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -136,6 +146,14 @@ fun DevicePowerDialog(
                         "Serveix per calcular quants euros t'estalvies.",
                     style = MaterialTheme.typography.bodyMedium
                 )
+                if (device.measuresPower) {
+                    Text(
+                        "Aquest endoll mesura el consum: l'estalvi fa servir el que mesura. " +
+                            "La potència que indiquis només s'usarà les hores que no s'hagi pogut mesurar.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it.filter(Char::isDigit).take(6) },
