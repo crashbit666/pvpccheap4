@@ -101,6 +101,19 @@ object RuleHelp {
         """.trimIndent()
     )
 
+    val stopWhenDone = Help(
+        title = "Apagar quan hagi acabat",
+        text = """
+            L'endoll mesura quanta potència fa servir l'aparell. Quan baixa gairebé a zero durant 10 minuts (el patinet ja és carregat, l'aigua del termo ja és calenta), s'apaga i no es torna a encendre fins a la franja següent.
+
+            Va bé per a carregadors, termos, rentadores o rentaplats.
+
+            No ho activis en aparells amb termòstat que s'aturen i es tornen a engegar sols, com una estufa o un radiador: s'apagarien la primera vegada que s'aturessin.
+
+            Només surt als endolls que mesuren el consum.
+        """.trimIndent()
+    )
+
     val schedule = Help(
         title = "Quan s'encén",
         text = """

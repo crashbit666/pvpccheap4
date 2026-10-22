@@ -49,6 +49,12 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
         return Err("time_range_start and time_range_end must be set together".to_string());
     }
 
+    if let Some(stop) = config.get("stop_when_done") {
+        if !stop.is_boolean() {
+            return Err("stop_when_done must be true or false".to_string());
+        }
+    }
+
     validate_goal(rule_type, config)?;
     validate_windows(config)
 }
@@ -737,6 +743,14 @@ mod tests {
         let query: PaginationQuery = serde_json::from_str(json).unwrap();
         assert!(query.limit.is_none());
         assert!(query.offset.is_none());
+    }
+
+    #[test]
+    fn test_validate_stop_when_done() {
+        let ok = |c| validate_rule_config("cheapest_hours", &c).is_ok();
+        assert!(ok(serde_json::json!({"cheapest_hours": 4, "stop_when_done": true})));
+        assert!(ok(serde_json::json!({"cheapest_hours": 4, "stop_when_done": false})));
+        assert!(!ok(serde_json::json!({"cheapest_hours": 4, "stop_when_done": "yes"})));
     }
 
     #[test]

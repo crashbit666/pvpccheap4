@@ -244,6 +244,12 @@ fun EmptyRulesMessage(modifier: Modifier = Modifier) {
 }
 
 private fun getRuleConfigSummary(rule: Rule): String? {
+    val summary = getRuleScheduleSummary(rule)
+    return if (rule.config.stopWhenDone == true) listOfNotNull(summary, "s'apaga quan acaba").joinToString(" · ")
+    else summary
+}
+
+private fun getRuleScheduleSummary(rule: Rule): String? {
     val config = rule.config
     val windows = windowsFromConfig(config)
     val labels = windows.joinToString(", ") { it.label }

@@ -7,9 +7,10 @@ use diesel::prelude::*;
 use log::{error, info, warn};
 use std::collections::HashSet;
 
-/// Statuses meaning the device was (or is being) switched for that hour.
+/// Statuses meaning the device was (or is being) switched for that hour, or
+/// did not need it because the appliance had finished ("done").
 /// They count towards a cheapest_hours rule's N hours.
-const ACTED_STATUSES: [&str; 3] = ["executed", "executing", "retrying"];
+const ACTED_STATUSES: [&str; 4] = ["executed", "executing", "retrying", "done"];
 
 /// Service for computing and managing scheduled executions.
 ///
@@ -55,6 +56,37 @@ impl ScheduleComputationService {
             .map_err(|e| e.to_string())?;
 
         Ok(self.refresh_rule_instances(&mut conn, &rule))
+    }
+
+    /// The appliance finished during `hour`: the rule's pending hours left in
+    /// the same window are marked done, so it is not switched on again until
+    /// its next window. Returns how many hours were left.
+    pub fn finish_window(&self, rule_id: i32, hour: NaiveDateTime) -> Result<usize, String> {
+        let mut conn = self.pool.get().map_err(|e| e.to_string())?;
+        let rule: AutomationRule = automation_rules::table
+            .find(rule_id)
+            .first(&mut conn)
+            .map_err(|e| e.to_string())?;
+        let today = crate::time::today();
+        let Some(group) = [today - Duration::days(1), today, today + Duration::days(1)]
+            .into_iter()
+            .flat_map(|date| instance_groups(&rule, date))
+            .find(|g| g.contains(&hour))
+        else {
+            return Ok(0);
+        };
+        let pending: Vec<(i32, NaiveDateTime)> = scheduled_executions::table
+            .filter(scheduled_executions::rule_id.eq(rule_id))
+            .filter(scheduled_executions::status.eq(ExecutionStatus::Pending.as_str()))
+            .filter(scheduled_executions::scheduled_hour.gt(hour))
+            .select((scheduled_executions::id, scheduled_executions::scheduled_hour))
+            .load(&mut conn)
+            .map_err(|e| e.to_string())?;
+        let ids: Vec<i32> = pending.into_iter().filter(|(_, h)| group.contains(h)).map(|(id, _)| id).collect();
+        diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq_any(&ids)))
+            .set(scheduled_executions::status.eq(ExecutionStatus::Done.as_str()))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())
     }
 
     fn refresh_rule_instances(&self, conn: &mut PgConnection, rule: &AutomationRule) -> usize {

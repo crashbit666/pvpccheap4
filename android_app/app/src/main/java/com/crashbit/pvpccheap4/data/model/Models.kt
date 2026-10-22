@@ -146,7 +146,10 @@ data class RuleConfig(
     /** cheapest_hours with windows: "total" (N hours across all) or "per_window" */
     val distribution: String? = null,
     /** "deadline": one window that ends when the device must be ready */
-    val goal: String? = null
+    val goal: String? = null,
+    /** Turn off when the measured power drops (the appliance finished) */
+    @SerializedName("stop_when_done")
+    val stopWhenDone: Boolean? = null
 )
 
 data class TimeWindow(

@@ -70,6 +70,7 @@ class ScheduleViewModel @Inject constructor(
             "failed" -> ScheduleStatus.FAILED
             "retrying" -> ScheduleStatus.RETRYING
             "missed" -> ScheduleStatus.MISSED
+            "done" -> ScheduleStatus.DONE
             "pending" -> ScheduleStatus.PENDING
             "executing" -> ScheduleStatus.EXECUTING
             else -> ScheduleStatus.PENDING

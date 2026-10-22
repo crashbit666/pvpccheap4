@@ -26,7 +26,7 @@ pub struct ScheduledHour {
     pub rule_id: i32,
     pub rule_name: String,
     pub action: String,
-    pub status: String, // "pending", "executing", "completed_on", "completed_off", "retrying", "failed", "missed"
+    pub status: String, // "pending", "executing", "completed_on", "completed_off", "retrying", "failed", "missed", "done"
     pub price: Option<f64>,
     pub price_formatted: Option<String>,
 }
@@ -130,6 +130,7 @@ pub async fn get_schedule(
                 "retrying" => "retrying",
                 "failed" => "failed",
                 "missed" => "missed",
+                "done" => "done",
                 _ => "pending",
             };
 

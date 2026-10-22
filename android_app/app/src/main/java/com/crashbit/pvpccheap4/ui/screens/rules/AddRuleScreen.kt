@@ -33,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -221,6 +222,9 @@ fun AddRuleScreen(
     var deadlineAt by remember { mutableIntStateOf(8) }
     var deadlineFrom by remember { mutableIntStateOf(20) }
     var deadlineHours by remember { mutableIntStateOf(4) }
+    var stopWhenDone by remember { mutableStateOf(false) }
+    // Only plugs that measure their power can tell when the appliance finished
+    val canStopWhenDone = selectedDevice?.measuresPower == true && selectedRuleType != RuleType.MANUAL
     var pickingDeadline by remember { mutableStateOf<Boolean?>(null) } // true = ready time, false = start
     val deadlineWindow = HourWindow(deadlineFrom, deadlineAt)
 
@@ -282,6 +286,7 @@ fun AddRuleScreen(
         else RuleType.entries.firstOrNull { it.apiType == rule.ruleType } ?: RuleType.MANUAL
         selectedDevice = uiState.devices.firstOrNull { it.id == rule.deviceId.toString() }
         val config = rule.config
+        stopWhenDone = config.stopWhenDone == true
         when (selectedRuleType) {
             RuleType.CHEAPEST_HOURS -> {
                 config.cheapestHours?.let { cheapestHours = it }
@@ -635,6 +640,24 @@ fun AddRuleScreen(
                 }
             }
 
+            if (canStopWhenDone) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Apagar quan hagi acabat", style = MaterialTheme.typography.titleSmall)
+                            InfoButton(RuleHelp.stopWhenDone)
+                        }
+                        Text(
+                            "Quan el consum baixi gairebé a zero, s'apagarà i no gastarà les hores que quedin.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = stopWhenDone, onCheckedChange = { stopWhenDone = it })
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
 
             configError?.let { error ->
@@ -678,7 +701,7 @@ fun AddRuleScreen(
                             deviceId = device.id.toIntOrNull() ?: 0,
                             ruleType = selectedRuleType.apiType,
                             action = "turn_on",
-                            config = config,
+                            config = config.copy(stopWhenDone = if (canStopWhenDone && stopWhenDone) true else null),
                             isEnabled = true
                         )
                         viewModel.saveRule(rule)

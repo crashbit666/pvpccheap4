@@ -251,6 +251,8 @@ pub enum ExecutionStatus {
     Failed,
     Retrying,
     Missed,
+    /// Not needed: the appliance had already finished (its power dropped)
+    Done,
 }
 
 impl ExecutionStatus {
@@ -262,6 +264,7 @@ impl ExecutionStatus {
             ExecutionStatus::Failed => "failed",
             ExecutionStatus::Retrying => "retrying",
             ExecutionStatus::Missed => "missed",
+            ExecutionStatus::Done => "done",
         }
     }
 
@@ -273,6 +276,7 @@ impl ExecutionStatus {
             "failed" => Some(ExecutionStatus::Failed),
             "retrying" => Some(ExecutionStatus::Retrying),
             "missed" => Some(ExecutionStatus::Missed),
+            "done" => Some(ExecutionStatus::Done),
             _ => None,
         }
     }
