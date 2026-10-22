@@ -747,7 +747,8 @@ fun AddRuleScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = cheapestSummary(cheapestWindows, usePerWindow, cheapestHours),
+                        text = cheapestSummary(cheapestWindows, usePerWindow, cheapestHours)
+                            .let { if (once) it.replace(" de cada dia", " del dia").replace("S'encendrà", "Aquesta vegada s'encendrà") else it },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -785,7 +786,7 @@ fun AddRuleScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Cada dia triarà les $deadlineHours h més barates entre les ${hh(deadlineFrom)} " +
+                        text = "${if (once) "Aquesta vegada" else "Cada dia"} triarà les $deadlineHours h més barates entre les ${hh(deadlineFrom)} " +
                             "i les ${hh(deadlineAt)}, de manera que a les ${hh(deadlineAt)} ja haurà acabat.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -50,7 +50,10 @@ fet i afegeix la data.
       *Fet 22/10/2026.*
 - [x] **Objectius en lloc d'hores**: regla «Llest abans d'una hora» (N hores
       més barates entre l'hora d'inici i l'hora límit). *Fet 21/10/2026.*
-- [ ] Objectius d'un sol cop (només per aquesta nit), sense regla diària.
+- [x] Objectius d'un sol cop: opció «Només un cop» a la regla (`once`). El
+      servidor hi fixa la data de la propera franja (`once_date`), només en
+      programa aquella i després la desactiva (no l'esborra, per l'estalvi).
+      La IA l'activa amb «només aquesta nit». *Fet 22/10/2026.*
 - [x] **Regles en llenguatge natural amb IA** (opció de pagament): «Escriu-la
       amb paraules» al formulari; l'API de Claude proposa la regla
       (`POST /api/rules/draft`), es valida com una de feta a mà i omple el
