@@ -31,8 +31,9 @@ fet i afegeix la data.
 - [x] Política de privacitat, condicions i pàgina d'esborrar el compte
       (`/privacitat`, `/condicions`, `/esborrar-compte`), enllaçades des del
       registre i del compte. *Fet 22/10/2026.*
-- [ ] Posar-hi el nom del titular i el correu de contacte (`CONTACT_EMAIL` al
+- [x] Posar-hi el nom del titular i el correu de contacte (`CONTACT_EMAIL` al
       `servidor/.env`) i fer-les revisar abans de publicar.
+      *Correu fet 23/10/2026: pvpccheap.dev@gmail.com; falta el nom del titular.*
 - [x] Invalidar les sessions antigues quan es canvia la contrasenya
       (`users.token_version` dins el JWT). *Fet 21/10/2026.*
 - [ ] Risc: l'API del núvol de Meross no és oficial; pot canviar o tallar-se.
@@ -120,8 +121,10 @@ fet i afegeix la data.
       verificada pel servidor amb l'API de Google Play (`/api/billing/google`)
       i revisada cada nit. `users.is_premium` queda per concedir-lo a mà.
       *Codi fet 22/10/2026.*
-- [x] Play Console (ho ha de fer el titular): *fet 23/10/2026; falta provar
-      una compra de veritat amb la llicència de proves.*
+- [x] Play Console (ho ha de fer el titular): *fet 23/10/2026. Compra,
+      renovació i cancel·lació provades amb la llicència de proves.
+      Notificacions en temps real (Pub/Sub `play-notificacions` → `/api/billing/
+      google/notifications?token=…`) i revisió cada 5 min com a xarxa.*
       1. Compte de desenvolupador (25 $) i perfil de pagaments per vendre.
          Els comptes personals nous necessiten una prova tancada amb 12
          persones durant 14 dies abans de publicar.
@@ -139,6 +142,12 @@ fet i afegeix la data.
          pagar.
 - [ ] Socis: comercialitzadores amb tarifa indexada, instal·ladors solars,
       pack amb endoll preconfigurat.
+- [ ] Prova tancada (canal Alpha), preparada 23/10/2026: Espanya, llista
+      «Familia», suggeriments a pvpccheap.dev@gmail.com, versió 2 (1.1) desada.
+      Falta: que Google aprovi la clau del nom de paquet (verificació de
+      desenvolupadors d'Android, «En revisió»), afegir els 12 correus a la
+      llista, enviar els canvis a revisió (Visió general de la publicació) i
+      passar l'enllaç d'inscripció als provadors. 14 dies amb 12 inscrits.
 - [ ] Publicar a Google Play (fitxa, privacitat, esborrat de compte ✓).
 
 ## Ordre proposat
