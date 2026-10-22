@@ -2,6 +2,7 @@ pub mod auth;
 pub mod automation_engine;
 pub mod credentials;
 pub mod ha_client;
+pub mod power_monitor;
 pub mod price_fetcher;
 pub mod schedule_computation;
 pub mod scheduler;

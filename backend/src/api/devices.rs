@@ -23,6 +23,8 @@ pub struct DeviceResponse {
     pub is_on: bool,
     /// Watts the appliance draws when on (set by the user), for the savings
     pub power_watts: Option<i32>,
+    /// The plug reports its power, so the savings use what it measures
+    pub measures_power: bool,
 }
 
 #[derive(Deserialize)]
@@ -137,6 +139,7 @@ pub async fn list_devices(
                                 provider_name: provider_name.clone(),
                                 is_on: device.is_on,
                                 power_watts: device.power_watts,
+                                measures_power: device.measures_power == Some(true),
                             });
                         }
                     }
@@ -178,6 +181,7 @@ pub async fn list_devices(
                     provider_name: provider_name.clone(),
                     is_on,
                     power_watts: device.power_watts,
+                    measures_power: device.measures_power == Some(true),
                 });
             }
         }
@@ -198,6 +202,7 @@ pub async fn list_devices(
             provider_name,
             is_on: device.is_on, // Use cached state from database
             power_watts: device.power_watts,
+            measures_power: device.measures_power == Some(true),
         })
         .collect();
 

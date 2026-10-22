@@ -414,6 +414,28 @@ impl MerossMqttClient {
         })
     }
 
+    /// Whether the device lists the electricity namespace among its abilities
+    pub async fn supports_electricity(&self, device_uuid: &str) -> Result<bool, ProviderError> {
+        let response = self
+            .send_command(device_uuid, "Appliance.System.Ability", "GET", serde_json::json!({}))
+            .await?;
+        Ok(has_electricity_ability(&response))
+    }
+
+    /// Watts the device draws right now
+    pub async fn get_power(&self, device_uuid: &str) -> Result<f32, ProviderError> {
+        let response = self
+            .send_command(
+                device_uuid,
+                "Appliance.Control.Electricity",
+                "GET",
+                serde_json::json!({ "electricity": { "channel": 0 } }),
+            )
+            .await?;
+        parse_power_watts(&response)
+            .ok_or_else(|| ProviderError::Unknown(format!("Unexpected electricity payload: {}", response)))
+    }
+
     /// Disconnect from MQTT
     pub async fn disconnect(&self) -> Result<(), ProviderError> {
         if let Some(connection) = &self.connection {
@@ -426,9 +448,37 @@ impl MerossMqttClient {
     }
 }
 
+fn has_electricity_ability(payload: &Value) -> bool {
+    payload
+        .get("ability")
+        .and_then(|a| a.get("Appliance.Control.Electricity"))
+        .is_some()
+}
+
+/// The device reports milliwatts
+fn parse_power_watts(payload: &Value) -> Option<f32> {
+    let mw = payload.get("electricity")?.get("power")?.as_f64()?;
+    Some((mw / 1000.0) as f32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_electricity_ability() {
+        let plug = serde_json::json!({"ability": {"Appliance.Control.ToggleX": {}, "Appliance.Control.Electricity": {}}});
+        let basic = serde_json::json!({"ability": {"Appliance.Control.ToggleX": {}}});
+        assert!(has_electricity_ability(&plug));
+        assert!(!has_electricity_ability(&basic));
+    }
+
+    #[test]
+    fn test_parse_power_watts() {
+        let payload = serde_json::json!({"electricity": {"channel": 0, "current": 560, "voltage": 2301, "power": 128500}});
+        assert_eq!(parse_power_watts(&payload), Some(128.5));
+        assert_eq!(parse_power_watts(&serde_json::json!({})), None);
+    }
 
     #[test]
     fn test_generate_message_id() {

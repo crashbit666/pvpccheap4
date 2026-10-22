@@ -459,6 +459,22 @@ impl SmartHomeProvider for MerossProvider {
         }
     }
 
+    async fn supports_power_reading(&self, credentials: &Value, external_id: &str) -> Result<bool, ProviderError> {
+        let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
+        mqtt_client.connect().await?;
+        let result = mqtt_client.supports_electricity(external_id).await;
+        let _ = mqtt_client.disconnect().await;
+        result
+    }
+
+    async fn read_power(&self, credentials: &Value, external_id: &str) -> Result<f32, ProviderError> {
+        let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
+        mqtt_client.connect().await?;
+        let result = mqtt_client.get_power(external_id).await;
+        let _ = mqtt_client.disconnect().await;
+        result
+    }
+
     async fn turn_on(
         &self,
         credentials: &Value,

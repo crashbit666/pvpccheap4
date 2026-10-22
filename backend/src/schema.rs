@@ -11,6 +11,16 @@ diesel::table! {
         is_managed -> Bool,
         is_on -> Bool,
         power_watts -> Nullable<Int4>,
+        measures_power -> Nullable<Bool>,
+    }
+}
+
+diesel::table! {
+    power_readings (id) {
+        id -> Int4,
+        device_id -> Int4,
+        measured_at -> Timestamp,
+        watts -> Float4,
     }
 }
 
@@ -105,6 +115,7 @@ diesel::table! {
 }
 
 diesel::joinable!(devices -> user_integrations (integration_id));
+diesel::joinable!(power_readings -> devices (device_id));
 diesel::joinable!(schedules -> devices (device_id));
 diesel::joinable!(schedules -> users (user_id));
 diesel::joinable!(user_integrations -> users (user_id));
@@ -116,6 +127,7 @@ diesel::joinable!(scheduled_executions -> automation_rules (rule_id));
 diesel::allow_tables_to_appear_in_same_query!(
     automation_rules,
     devices,
+    power_readings,
     prices,
     rule_executions,
     scheduled_executions,

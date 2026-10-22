@@ -120,6 +120,20 @@ pub trait SmartHomeProvider: Send + Sync {
         external_id: &str,
     ) -> Result<DeviceActionResult, ProviderError>;
 
+    /// Whether the device reports the power it draws
+    async fn supports_power_reading(
+        &self,
+        _credentials: &Value,
+        _external_id: &str,
+    ) -> Result<bool, ProviderError> {
+        Ok(false)
+    }
+
+    /// Watts the device draws right now
+    async fn read_power(&self, _credentials: &Value, external_id: &str) -> Result<f32, ProviderError> {
+        Err(ProviderError::Unknown(format!("{} does not report its power", external_id)))
+    }
+
     /// Get device capabilities
     fn get_capabilities(&self) -> DeviceCapabilities {
         DeviceCapabilities::default()

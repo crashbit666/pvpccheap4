@@ -69,6 +69,8 @@ pub struct Device {
     pub is_managed: bool,
     pub is_on: bool,
     pub power_watts: Option<i32>,
+    /// Whether the plug reports its power; None until asked
+    pub measures_power: Option<bool>,
 }
 
 #[derive(Insertable, Debug)]

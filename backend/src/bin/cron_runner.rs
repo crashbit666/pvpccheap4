@@ -3,6 +3,7 @@
 //! This binary runs as a daemon with proper cron scheduling:
 //! - sync-prices: Runs at startup and daily at 20:30 (when tomorrow's prices are published)
 //! - run-automation: Runs at the start of every hour (when prices change)
+//! - power-readings: Every 5 minutes, the power of the plugs that are on
 //!
 //! Environment variables:
 //!   DATABASE_URL - PostgreSQL connection string (required)
@@ -18,6 +19,7 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use backend::db::{self, DbPool};
 use backend::integrations::ProviderRegistry;
 use backend::services::automation_engine::AutomationEngine;
+use backend::services::power_monitor;
 use backend::services::price_fetcher::{expected_price_rows, PriceService};
 use backend::services::schedule_computation::ScheduleComputationService;
 
@@ -92,6 +94,18 @@ async fn main() {
         .await
         .expect("Failed to add retry job");
 
+    // Read the power of the plugs that are on every 5 minutes, off the :00
+    // so it does not compete with the hourly actions
+    let pool_power = pool.clone();
+    let power_job = Job::new_async_tz("0 2/5 * * * *", Madrid, move |_uuid, _l| {
+        let pool = pool_power.clone();
+        Box::pin(async move {
+            sample_power(pool).await;
+        })
+    })
+    .expect("Failed to create power job");
+    sched.add(power_job).await.expect("Failed to add power job");
+
     // Start the scheduler
     sched.start().await.expect("Failed to start scheduler");
 
@@ -99,6 +113,7 @@ async fn main() {
     log::info!("  - sync-prices: daily at 20:30");
     log::info!("  - run-automation: every hour at :00");
     log::info!("  - retry-failed: every minute");
+    log::info!("  - power-readings: every 5 minutes");
 
     // Keep the process running
     loop {
@@ -334,6 +349,21 @@ async fn ensure_prices(pool: &DbPool) {
         match service.sync_prices_for_date(date).await {
             Ok(count) => log::info!("Synced {} prices for {}", count, date),
             Err(e) => log::error!("Failed to sync prices for {}: {}", date, e),
+        }
+    }
+}
+
+/// Power of the plugs that are on, for the measured savings
+async fn sample_power(pool: Arc<DbPool>) {
+    let registry = Arc::new(ProviderRegistry::new());
+    power_monitor::sample_power(&pool, registry).await;
+    // Once a day, at 04:02
+    let now = backend::time::now_naive();
+    if now.hour() == 4 && now.minute() < 5 {
+        match power_monitor::delete_old_readings(&pool) {
+            Ok(n) if n > 0 => log::info!("Deleted {} old power readings", n),
+            Err(e) => log::warn!("Failed to delete old power readings: {}", e),
+            _ => {}
         }
     }
 }
