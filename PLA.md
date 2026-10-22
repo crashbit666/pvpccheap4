@@ -39,8 +39,12 @@ fet i afegeix la data.
 - [x] **Estalvi mesurat**: cada 5 minuts es llegeix la potència dels endolls
       encesos que la mesuren i l'estalvi fa servir aquest consum (si no, la
       potència indicada). *Fet 22/10/2026.*
-- [ ] Aturar quan l'aparell ha acabat (la potència baixa, p. ex. el patinet
-      carregat) i aprendre quantes hores necessita cada aparell.
+- [x] Apagar quan l'aparell ha acabat: opció «Apagar quan hagi acabat» a la
+      regla (només endolls que mesuren); dues lectures baixes seguides →
+      s'apaga i les hores que quedaven de la franja queden «Ja havia acabat».
+      *Fet 22/10/2026.*
+- [ ] Aprendre quantes hores necessita cada aparell (a partir de quan acaba)
+      i proposar-les a la regla.
 - [x] **Objectius en lloc d'hores**: regla «Llest abans d'una hora» (N hores
       més barates entre l'hora d'inici i l'hora límit). *Fet 21/10/2026.*
 - [ ] Objectius d'un sol cop (només per aquesta nit), sense regla diària.
