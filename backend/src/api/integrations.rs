@@ -1,5 +1,5 @@
 use crate::{
-    db::DbPool, integrations::ProviderRegistry, models::UserIntegration,
+    db::DbPool, integrations::{ProviderError, ProviderRegistry}, models::UserIntegration,
     schema::{devices, user_integrations}, services::{auth::Claims, credentials},
 };
 use actix_web::{HttpResponse, Responder, delete, get, post, web};
@@ -33,6 +33,10 @@ pub async fn add_integration(
     // Perform login to get session credentials
     let session_credentials = match provider.login(&item.credentials).await {
         Ok(creds) => creds,
+        // Unreachable provider (or Home Assistant URL) vs wrong credentials
+        Err(e @ (ProviderError::ConnectionError(_) | ProviderError::Timeout)) => {
+            return HttpResponse::BadGateway().body(format!("Cannot reach the provider: {}", e));
+        }
         Err(e) => return HttpResponse::Unauthorized().body(format!("Authentication failed: {}", e)),
     };
 

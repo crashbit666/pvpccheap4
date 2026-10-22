@@ -12,11 +12,13 @@ què i quins drets tens.</p>
 <ul>
   <li><strong>Compte</strong>: el nom d'usuari i la contrasenya. La contrasenya
       no es guarda mai tal qual, només un resum irreversible (Argon2).</li>
-  <li><strong>Integracions</strong>: el correu i la contrasenya del teu compte de
-      Meross i el testimoni de sessió que en retorna. Es guarden xifrats
-      (AES-256-GCM) i només es fan servir per parlar amb Meross en nom teu.</li>
-  <li><strong>Dispositius</strong>: el nom, el model i l'identificador dels
-      endolls que tens a Meross, i la potència si l'indiques.</li>
+  <li><strong>Integracions</strong>: segons el proveïdor, el correu i la
+      contrasenya del teu compte de Meross i el testimoni de sessió que en
+      retorna, o l'adreça i el token d'accés del teu Home Assistant. Es guarden
+      xifrats (AES-256-GCM) i només es fan servir per controlar els teus
+      dispositius en nom teu.</li>
+  <li><strong>Dispositius</strong>: el nom, el tipus i l'identificador dels
+      endolls i llums que hi tens, i la potència si l'indiques.</li>
   <li><strong>Regles i historial</strong>: les regles que crees i el registre de
       quan s'ha encès o apagat cada endoll, per poder-te'n avisar si falla i
       calcular quant estalvies.</li>
@@ -38,6 +40,9 @@ registres tècnics es basen en l'interès legítim de mantenir el servei segur
   <li><strong>Meross</strong>: per controlar els endolls, el servidor es connecta
       al núvol de Meross amb les teves credencials. Meross tracta aquestes dades
       segons la seva pròpia política de privacitat.</li>
+  <li><strong>Home Assistant</strong>: si el connectes, el servidor es connecta
+      a la teva instal·lació per encendre i apagar els dispositius que hi
+      tens.</li>
   <li><strong>Allotjament</strong>: el servidor és a Hetzner Online GmbH, dins la
       Unió Europea, que actua com a encarregat del tractament.</li>
 </ul>

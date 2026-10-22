@@ -120,7 +120,7 @@ class DevicesViewModel @Inject constructor(
                         }
                         is Result.Error -> {
                             _uiState.value = _uiState.value.copy(
-                                error = "Error sincronitzant ${integration.providerName}: ${result.message}"
+                                error = "Error sincronitzant ${providerDisplayName(integration.providerName)}: ${result.message}"
                             )
                         }
                         is Result.Loading -> {}

@@ -81,7 +81,17 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut afegir la integració. Revisa el correu i la contrasenya", response.code())
+                val body = response.errorBody()?.string().orEmpty()
+                val message = when {
+                    response.code() == 502 && provider == "home_assistant" ->
+                        "No s'ha pogut connectar amb Home Assistant. Comprova que l'adreça és accessible des d'Internet"
+                    response.code() == 502 -> "No s'ha pogut connectar amb el proveïdor. Torna-ho a provar més tard"
+                    "Invalid Home Assistant URL" in body ->
+                        "L'adreça no és vàlida: ha de començar per https:// i ser accessible des d'Internet"
+                    provider == "home_assistant" -> "Home Assistant no ha acceptat el token. Revisa'l"
+                    else -> "No s'ha pogut afegir la integració. Revisa el correu i la contrasenya"
+                }
+                Result.Error(message, response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)

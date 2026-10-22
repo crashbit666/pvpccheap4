@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,6 +45,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -94,10 +98,45 @@ class AddIntegrationViewModel @Inject constructor(
     }
 }
 
-/** Providers the backend can control (Tuya, Shelly, etc. are not implemented yet) */
-enum class Provider(val id: String, val displayName: String) {
-    MEROSS("meross", "Meross")
+/** A credential the provider asks for */
+data class CredentialField(
+    val key: String,
+    val label: String,
+    val keyboardType: KeyboardType,
+    val secret: Boolean = false,
+    val placeholder: String? = null
+)
+
+/** Providers the backend can control */
+enum class Provider(
+    val id: String,
+    val displayName: String,
+    val fields: List<CredentialField>,
+    val help: String
+) {
+    MEROSS(
+        "meross", "Meross",
+        listOf(
+            CredentialField("email", "Correu electrònic", KeyboardType.Email),
+            CredentialField("password", "Contrasenya", KeyboardType.Password, secret = true)
+        ),
+        "El correu i la contrasenya del teu compte de l'app de Meross."
+    ),
+    HOME_ASSISTANT(
+        "home_assistant", "Home Assistant",
+        listOf(
+            CredentialField("url", "Adreça de Home Assistant", KeyboardType.Uri, placeholder = "https://xxxx.ui.nabu.casa"),
+            CredentialField("token", "Token d'accés", KeyboardType.Password, secret = true)
+        ),
+        "Serveix per a qualsevol endoll o llum que tinguis a Home Assistant (Shelly, Tuya, Zigbee...). " +
+            "L'adreça ha de ser accessible des d'Internet, per exemple la de Home Assistant Cloud. " +
+            "El token es crea a Home Assistant: el teu perfil → Seguretat → Tokens d'accés de llarga durada → Crea un token."
+    )
 }
+
+/** "home_assistant" → "Home Assistant" */
+fun providerDisplayName(id: String): String =
+    Provider.entries.find { it.id == id }?.displayName ?: id.replaceFirstChar { it.uppercase() }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,8 +149,8 @@ fun AddIntegrationScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var selectedProvider by remember { mutableStateOf(Provider.MEROSS) }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    val values = remember { mutableStateMapOf<String, String>() }
+    val filled = selectedProvider.fields.all { !values[it.key].isNullOrBlank() }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
@@ -146,6 +185,7 @@ fun AddIntegrationScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
             if (Provider.entries.size > 1) {
@@ -193,44 +233,37 @@ fun AddIntegrationScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Correu electrònic") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                ),
-                modifier = Modifier.fillMaxWidth()
+            Text(
+                text = selectedProvider.help,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Contrasenya") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
+            selectedProvider.fields.forEachIndexed { index, field ->
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = values[field.key] ?: "",
+                    onValueChange = { values[field.key] = it },
+                    label = { Text(field.label) },
+                    placeholder = field.placeholder?.let { { Text(it) } },
+                    singleLine = true,
+                    visualTransformation = if (field.secret) PasswordVisualTransformation() else VisualTransformation.None,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = field.keyboardType,
+                        imeAction = if (index == selectedProvider.fields.lastIndex) ImeAction.Done else ImeAction.Next
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
-                    val credentials = mapOf(
-                        "email" to email,
-                        "password" to password
-                    )
+                    val credentials = selectedProvider.fields.associate { it.key to (values[it.key] ?: "").trim() }
                     viewModel.addIntegration(selectedProvider.id, credentials)
                 },
-                enabled = !uiState.isLoading && email.isNotBlank() && password.isNotBlank(),
+                enabled = !uiState.isLoading && filled,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (uiState.isLoading) {

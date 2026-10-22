@@ -4,11 +4,13 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+pub mod home_assistant;
 pub mod meross;
 pub mod meross_mqtt;
 pub mod mqtt;
 
 // Re-export providers
+pub use home_assistant::HomeAssistantProvider;
 pub use meross::MerossProvider;
 
 /// Device discovered from a provider
@@ -162,6 +164,7 @@ impl ProviderRegistry {
 
         // Register all available providers
         registry.register(Arc::new(MerossProvider::new()));
+        registry.register(Arc::new(HomeAssistantProvider::new()));
         // Future: registry.register(Arc::new(TuyaProvider::new()));
         // Future: registry.register(Arc::new(ShellyProvider::new()));
 

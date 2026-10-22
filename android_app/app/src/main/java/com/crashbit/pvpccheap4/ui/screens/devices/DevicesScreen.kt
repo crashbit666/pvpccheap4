@@ -282,7 +282,7 @@ fun IntegrationCard(
     onSync: () -> Unit
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
-    val providerName = integration.providerName.replaceFirstChar { it.uppercase() }
+    val providerName = providerDisplayName(integration.providerName)
 
     if (confirmDelete) {
         AlertDialog(
