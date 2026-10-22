@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -57,6 +58,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
+import com.crashbit.pvpccheap4.BuildConfig
 import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.alerts.AlertsWorker
 import com.crashbit.pvpccheap4.data.repository.AuthRepository
@@ -241,6 +243,21 @@ fun AccountScreen(
                     Icon(painterResource(R.drawable.ic_logout), contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Tancar la sessió")
+                }
+            }
+
+            val uriHandler = LocalUriHandler.current
+            SettingsCard(
+                title = "Privacitat",
+                text = "Quines dades guardem, per a què i quins drets tens."
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { uriHandler.openUri(BuildConfig.BASE_URL + "privacitat") }) {
+                        Text("Privacitat")
+                    }
+                    OutlinedButton(onClick = { uriHandler.openUri(BuildConfig.BASE_URL + "condicions") }) {
+                        Text("Condicions")
+                    }
                 }
             }
 

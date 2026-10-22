@@ -37,6 +37,8 @@ serveis = {
         "DATABASE_URL": cal("DATABASE_URL"),
         "JWT_SECRET": cal("JWT_SECRET"),
         "CREDENTIALS_KEY": cal("CREDENTIALS_KEY"),
+        # Opcional: correu de contacte a /privacitat, /condicions i /esborrar-compte
+        "CONTACT_EMAIL": env.get("CONTACT_EMAIL") or "",
         "RUST_LOG": env.get("RUST_LOG") or "info",
         "HOST": "0.0.0.0",
         "PORT": "8080",

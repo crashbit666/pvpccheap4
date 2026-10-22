@@ -5,12 +5,18 @@ pub mod auth;
 pub mod automation;
 pub mod devices;
 pub mod integrations;
+pub mod legal;
 pub mod prices;
 pub mod rules;
 pub mod savings;
 pub mod schedules;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
+    // Privacy policy, terms and account deletion (public web pages)
+    cfg.service(legal::privacy)
+        .service(legal::terms)
+        .service(legal::delete_account);
+
     // Auth routes (public)
     cfg.service(
         web::scope("/api/auth")

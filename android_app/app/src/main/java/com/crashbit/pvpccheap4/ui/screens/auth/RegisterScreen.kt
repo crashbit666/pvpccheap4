@@ -2,6 +2,7 @@ package com.crashbit.pvpccheap4.ui.screens.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,11 +27,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.crashbit.pvpccheap4.BuildConfig
 
 @Composable
 fun RegisterScreen(
@@ -149,7 +153,23 @@ fun RegisterScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val uriHandler = LocalUriHandler.current
+            Text(
+                text = "En crear el compte acceptes les condicions d'ús i la política de privacitat.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Row {
+                TextButton(onClick = { uriHandler.openUri(BuildConfig.BASE_URL + "condicions") }) {
+                    Text("Condicions")
+                }
+                TextButton(onClick = { uriHandler.openUri(BuildConfig.BASE_URL + "privacitat") }) {
+                    Text("Privacitat")
+                }
+            }
 
             TextButton(onClick = onNavigateToLogin) {
                 Text("Ja tens compte? Entra")
