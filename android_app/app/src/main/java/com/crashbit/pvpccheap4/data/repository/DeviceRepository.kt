@@ -298,6 +298,9 @@ class DeviceRepository @Inject constructor(
 
     /** On 400 the backend explains what is wrong with the rule; otherwise use a generic message. */
     private fun ruleErrorMessage(response: retrofit2.Response<*>, fallback: String): String {
+        if (response.code() == 402) {
+            return "El pla gratuït té 4 regles. Fes-te prèmium des del teu compte per tenir-ne més."
+        }
         val detail = if (response.code() == 400) response.errorBody()?.string()?.takeIf { it.isNotBlank() } else null
         return detail?.let { "$fallback: $it" } ?: fallback
     }

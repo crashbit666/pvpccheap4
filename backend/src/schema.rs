@@ -69,6 +69,20 @@ diesel::table! {
         email -> Nullable<Text>,
         email_verified -> Bool,
         zone -> Text,
+        premium_until -> Nullable<Timestamp>,
+    }
+}
+
+diesel::table! {
+    subscriptions (id) {
+        id -> Int4,
+        user_id -> Int4,
+        platform -> Text,
+        product_id -> Text,
+        purchase_token -> Text,
+        state -> Text,
+        expires_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -138,6 +152,7 @@ diesel::joinable!(schedules -> devices (device_id));
 diesel::joinable!(schedules -> users (user_id));
 diesel::joinable!(user_integrations -> users (user_id));
 diesel::joinable!(user_tokens -> users (user_id));
+diesel::joinable!(subscriptions -> users (user_id));
 diesel::joinable!(automation_rules -> users (user_id));
 diesel::joinable!(automation_rules -> devices (device_id));
 diesel::joinable!(rule_executions -> automation_rules (rule_id));
@@ -151,6 +166,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     rule_executions,
     scheduled_executions,
     schedules,
+    subscriptions,
     user_integrations,
     user_tokens,
     users,

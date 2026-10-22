@@ -1,8 +1,10 @@
 pub mod auth;
 pub mod automation_engine;
 pub mod credentials;
+pub mod google_play;
 pub mod mailer;
 pub mod power_monitor;
+pub mod premium;
 pub mod price_fetcher;
 pub mod rule_assistant;
 pub mod schedule_computation;

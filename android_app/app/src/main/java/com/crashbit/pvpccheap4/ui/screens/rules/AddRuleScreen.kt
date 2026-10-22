@@ -254,7 +254,7 @@ private fun WriteInWords(isPremium: Boolean, isDrafting: Boolean, message: Strin
             if (!isPremium) {
                 Text(
                     "Explica què vols, per exemple «carrega el patinet 4 hores abans de les 8», i la regla s'omple sola. " +
-                        "És una opció del pla de pagament.",
+                        "És una opció del pla prèmium, que pots activar des del teu compte.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

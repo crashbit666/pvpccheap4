@@ -19,6 +19,7 @@ pub struct User {
     pub email: Option<String>,
     pub email_verified: bool,
     pub zone: String,
+    pub premium_until: Option<NaiveDateTime>,
 }
 
 #[derive(Queryable, Selectable, Insertable, Serialize, Deserialize, Debug, Clone)]

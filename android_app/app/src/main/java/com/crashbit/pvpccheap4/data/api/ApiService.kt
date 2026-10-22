@@ -7,6 +7,7 @@ import com.crashbit.pvpccheap4.data.model.ChangeEmailRequest
 import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
 import com.crashbit.pvpccheap4.data.model.ChangeZoneRequest
 import com.crashbit.pvpccheap4.data.model.ForgotPasswordRequest
+import com.crashbit.pvpccheap4.data.model.GooglePurchaseRequest
 import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
 import com.crashbit.pvpccheap4.data.model.AuthResponse
 import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
@@ -115,6 +116,10 @@ interface ApiService {
     /** Sets the account's email and sends the link that verifies it */
     @PUT("api/auth/email")
     suspend fun changeEmail(@Body request: ChangeEmailRequest): Response<Unit>
+
+    /** A Google Play purchase of the paid plan, checked by the server with Google */
+    @POST("api/billing/google")
+    suspend fun googlePurchase(@Body request: GooglePurchaseRequest): Response<Unit>
 
     /** Whose prices the rules follow; the rules are rescheduled */
     @PUT("api/auth/zone")

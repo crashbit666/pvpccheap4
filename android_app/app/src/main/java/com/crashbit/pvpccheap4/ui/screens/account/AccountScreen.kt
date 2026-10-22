@@ -1,5 +1,9 @@
 package com.crashbit.pvpccheap4.ui.screens.account
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.compose.material3.Button
 import android.Manifest
 import android.content.Intent
 import android.provider.Settings
@@ -66,6 +70,9 @@ import com.crashbit.pvpccheap4.BuildConfig
 import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.alerts.AlertsWorker
 import com.crashbit.pvpccheap4.data.model.Account
+import com.crashbit.pvpccheap4.data.billing.BillingManager
+import com.crashbit.pvpccheap4.data.billing.BillingState
+import com.crashbit.pvpccheap4.data.billing.Plan
 import com.crashbit.pvpccheap4.data.model.Zone
 import com.crashbit.pvpccheap4.data.repository.AuthRepository
 import com.crashbit.pvpccheap4.data.repository.Result
@@ -89,8 +96,24 @@ data class AccountUiState(
 
 @HiltViewModel
 class AccountViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val billing: BillingManager
 ) : ViewModel() {
+
+    val billingState = billing.state
+
+    fun buy(activity: Activity, plan: Plan) {
+        val userId = _uiState.value.account?.id ?: return
+        billing.buy(activity, plan, userId)
+    }
+
+    fun restorePurchases() = billing.restore()
+
+    /** After a purchase, the account says until when it is paid */
+    fun billingMessageShown() {
+        if (billing.state.value.purchased) loadAccount()
+        billing.consumeMessage()
+    }
 
     val userName = authRepository.userName
 
@@ -99,6 +122,7 @@ class AccountViewModel @Inject constructor(
 
     init {
         loadAccount()
+        billing.loadPlans()
     }
 
     /** Also when coming back from the browser, after verifying the email */
@@ -216,6 +240,13 @@ fun AccountScreen(
     LaunchedEffect(uiState.passwordChanged) {
         if (uiState.passwordChanged) showChangePassword = false
     }
+    val billingState by viewModel.billingState.collectAsState()
+    LaunchedEffect(billingState.message) {
+        billingState.message?.let {
+            viewModel.billingMessageShown()
+            snackbarHostState.showSnackbar(it)
+        }
+    }
     LaunchedEffect(uiState.emailSaved) {
         if (uiState.emailSaved) showChangeEmail = false
     }
@@ -310,6 +341,15 @@ fun AccountScreen(
                         )
                     }
                 }
+            }
+
+            uiState.account?.let { account ->
+                PlanCard(
+                    account = account,
+                    billing = billingState,
+                    onBuy = { plan -> context.findActivity()?.let { viewModel.buy(it, plan) } },
+                    onRestore = viewModel::restorePurchases
+                )
             }
 
             uiState.account?.let { account ->
@@ -456,6 +496,46 @@ fun AccountScreen(
             },
             onConfirm = viewModel::deleteAccount
         )
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+/** "1 €/mes" from the store's price and the base plan */
+private fun Plan.label() = "$price/${if (basePlanId == BillingManager.YEARLY) "any" else "mes"}"
+
+@Composable
+private fun PlanCard(account: Account, billing: BillingState, onBuy: (Plan) -> Unit, onRestore: () -> Unit) {
+    // "2026-11-23 11:00:00" → "23/11/2026"
+    val until = account.premiumUntil?.take(10)?.split('-')?.reversed()?.joinToString("/")
+    SettingsCard(
+        title = if (account.isPremium) "Pla prèmium" else "Pla gratuït",
+        text = when {
+            account.isPremium && until != null -> "Regles il·limitades i regles amb paraules. Es renova el $until; ho pots cancel·lar a Google Play."
+            account.isPremium -> "Regles il·limitades i regles amb paraules."
+            else -> "Fins a ${account.freeRules} regles. Amb el pla prèmium en tindràs tantes com vulguis i podràs escriure-les amb paraules."
+        }
+    ) {
+        if (!account.isPremium) {
+            when {
+                billing.plans == null -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                billing.plans.isEmpty() -> Text(
+                    "Les compres encara no estan disponibles. Instal·la l'app des de Google Play.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    billing.plans.forEach { plan ->
+                        Button(onClick = { onBuy(plan) }, enabled = !billing.isWorking) { Text(plan.label()) }
+                    }
+                }
+            }
+        }
+        TextButton(onClick = onRestore, enabled = !billing.isWorking) { Text("Restaurar les compres") }
     }
 }
 

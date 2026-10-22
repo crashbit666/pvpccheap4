@@ -46,6 +46,8 @@ serveis = {
         "MAIL_FROM": env.get("MAIL_FROM") or "",
         "MAIL_FROM_NAME": env.get("MAIL_FROM_NAME") or "PVPC Cheap",
         "PUBLIC_URL": env.get("PUBLIC_URL") or "https://pvpccheap.crashbit.cat",
+        # Opcional: verificar les compres de Google Play (JSON del compte de servei en base64)
+        "GOOGLE_PLAY_SERVICE_ACCOUNT": env.get("GOOGLE_PLAY_SERVICE_ACCOUNT") or "",
         "RUST_LOG": env.get("RUST_LOG") or "info",
         "HOST": "0.0.0.0",
         "PORT": "8080",
@@ -59,6 +61,7 @@ serveis = {
         "BREVO_API_KEY": env.get("BREVO_API_KEY") or "",
         "MAIL_FROM": env.get("MAIL_FROM") or "",
         "PUBLIC_URL": env.get("PUBLIC_URL") or "https://pvpccheap.crashbit.cat",
+        "GOOGLE_PLAY_SERVICE_ACCOUNT": env.get("GOOGLE_PLAY_SERVICE_ACCOUNT") or "",
         "RUST_LOG": env.get("RUST_LOG") or "info",
         "TZ": "Europe/Madrid",
     },

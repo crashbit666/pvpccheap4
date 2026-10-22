@@ -122,6 +122,17 @@ async fn main() {
     .expect("Failed to create mail key job");
     sched.add(mail_job).await.expect("Failed to add mail key job");
 
+    // Renewals, cancellations and refunds of store subscriptions
+    let pool_subs = pool.clone();
+    let subs_job = Job::new_async_tz("0 20 3 * * *", Madrid, move |_uuid, _l| {
+        let pool = pool_subs.clone();
+        Box::pin(async move {
+            backend::api::billing::recheck_subscriptions(&pool).await;
+        })
+    })
+    .expect("Failed to create subscriptions job");
+    sched.add(subs_job).await.expect("Failed to add subscriptions job");
+
     // Start the scheduler
     sched.start().await.expect("Failed to start scheduler");
 
@@ -131,6 +142,7 @@ async fn main() {
     log::info!("  - retry-failed: every minute");
     log::info!("  - power-readings: every 5 minutes");
     log::info!("  - mail-key: Mondays at 05:10");
+    log::info!("  - subscriptions: daily at 03:20");
     tokio::spawn(check_mail_key());
 
     // Keep the process running

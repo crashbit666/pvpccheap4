@@ -35,7 +35,18 @@ data class Account(
     @SerializedName("email_verified")
     val emailVerified: Boolean = false,
     /** Whose prices the rules follow */
-    val zone: String = "peninsula"
+    val zone: String = "peninsula",
+    /** End of the store subscription ("2026-11-23 11:00:00"), if any */
+    @SerializedName("premium_until")
+    val premiumUntil: String? = null,
+    /** Rules allowed without the paid plan */
+    @SerializedName("free_rules")
+    val freeRules: Int = 4
+)
+
+data class GooglePurchaseRequest(
+    @SerializedName("purchase_token")
+    val purchaseToken: String
 )
 
 data class ChangeZoneRequest(val zone: String)

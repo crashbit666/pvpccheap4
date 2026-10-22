@@ -2,10 +2,11 @@ use crate::{
     db::DbPool,
     integrations::ProviderRegistry,
     models::{AutomationRule, NewAutomationRule, RuleExecution},
-    schema::{automation_rules, devices, rule_executions, user_integrations, users},
+    schema::{automation_rules, devices, rule_executions, user_integrations},
     services::{
         auth::Claims,
         automation_engine::AutomationEngine,
+        premium,
         rule_assistant::{self, AssistantError, DailyLimit, DeviceInfo, Draft},
         schedule_computation::{parse_time_of_day, window_specs, ScheduleComputationService},
     },
@@ -389,6 +390,19 @@ pub async fn create_rule(
         return HttpResponse::NotFound().body("Device not found");
     }
 
+    // The free plan has a few rules; more need the paid plan
+    if !premium::user_has_premium(&mut conn, user_id) {
+        let rules: i64 = automation_rules::table
+            .filter(automation_rules::user_id.eq(user_id))
+            .count()
+            .get_result(&mut conn)
+            .unwrap_or(0);
+        if rules >= premium::FREE_RULES {
+            return HttpResponse::PaymentRequired()
+                .body(format!("The free plan has {} rules", premium::FREE_RULES));
+        }
+    }
+
     // Create the rule
     let new_rule = NewAutomationRule {
         user_id,
@@ -482,12 +496,7 @@ pub async fn draft_rule(
         let Ok(mut conn) = pool.get() else {
             return HttpResponse::InternalServerError().body("Database connection error");
         };
-        let premium = users::table
-            .find(user_id)
-            .select(users::is_premium)
-            .first::<bool>(&mut conn)
-            .unwrap_or(false);
-        if !premium {
+        if !premium::user_has_premium(&mut conn, user_id) {
             return HttpResponse::PaymentRequired().body("Rules written in plain words need the paid plan");
         }
         devices::table

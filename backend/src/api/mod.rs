@@ -3,6 +3,7 @@ use actix_web::web;
 pub mod account_pages;
 pub mod alerts;
 pub mod auth;
+pub mod billing;
 pub mod automation;
 pub mod devices;
 pub mod integrations;
@@ -33,6 +34,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(auth::change_password)
             .service(auth::delete_account),
     );
+
+    // Store purchases of the paid plan (protected)
+    cfg.service(web::scope("/api/billing").service(billing::google_purchase));
 
     // Failed device actions (protected)
     cfg.service(web::scope("/api/alerts").service(alerts::list_alerts));

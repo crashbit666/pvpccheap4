@@ -168,7 +168,10 @@ pub async fn me(pool: web::Data<DbPool>, claims: Claims) -> impl Responder {
         Ok(user) => HttpResponse::Ok().json(serde_json::json!({
             "id": user.id,
             "username": user.username,
-            "is_premium": user.is_premium,
+            // Paid (store) or granted by hand
+            "is_premium": crate::services::premium::has_premium(&user, crate::time::now_naive()),
+            "premium_until": user.premium_until.map(|u| u.to_string()),
+            "free_rules": crate::services::premium::FREE_RULES,
             "email": user.email,
             "email_verified": user.email_verified,
             "zone": user.zone,
