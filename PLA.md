@@ -43,8 +43,11 @@ fet i afegeix la data.
       regla (només endolls que mesuren); dues lectures baixes seguides →
       s'apaga i les hores que quedaven de la franja queden «Ja havia acabat».
       *Fet 22/10/2026.*
-- [ ] Aprendre quantes hores necessita cada aparell (a partir de quan acaba)
-      i proposar-les a la regla.
+- [x] Aprendre quantes hores necessita cada aparell: amb les lectures dels
+      últims 30 dies es compta quant consumeix fins que acaba (80 % de les
+      últimes 10 vegades, n'hi calen 3) i el formulari de la regla ho proposa
+      («Posa'n N h»). Els aparells amb termòstat no reben proposta.
+      *Fet 22/10/2026.*
 - [x] **Objectius en lloc d'hores**: regla «Llest abans d'una hora» (N hores
       més barates entre l'hora d'inici i l'hora límit). *Fet 21/10/2026.*
 - [ ] Objectius d'un sol cop (només per aquesta nit), sense regla diària.
