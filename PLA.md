@@ -16,9 +16,12 @@ fet i afegeix la data.
       reintents: targeta a Dispositius i notificació (WorkManager, 15 min).
       *Fet 21/10/2026.*
 - [ ] Desar la `CREDENTIALS_KEY` fora del servidor (gestor de contrasenyes).
-- [ ] Recuperar la contrasenya per correu. Cal: un correu a cada compte
-      (ara el nom d'usuari no ho és), verificar-lo i un servei d'enviament
-      (Brevo?).
+- [x] Recuperar la contrasenya per correu: correu al registre i al compte,
+      verificat amb un enllaç; «Has oblidat la contrasenya?» envia un enllaç
+      (1 h, un sol ús) a `/restablir-contrasenya`, que tanca totes les
+      sessions. Correus amb Brevo. *Fet 22/10/2026.*
+- [ ] Activar els correus: verificar el domini a Brevo i posar
+      `BREVO_API_KEY` i `MAIL_FROM` al `servidor/.env`.
 - [ ] Monitoratge del servidor amb alertes (parlar-ne amb qui gestiona el VPS
       compartit, per si ja n'hi ha).
 - [x] Política de privacitat, condicions i pàgina d'esborrar el compte
