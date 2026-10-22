@@ -66,7 +66,7 @@ async fn main() -> std::io::Result<()> {
     );
 
     // Shared by the workers: the daily allowance of rules written in plain words
-    let draft_limit = web::Data::new(backend::services::rule_assistant::DailyLimit::default());
+    let draft_limit = web::Data::new(services::rule_assistant::DailyLimit::default());
 
     HttpServer::new(move || {
         App::new()
