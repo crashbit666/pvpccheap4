@@ -53,8 +53,16 @@ fet i afegeix la data.
 
 ## 3. Arribar a tothom
 
-- [ ] Integració amb **Home Assistant** (el canal més ràpid per arribar a
-      molts usuaris).
+- [x] Integració amb **Home Assistant** per Internet (API REST i token de
+      llarga durada): qualsevol switch/light/input_boolean, i el consum del
+      sensor de potència del mateix dispositiu. Només serveix si l'HA és
+      accessible des d'Internet (Nabu Casa, domini propi, túnel); les adreces
+      privades es rebutgen. *Fet 22/10/2026.*
+- [ ] **A valorar**: integració HACS que corre dins de Home Assistant i
+      descarrega la programació del servidor (connexió de sortida, no cal
+      exposar l'HA). Si el servidor cau, els dispositius continuen. Cal:
+      endpoints de programació i d'estat/consum al backend, la integració en
+      Python i provar-la amb un HA en contenidor. Lliga amb el punt 4.
 - [ ] **Shelly** (API local i oficial) i **Tuya / Smart Life** (API oficial).
 - [ ] A llarg termini, **Matter**.
 - [ ] Més zones i tarifes: Balears, Canàries, Ceuta i Melilla (ara només
