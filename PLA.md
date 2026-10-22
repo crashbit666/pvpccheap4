@@ -23,8 +23,9 @@ fet i afegeix la data.
 - [x] Correus activats: domini `crashbit.cat` a Brevo, remitent
       `no-reply@crashbit.cat`, clau d'API restringida a correu transaccional.
       *Fet 22/10/2026.*
-- [ ] La clau d'API de Brevo caduca si passa 90 dies sense fer-se servir:
-      vigilar-ho o fer-la servir periòdicament.
+- [x] La clau d'API de Brevo caduca si passa 90 dies sense fer-se servir:
+      el cron la fa servir cada dilluns (i en arrencar) i avisa si falla.
+      *Fet 22/10/2026.*
 - [ ] Monitoratge del servidor amb alertes (parlar-ne amb qui gestiona el VPS
       compartit, per si ja n'hi ha).
 - [x] Política de privacitat, condicions i pàgina d'esborrar el compte
@@ -84,9 +85,13 @@ fet i afegeix la data.
       Python i provar-la amb un HA en contenidor. Lliga amb el punt 4.
 - [ ] **Shelly** (API local i oficial) i **Tuya / Smart Life** (API oficial).
 - [ ] A llarg termini, **Matter**.
-- [ ] Més zones i tarifes: Balears, Canàries, Ceuta i Melilla (ara només
-      Península, geo 8741); tarifes indexades del mercat lliure; Europa amb
-      ENTSO-E.
+- [x] Zones: Península, Balears, Ceuta i Melilla. Preus desats per zona,
+      zona triada al compte; regles, estalvi i API de preus fan servir la de
+      l'usuari. *Fet 22/10/2026.*
+- [ ] Canàries: l'ESIOS en dona els mateixos números que la Península amb
+      la mateixa hora; cal confirmar si és hora local o peninsular abans
+      d'oferir-la (tenen una hora menys).
+- [ ] Tarifes indexades del mercat lliure; Europa amb ENTSO-E.
 - [ ] Comprovar si el PVPC passa a franges de 15 minuts (el mercat diari ja és
       quarthorari) i preparar-hi el model.
 - [ ] App per a iPhone (Kotlin/Compose Multiplatform) o versió web.
