@@ -94,8 +94,10 @@ fet i afegeix la data.
 - [ ] Tarifes indexades del mercat lliure; Europa amb ENTSO-E.
 - [ ] Comprovar si el PVPC passa a franges de 15 minuts (el mercat diari ja és
       quarthorari) i preparar-hi el model.
-- [ ] Idiomes: anglès per defecte, català i castellà (app amb `strings.xml`,
+- [x] Idiomes: anglès per defecte, català i castellà (app amb `strings.xml`,
       correus, pàgines legals, respostes de la IA i fitxa de Google Play).
+      El servidor tria l'idioma per `Accept-Language` o `?lang=`.
+      *Fet 23/10/2026 (versió 1.1); falta la captura de la IA en es/en.*
 - [ ] App per a iPhone (Kotlin/Compose Multiplatform) o versió web.
 
 ## 4. Escalar a molts clients
@@ -118,7 +120,8 @@ fet i afegeix la data.
       verificada pel servidor amb l'API de Google Play (`/api/billing/google`)
       i revisada cada nit. `users.is_premium` queda per concedir-lo a mà.
       *Codi fet 22/10/2026.*
-- [ ] Play Console (ho ha de fer el titular):
+- [x] Play Console (ho ha de fer el titular): *fet 23/10/2026; falta provar
+      una compra de veritat amb la llicència de proves.*
       1. Compte de desenvolupador (25 $) i perfil de pagaments per vendre.
          Els comptes personals nous necessiten una prova tancada amb 12
          persones durant 14 dies abans de publicar.
