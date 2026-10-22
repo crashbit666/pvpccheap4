@@ -110,10 +110,28 @@ fet i afegeix la data.
 
 ## 5. Negoci
 
-- [ ] Freemium: ja hi ha `users.is_premium` (ara s'activa a mà a la base de
-      dades) i les regles amb paraules en depenen. Falta el cobrament (Google
-      Play Billing). Gratis preus + 1 regla; subscripció de 2–3 €/mes per a regles
-      il·limitades, estalvi mesurat, IA i avisos.
+- [x] Model de negoci: l'app costa 1 € a Google Play i inclou 4 regles; el
+      pla prèmium (1 €/mes o 10 €/any) dona regles il·limitades i regles amb
+      paraules. Subscripció «premium» amb els plans base «mensual» i «anual»,
+      verificada pel servidor amb l'API de Google Play (`/api/billing/google`)
+      i revisada cada nit. `users.is_premium` queda per concedir-lo a mà.
+      *Codi fet 22/10/2026.*
+- [ ] Play Console (ho ha de fer el titular):
+      1. Compte de desenvolupador (25 $) i perfil de pagaments per vendre.
+         Els comptes personals nous necessiten una prova tancada amb 12
+         persones durant 14 dies abans de publicar.
+      2. Crear l'app (`com.crashbit.pvpccheap4`) com a app de pagament, 1 €.
+      3. Pujar un AAB signat a «Prova interna» (`bundleProdRelease`).
+      4. Subscripció `premium`: plans base `mensual` (1 mes, 1 €) i `anual`
+         (1 any, 10 €), amb renovació automàtica, i activar-los.
+      5. Google Cloud: activar la «Google Play Android Developer API», crear
+         un compte de servei i una clau JSON. A la Play Console, convidar-lo
+         amb permís per veure dades financeres i gestionar comandes i
+         subscripcions.
+      6. `GOOGLE_PLAY_SERVICE_ACCOUNT=$(base64 -w0 clau.json)` al
+         `servidor/.env`.
+      7. Afegir el teu Gmail a «Proves de llicència» per provar compres sense
+         pagar.
 - [ ] Socis: comercialitzadores amb tarifa indexada, instal·ladors solars,
       pack amb endoll preconfigurat.
 - [ ] Publicar a Google Play (fitxa, privacitat, esborrat de compte ✓).
