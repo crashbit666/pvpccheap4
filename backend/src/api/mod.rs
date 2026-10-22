@@ -36,7 +36,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     );
 
     // Store purchases of the paid plan (protected)
-    cfg.service(web::scope("/api/billing").service(billing::google_purchase));
+    cfg.service(web::scope("/api/billing")
+            .service(billing::google_purchase)
+            .service(billing::google_notification));
 
     // Failed device actions (protected)
     cfg.service(web::scope("/api/alerts").service(alerts::list_alerts));

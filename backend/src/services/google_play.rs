@@ -111,6 +111,18 @@ pub fn account_tag(user_id: i32) -> String {
     format!("u{}", user_id)
 }
 
+/// Compares secrets through their hashes, so the time taken says nothing
+/// about how much of the secret matched
+pub fn same_secret(given: &[u8], expected: &[u8]) -> bool {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(given) == Sha256::digest(expected)
+}
+
+/// The user an account tag names ("u42" → 42)
+pub fn user_of_tag(tag: &str) -> Option<i32> {
+    tag.strip_prefix('u')?.parse().ok().filter(|id| *id > 0)
+}
+
 /// Reads a purchases.subscriptionsv2 resource
 pub fn parse_subscription(body: &Value) -> Result<Subscription, String> {
     let item = body["lineItems"]
@@ -182,6 +194,16 @@ pub async fn acknowledge(product_id: &str, purchase_token: &str) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_user_of_tag_and_secret() {
+        assert_eq!(user_of_tag("u42"), Some(42));
+        assert_eq!(user_of_tag("42"), None);
+        assert_eq!(user_of_tag("u0"), None);
+        assert_eq!(user_of_tag("ux"), None);
+        assert!(same_secret(b"abc", b"abc"));
+        assert!(!same_secret(b"abd", b"abc"));
+    }
 
     #[test]
     fn test_parse_subscription() {

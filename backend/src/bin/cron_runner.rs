@@ -133,6 +133,17 @@ async fn main() {
     .expect("Failed to create subscriptions job");
     sched.add(subs_job).await.expect("Failed to add subscriptions job");
 
+    // Subscriptions ending right now, in case a Google Play notification was lost
+    let pool_due = pool.clone();
+    let due_subs_job = Job::new_async_tz("30 */5 * * * *", Madrid, move |_uuid, _l| {
+        let pool = pool_due.clone();
+        Box::pin(async move {
+            backend::api::billing::recheck_due_subscriptions(&pool).await;
+        })
+    })
+    .expect("Failed to create due subscriptions job");
+    sched.add(due_subs_job).await.expect("Failed to add due subscriptions job");
+
     // Start the scheduler
     sched.start().await.expect("Failed to start scheduler");
 
@@ -142,7 +153,7 @@ async fn main() {
     log::info!("  - retry-failed: every minute");
     log::info!("  - power-readings: every 5 minutes");
     log::info!("  - mail-key: Mondays at 05:10");
-    log::info!("  - subscriptions: daily at 03:20");
+    log::info!("  - subscriptions: daily at 03:20, and ending ones every 5 minutes");
     tokio::spawn(check_mail_key());
 
     // Keep the process running

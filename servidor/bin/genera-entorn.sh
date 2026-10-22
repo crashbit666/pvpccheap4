@@ -48,6 +48,8 @@ serveis = {
         "PUBLIC_URL": env.get("PUBLIC_URL") or "https://pvpccheap.crashbit.cat",
         # Opcional: verificar les compres de Google Play (JSON del compte de servei en base64)
         "GOOGLE_PLAY_SERVICE_ACCOUNT": env.get("GOOGLE_PLAY_SERVICE_ACCOUNT") or "",
+        # Opcional: secret de l'URL de les notificacions en temps real de Google Play
+        "GOOGLE_PLAY_RTDN_SECRET": env.get("GOOGLE_PLAY_RTDN_SECRET") or "",
         "RUST_LOG": env.get("RUST_LOG") or "info",
         "HOST": "0.0.0.0",
         "PORT": "8080",
