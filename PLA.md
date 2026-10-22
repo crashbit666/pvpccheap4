@@ -21,7 +21,11 @@ fet i afegeix la data.
       (Brevo?).
 - [ ] Monitoratge del servidor amb alertes (parlar-ne amb qui gestiona el VPS
       compartit, per si ja n'hi ha).
-- [ ] Política de privacitat i condicions (RGPD) abans de publicar a Google Play.
+- [x] Política de privacitat, condicions i pàgina d'esborrar el compte
+      (`/privacitat`, `/condicions`, `/esborrar-compte`), enllaçades des del
+      registre i del compte. *Fet 22/10/2026.*
+- [ ] Posar-hi el nom del titular i el correu de contacte (`CONTACT_EMAIL` al
+      `servidor/.env`) i fer-les revisar abans de publicar.
 - [x] Invalidar les sessions antigues quan es canvia la contrasenya
       (`users.token_version` dins el JWT). *Fet 21/10/2026.*
 - [ ] Risc: l'API del núvol de Meross no és oficial; pot canviar o tallar-se.
@@ -80,7 +84,7 @@ fet i afegeix la data.
 
 ## Ordre proposat
 
-1. Acabar el punt 1: recuperació per correu, monitoratge, privacitat.
+1. Acabar el punt 1: recuperació per correu, monitoratge.
 2. Estalvi mesurat i visible.
 3. Home Assistant i Shelly, amb execució local.
 4. Regles amb objectiu i en llenguatge natural.
