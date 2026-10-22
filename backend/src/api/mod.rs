@@ -22,6 +22,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/api/auth")
             .service(auth::register)
             .service(auth::login)
+            .service(auth::me)
             .service(auth::change_password)
             .service(auth::delete_account),
     );
@@ -58,6 +59,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(rules::list_rules)
             .service(rules::get_rule)
             .service(rules::create_rule)
+            .service(rules::draft_rule)
             .service(rules::update_rule)
             .service(rules::delete_rule)
             .service(rules::toggle_rule)

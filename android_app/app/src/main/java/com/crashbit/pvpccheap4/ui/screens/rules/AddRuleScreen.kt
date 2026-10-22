@@ -17,6 +17,10 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,7 +60,10 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.crashbit.pvpccheap4.data.model.Account
 import com.crashbit.pvpccheap4.data.model.Device
+import com.crashbit.pvpccheap4.data.model.RuleDraft
+import com.crashbit.pvpccheap4.data.repository.AuthRepository
 import com.crashbit.pvpccheap4.data.model.DeviceUsage
 import com.crashbit.pvpccheap4.data.model.Rule
 import com.crashbit.pvpccheap4.data.model.RuleConfig
@@ -79,12 +86,20 @@ data class AddRuleUiState(
     val editingRule: Rule? = null,
     val isLoadingRule: Boolean = false,
     /** What the selected device's readings say about the hours it needs */
-    val usage: DeviceUsage? = null
+    val usage: DeviceUsage? = null,
+    /** Whether the plan lets the user write the rule in plain words */
+    val account: Account? = null,
+    val isDrafting: Boolean = false,
+    /** Proposed rule, until the form is filled with it */
+    val draft: RuleDraft? = null,
+    /** What the proposed rule does, or the question when the text was not enough */
+    val draftMessage: String? = null
 )
 
 @HiltViewModel
 class AddRuleViewModel @Inject constructor(
     private val deviceRepository: DeviceRepository,
+    private val authRepository: AuthRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -96,7 +111,41 @@ class AddRuleViewModel @Inject constructor(
 
     init {
         loadDevices()
-        ruleId?.let { loadRule(it) }
+        if (ruleId != null) loadRule(ruleId) else loadAccount()
+    }
+
+    private fun loadAccount() {
+        viewModelScope.launch {
+            val result = authRepository.getAccount()
+            if (result is Result.Success) {
+                _uiState.value = _uiState.value.copy(account = result.data)
+            }
+        }
+    }
+
+    /** Asks the server for a rule matching [text]; the form is filled with it */
+    fun draftRule(text: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isDrafting = true, draftMessage = null)
+            when (val result = deviceRepository.draftRule(text)) {
+                is Result.Success -> {
+                    val draft = result.data
+                    _uiState.value = _uiState.value.copy(
+                        isDrafting = false,
+                        draft = draft.takeIf { it.question == null },
+                        draftMessage = draft.question ?: draft.explanation
+                    )
+                }
+                is Result.Error -> {
+                    _uiState.value = _uiState.value.copy(isDrafting = false, error = result.message)
+                }
+                is Result.Loading -> {}
+            }
+        }
+    }
+
+    fun draftApplied() {
+        _uiState.value = _uiState.value.copy(draft = null)
     }
 
     private fun loadRule(id: Int) {
@@ -176,6 +225,74 @@ class AddRuleViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+}
+
+/** Describe the rule in plain words and the form is filled in. Paid plan. */
+@Composable
+private fun WriteInWords(isPremium: Boolean, isDrafting: Boolean, message: String?, onDraft: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Escriu-la amb paraules", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                if (!isPremium) {
+                    Text(
+                        "Pagament",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.tertiaryContainer, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            if (!isPremium) {
+                Text(
+                    "Explica què vols, per exemple «carrega el patinet 4 hores abans de les 8», i la regla s'omple sola. " +
+                        "És una opció del pla de pagament.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                return@Column
+            }
+            Text(
+                "Explica què vols i la regla s'omple sola. Revisa-la abans de crear-la.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = text,
+                onValueChange = { if (it.length <= 500) text = it },
+                placeholder = { Text("Carrega el patinet 4 hores abans de les 8") },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                message?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f)
+                    )
+                } ?: Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = { onDraft(text.trim()) }, enabled = text.isNotBlank() && !isDrafting) {
+                    if (isDrafting) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(20.dp))
+                    } else {
+                        Text("Proposa")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -325,13 +442,8 @@ fun AddRuleScreen(
 
     val isEditing = uiState.editingRule != null || uiState.isLoadingRule
 
-    // Fill the form once with the rule being edited
-    var prefilled by remember { mutableStateOf(false) }
-    LaunchedEffect(uiState.editingRule, uiState.devices) {
-        val rule = uiState.editingRule ?: return@LaunchedEffect
-        if (prefilled || uiState.devices.isEmpty()) return@LaunchedEffect
-        prefilled = true
-
+    /** Puts [rule] in the form: the rule being edited, or one proposed from plain words */
+    fun fill(rule: Rule) {
         ruleName = rule.name
         selectedRuleType = if (rule.config.goal == "deadline") RuleType.DEADLINE
         else RuleType.entries.firstOrNull { it.apiType == rule.ruleType } ?: RuleType.MANUAL
@@ -360,6 +472,31 @@ fun AddRuleScreen(
             }
             RuleType.MANUAL -> {}
         }
+    }
+
+    // Fill the form once with the rule being edited
+    var prefilled by remember { mutableStateOf(false) }
+    LaunchedEffect(uiState.editingRule, uiState.devices) {
+        val rule = uiState.editingRule ?: return@LaunchedEffect
+        if (prefilled || uiState.devices.isEmpty()) return@LaunchedEffect
+        prefilled = true
+        fill(rule)
+    }
+
+    LaunchedEffect(uiState.draft) {
+        val draft = uiState.draft ?: return@LaunchedEffect
+        if (draft.deviceId != null && draft.ruleType != null && draft.config != null) {
+            fill(
+                Rule(
+                    name = draft.name.orEmpty(),
+                    deviceId = draft.deviceId,
+                    ruleType = draft.ruleType,
+                    action = draft.action ?: "turn_on",
+                    config = draft.config
+                )
+            )
+        }
+        viewModel.draftApplied()
     }
 
     LaunchedEffect(selectedDevice?.id) {
@@ -396,6 +533,16 @@ fun AddRuleScreen(
                 .padding(16.dp)
                 .verticalScroll(scrollState)
         ) {
+            uiState.account?.takeIf { it.aiRulesAvailable && !isEditing }?.let { account ->
+                WriteInWords(
+                    isPremium = account.isPremium,
+                    isDrafting = uiState.isDrafting,
+                    message = uiState.draftMessage,
+                    onDraft = viewModel::draftRule
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
             // Rule name
             OutlinedTextField(
                 value = ruleName,

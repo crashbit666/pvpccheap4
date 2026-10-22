@@ -2,6 +2,7 @@ package com.crashbit.pvpccheap4.data.repository
 
 import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.local.TokenManager
+import com.crashbit.pvpccheap4.data.model.Account
 import com.crashbit.pvpccheap4.data.model.AuthResponse
 import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
 import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
@@ -92,6 +93,19 @@ class AuthRepository @Inject constructor(
                     else "No s'ha pogut crear el compte (error ${response.code()})",
                     response.code()
                 )
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    suspend fun getAccount(): Result<Account> {
+        return try {
+            val response = apiService.getAccount()
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("No s'ha pogut llegir el compte", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)

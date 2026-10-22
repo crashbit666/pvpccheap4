@@ -65,11 +65,15 @@ async fn main() -> std::io::Result<()> {
         provider_registry.available_providers()
     );
 
+    // Shared by the workers: the daily allowance of rules written in plain words
+    let draft_limit = web::Data::new(backend::services::rule_assistant::DailyLimit::default());
+
     HttpServer::new(move || {
         App::new()
             .wrap(Cors::permissive())
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(provider_registry.clone()))
+            .app_data(draft_limit.clone())
             .service(health_check)
             .service(list_providers)
             .configure(api::config)

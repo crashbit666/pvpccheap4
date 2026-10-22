@@ -5,7 +5,7 @@ use crate::{
     schema::{devices, user_integrations, users},
     services::auth::{self, Claims},
 };
-use actix_web::{HttpResponse, Responder, delete, post, put, web};
+use actix_web::{HttpResponse, Responder, delete, get, post, put, web};
 use diesel::prelude::*;
 use serde::Deserialize;
 
@@ -78,6 +78,27 @@ pub async fn login(pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> imp
             }
         }
         Err(_) => HttpResponse::Unauthorized().body("Invalid credentials"),
+    }
+}
+
+/// The logged-in user and what their plan unlocks
+#[get("/me")]
+pub async fn me(pool: web::Data<DbPool>, claims: Claims) -> impl Responder {
+    let Ok(user_id) = claims.sub.parse::<i32>() else {
+        return HttpResponse::BadRequest().body("Invalid user ID");
+    };
+    let Ok(mut conn) = pool.get() else {
+        return HttpResponse::InternalServerError().body("Database connection error");
+    };
+    match users::table.find(user_id).first::<User>(&mut conn) {
+        Ok(user) => HttpResponse::Ok().json(serde_json::json!({
+            "id": user.id,
+            "username": user.username,
+            "is_premium": user.is_premium,
+            // Rules written in plain words: paid, and the server needs an API key
+            "ai_rules_available": crate::services::rule_assistant::is_configured(),
+        })),
+        Err(_) => HttpResponse::NotFound().body("User not found"),
     }
 }
 

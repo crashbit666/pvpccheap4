@@ -20,6 +20,17 @@ data class AuthResponse(
     val error: String? = null
 )
 
+/** The logged-in user and what their plan unlocks */
+data class Account(
+    val id: Int,
+    val username: String,
+    @SerializedName("is_premium")
+    val isPremium: Boolean = false,
+    /** Rules written in plain words are set up on the server */
+    @SerializedName("ai_rules_available")
+    val aiRulesAvailable: Boolean = false
+)
+
 // Price models
 data class PriceData(
     val timestamp: String,
@@ -163,6 +174,21 @@ data class RuleConfig(
     /** Turn off when the measured power drops (the appliance finished) */
     @SerializedName("stop_when_done")
     val stopWhenDone: Boolean? = null
+)
+
+data class DraftRuleRequest(val text: String)
+
+/** A rule proposed from plain words, or a question when the text was not enough */
+data class RuleDraft(
+    val question: String? = null,
+    @SerializedName("device_id")
+    val deviceId: Int? = null,
+    val name: String? = null,
+    @SerializedName("rule_type")
+    val ruleType: String? = null,
+    val action: String? = null,
+    val config: RuleConfig? = null,
+    val explanation: String? = null
 )
 
 data class TimeWindow(

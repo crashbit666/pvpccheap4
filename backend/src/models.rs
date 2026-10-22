@@ -15,6 +15,7 @@ pub struct User {
     pub password_hash: String,
     pub created_at: NaiveDateTime,
     pub token_version: i32,
+    pub is_premium: bool,
 }
 
 #[derive(Queryable, Selectable, Insertable, Serialize, Deserialize, Debug, Clone)]

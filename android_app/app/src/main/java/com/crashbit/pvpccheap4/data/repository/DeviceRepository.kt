@@ -7,6 +7,8 @@ import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
 import com.crashbit.pvpccheap4.data.model.DeviceUsage
+import com.crashbit.pvpccheap4.data.model.DraftRuleRequest
+import com.crashbit.pvpccheap4.data.model.RuleDraft
 import com.crashbit.pvpccheap4.data.model.Integration
 import com.crashbit.pvpccheap4.data.model.Rule
 import com.crashbit.pvpccheap4.data.model.Savings
@@ -186,6 +188,28 @@ class DeviceRepository @Inject constructor(
                 Result.Success(response.body()!!)
             } else {
                 Result.Error("No s'ha pogut llegir el consum del dispositiu", response.code())
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    suspend fun draftRule(text: String): Result<RuleDraft> {
+        return try {
+            val response = apiService.draftRule(DraftRuleRequest(text))
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error(
+                    when (response.code()) {
+                        402 -> "Escriure les regles amb paraules és una opció de pagament"
+                        429 -> "Avui ja has demanat moltes propostes. Demà en podràs demanar més."
+                        502 -> "L'assistent no ha respost. Torna-ho a provar."
+                        503 -> "Ara mateix no està disponible"
+                        else -> "No s'ha pogut proposar la regla"
+                    },
+                    response.code()
+                )
             }
         } catch (e: Exception) {
             Result.fromException(e)

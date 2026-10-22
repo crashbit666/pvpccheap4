@@ -2,10 +2,11 @@ use crate::{
     db::DbPool,
     integrations::ProviderRegistry,
     models::{AutomationRule, NewAutomationRule, RuleExecution},
-    schema::{automation_rules, devices, rule_executions, user_integrations},
+    schema::{automation_rules, devices, rule_executions, user_integrations, users},
     services::{
         auth::Claims,
         automation_engine::AutomationEngine,
+        rule_assistant::{self, AssistantError, DailyLimit, DeviceInfo, Draft},
         schedule_computation::{parse_time_of_day, window_specs, ScheduleComputationService},
     },
 };
@@ -405,6 +406,111 @@ pub async fn create_rule(
     }
 }
 
+#[derive(Deserialize)]
+pub struct DraftRuleRequest {
+    pub text: String,
+}
+
+/// Asked when the model's rule does not pass the checks
+const DRAFT_NOT_VALID: &str = "No n'he sabut fer una regla vàlida. Prova de dir-ho d'una altra manera, \
+     per exemple: «carrega el patinet 4 hores abans de les 8».";
+
+/// Checks the model's rule as if the user had typed it, and that it uses
+/// one of their devices
+fn check_draft(draft: &Draft, devices: &[DeviceInfo]) -> Result<(), String> {
+    let device = devices
+        .iter()
+        .find(|d| Some(d.id) == draft.device_id)
+        .ok_or("unknown device")?;
+    let rule_type = draft.rule_type.as_deref().ok_or("no rule_type")?;
+    if !["price_threshold", "cheapest_hours", "time_schedule"].contains(&rule_type) {
+        return Err(format!("rule_type {}", rule_type));
+    }
+    // The app's form only makes rules that switch the device on
+    if draft.action.as_deref() != Some("turn_on") {
+        return Err("action".to_string());
+    }
+    let config = draft.config.as_ref().ok_or("no config")?;
+    validate_rule_config(rule_type, config)?;
+    if config.get("stop_when_done").and_then(|s| s.as_bool()) == Some(true) && !device.measures_power {
+        return Err("stop_when_done on a plug that does not measure".to_string());
+    }
+    Ok(())
+}
+
+/// Turns a rule written in plain words into a draft the app shows filled in.
+/// Nothing is saved. Paid feature.
+#[post("/draft")]
+pub async fn draft_rule(
+    pool: web::Data<DbPool>,
+    limit: web::Data<DailyLimit>,
+    claims: Claims,
+    body: web::Json<DraftRuleRequest>,
+) -> impl Responder {
+    let Ok(user_id) = claims.sub.parse::<i32>() else {
+        return HttpResponse::BadRequest().body("Invalid user ID");
+    };
+    let text = body.text.trim();
+    if text.is_empty() || text.chars().count() > rule_assistant::MAX_TEXT_CHARS {
+        return HttpResponse::BadRequest().body(format!(
+            "text must have between 1 and {} characters",
+            rule_assistant::MAX_TEXT_CHARS
+        ));
+    }
+
+    let devices: Vec<DeviceInfo> = {
+        let Ok(mut conn) = pool.get() else {
+            return HttpResponse::InternalServerError().body("Database connection error");
+        };
+        let premium = users::table
+            .find(user_id)
+            .select(users::is_premium)
+            .first::<bool>(&mut conn)
+            .unwrap_or(false);
+        if !premium {
+            return HttpResponse::PaymentRequired().body("Rules written in plain words need the paid plan");
+        }
+        devices::table
+            .inner_join(user_integrations::table)
+            .filter(user_integrations::user_id.eq(user_id))
+            .filter(user_integrations::is_active.eq(true))
+            .select((devices::id, devices::name, devices::measures_power))
+            .load::<(i32, String, Option<bool>)>(&mut conn)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(id, name, measures)| DeviceInfo { id, name, measures_power: measures == Some(true) })
+            .collect()
+    };
+    if devices.is_empty() {
+        return HttpResponse::BadRequest().body("No devices");
+    }
+    if !rule_assistant::is_configured() {
+        return HttpResponse::ServiceUnavailable().body("Rules written in plain words are not available");
+    }
+    if !limit.take(user_id, crate::time::today()) {
+        return HttpResponse::TooManyRequests().body("Daily limit reached");
+    }
+
+    let draft = match rule_assistant::draft_rule(text, &devices).await {
+        Ok(draft) => draft,
+        Err(AssistantError::NotConfigured) => {
+            return HttpResponse::ServiceUnavailable().body("Rules written in plain words are not available")
+        }
+        Err(AssistantError::Service(e)) => {
+            log::warn!("Rule draft failed for user {}: {}", user_id, e);
+            return HttpResponse::BadGateway().body("The assistant did not answer");
+        }
+    };
+    if draft.question.is_some() {
+        return HttpResponse::Ok().json(Draft { question: draft.question, ..Default::default() });
+    }
+    if let Err(e) = check_draft(&draft, &devices) {
+        log::info!("Rule draft for user {} not valid: {}", user_id, e);
+        return HttpResponse::Ok().json(Draft { question: Some(DRAFT_NOT_VALID.to_string()), ..Default::default() });
+    }
+    HttpResponse::Ok().json(draft)
+}
+
 /// Update an existing rule
 #[put("/{rule_id}")]
 pub async fn update_rule(
@@ -743,6 +849,29 @@ mod tests {
         let query: PaginationQuery = serde_json::from_str(json).unwrap();
         assert!(query.limit.is_none());
         assert!(query.offset.is_none());
+    }
+
+    #[test]
+    fn test_check_draft() {
+        let devices = vec![
+            DeviceInfo { id: 1, name: "Patinet".to_string(), measures_power: false },
+            DeviceInfo { id: 2, name: "Termo".to_string(), measures_power: true },
+        ];
+        let draft = |device: i32, rule_type: &str, config: JsonValue| Draft {
+            device_id: Some(device),
+            rule_type: Some(rule_type.to_string()),
+            action: Some("turn_on".to_string()),
+            config: Some(config),
+            ..Default::default()
+        };
+        let ok = |d: Draft| check_draft(&d, &devices).is_ok();
+        assert!(ok(draft(1, "cheapest_hours", serde_json::json!({"cheapest_hours": 4}))));
+        assert!(ok(draft(2, "cheapest_hours", serde_json::json!({"cheapest_hours": 2, "stop_when_done": true}))));
+        // Someone else's device, a plug that does not measure, a bad config, manual
+        assert!(!ok(draft(9, "cheapest_hours", serde_json::json!({"cheapest_hours": 4}))));
+        assert!(!ok(draft(1, "cheapest_hours", serde_json::json!({"cheapest_hours": 4, "stop_when_done": true}))));
+        assert!(!ok(draft(1, "cheapest_hours", serde_json::json!({"cheapest_hours": 40}))));
+        assert!(!ok(draft(1, "manual", serde_json::json!({}))));
     }
 
     #[test]

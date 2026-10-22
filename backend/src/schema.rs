@@ -64,6 +64,7 @@ diesel::table! {
         password_hash -> Text,
         created_at -> Timestamp,
         token_version -> Int4,
+        is_premium -> Bool,
     }
 }
 

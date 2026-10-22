@@ -39,6 +39,8 @@ serveis = {
         "CREDENTIALS_KEY": cal("CREDENTIALS_KEY"),
         # Opcional: correu de contacte a /privacitat, /condicions i /esborrar-compte
         "CONTACT_EMAIL": env.get("CONTACT_EMAIL") or "",
+        # Opcional: regles escrites amb paraules (API de Claude)
+        "ANTHROPIC_API_KEY": env.get("ANTHROPIC_API_KEY") or "",
         "RUST_LOG": env.get("RUST_LOG") or "info",
         "HOST": "0.0.0.0",
         "PORT": "8080",

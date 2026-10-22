@@ -1,5 +1,6 @@
 package com.crashbit.pvpccheap4.data.api
 
+import com.crashbit.pvpccheap4.data.model.Account
 import com.crashbit.pvpccheap4.data.model.AddIntegrationRequest
 import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
@@ -9,6 +10,8 @@ import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
 import com.crashbit.pvpccheap4.data.model.DeviceUsage
+import com.crashbit.pvpccheap4.data.model.DraftRuleRequest
+import com.crashbit.pvpccheap4.data.model.RuleDraft
 import com.crashbit.pvpccheap4.data.model.Integration
 import com.crashbit.pvpccheap4.data.model.LoginRequest
 import com.crashbit.pvpccheap4.data.model.PriceData
@@ -103,7 +106,14 @@ interface ApiService {
     @GET("api/devices/{id}/state")
     suspend fun getDeviceState(@Path("id") id: String): Response<DeviceActionResponse>
 
+    @GET("api/auth/me")
+    suspend fun getAccount(): Response<Account>
+
     // Rules endpoints
+    /** Proposes a rule from plain words; nothing is saved */
+    @POST("api/rules/draft")
+    suspend fun draftRule(@Body request: DraftRuleRequest): Response<RuleDraft>
+
     @GET("api/rules")
     suspend fun getRules(): Response<List<Rule>>
 
