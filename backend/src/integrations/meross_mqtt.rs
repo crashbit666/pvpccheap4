@@ -436,6 +436,14 @@ impl MerossMqttClient {
             .ok_or_else(|| ProviderError::Unknown(format!("Unexpected electricity payload: {}", response)))
     }
 
+    /// True while the broker connection is up
+    pub async fn is_connected(&self) -> bool {
+        match &self.connection {
+            Some(connection) => connection.lock().await.is_connected().await,
+            None => false,
+        }
+    }
+
     /// Disconnect from MQTT
     pub async fn disconnect(&self) -> Result<(), ProviderError> {
         if let Some(connection) = &self.connection {

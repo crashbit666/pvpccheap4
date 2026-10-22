@@ -12,7 +12,7 @@
 use chrono::Timelike;
 use chrono_tz::Europe::Madrid;
 use std::env;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 // Import from the library crate
@@ -22,6 +22,13 @@ use backend::services::automation_engine::AutomationEngine;
 use backend::services::power_monitor;
 use backend::services::price_fetcher::{expected_price_rows, PriceService};
 use backend::services::schedule_computation::ScheduleComputationService;
+
+/// One registry for every job, so providers keep their connections open
+/// between runs (Meross: one MQTT connection per account)
+fn registry() -> Arc<ProviderRegistry> {
+    static REGISTRY: OnceLock<Arc<ProviderRegistry>> = OnceLock::new();
+    REGISTRY.get_or_init(|| Arc::new(ProviderRegistry::new())).clone()
+}
 
 #[tokio::main]
 async fn main() {
@@ -268,7 +275,7 @@ async fn run_automation(pool: Arc<DbPool>) {
         Ok(true) => {}
     }
 
-    let registry = Arc::new(ProviderRegistry::new());
+    let registry = registry();
     let engine = AutomationEngine::new((*pool).clone(), registry);
 
     let results = engine.run().await;
@@ -304,7 +311,7 @@ async fn run_scheduled_automation(pool: Arc<DbPool>) {
         log::error!("Failed to compute schedules: {}", e);
     }
 
-    let registry = Arc::new(ProviderRegistry::new());
+    let registry = registry();
     let engine = AutomationEngine::new((*pool).clone(), registry);
 
     let results = engine.execute_current_hour().await;
@@ -355,7 +362,7 @@ async fn ensure_prices(pool: &DbPool) {
 
 /// Power of the plugs that are on, for the measured savings
 async fn sample_power(pool: Arc<DbPool>) {
-    let registry = Arc::new(ProviderRegistry::new());
+    let registry = registry();
     power_monitor::sample_power(&pool, registry).await;
     // Once a day, at 04:02
     let now = backend::time::now_naive();
@@ -370,7 +377,7 @@ async fn sample_power(pool: Arc<DbPool>) {
 
 /// Retry failed executions that are due for retry
 async fn retry_failed_executions(pool: Arc<DbPool>) {
-    let registry = Arc::new(ProviderRegistry::new());
+    let registry = registry();
     let engine = AutomationEngine::new((*pool).clone(), registry);
     let schedule_service = ScheduleComputationService::new((*pool).clone());
 

@@ -7,7 +7,12 @@ use log::{debug, error, info, warn};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::Mutex;
+
+use super::meross_mqtt::MerossMqttClient;
 
 // Meross API constants
 const MEROSS_SECRET: &str = "23x17ahWarFH6w29";
@@ -80,8 +85,14 @@ struct MerossChannel {
     _extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
+/// A connection unused this long is closed. Longer than an hour, so the
+/// hourly rules keep it open; the power readings use it every 5 minutes.
+const IDLE_CONNECTION: Duration = Duration::from_secs(70 * 60);
+
 pub struct MerossProvider {
     client: Client,
+    /// One open MQTT connection per account, instead of one per command
+    connections: Mutex<HashMap<String, (Arc<MerossMqttClient>, Instant)>>,
 }
 
 impl Default for MerossProvider {
@@ -94,7 +105,54 @@ impl MerossProvider {
     pub fn new() -> Self {
         Self {
             client: Client::new(),
+            connections: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// The account's open MQTT connection, connecting when there is none, it
+    /// dropped or the credentials changed. Idle connections are closed.
+    async fn mqtt(&self, credentials: &Value) -> Result<Arc<MerossMqttClient>, ProviderError> {
+        let account = connection_key(credentials)?;
+
+        let (cached, idle) = {
+            let mut connections = self.connections.lock().await;
+            let now = Instant::now();
+            let idle: Vec<_> = connections
+                .iter()
+                .filter(|(key, (_, used))| **key != account && now - *used > IDLE_CONNECTION)
+                .map(|(key, _)| key.clone())
+                .collect();
+            let idle: Vec<_> = idle.iter().filter_map(|key| connections.remove(key)).map(|(c, _)| c).collect();
+            let cached = connections.get_mut(&account).map(|(client, used)| {
+                *used = now;
+                client.clone()
+            });
+            (cached, idle)
+        };
+        for client in idle {
+            debug!("Closing an idle Meross MQTT connection");
+            let _ = client.disconnect().await;
+        }
+
+        if let Some(client) = cached {
+            if client.is_connected().await {
+                return Ok(client);
+            }
+            debug!("Meross MQTT connection dropped, reconnecting");
+        }
+
+        let mut client = MerossMqttClient::from_credentials(credentials)?;
+        client.connect().await?;
+        let client = Arc::new(client);
+        let previous = self
+            .connections
+            .lock()
+            .await
+            .insert(account, (client.clone(), Instant::now()));
+        if let Some((previous, _)) = previous {
+            let _ = previous.disconnect().await;
+        }
+        Ok(client)
     }
 
     /// Generate a random nonce (16 alphanumeric characters)
@@ -442,15 +500,8 @@ impl SmartHomeProvider for MerossProvider {
                 "No token provided".to_string(),
             ))?;
 
-        // Create MQTT client and connect
-        let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
-
-        match mqtt_client.connect().await {
-            Ok(()) => {
-                let result = mqtt_client.get_state(external_id).await;
-                let _ = mqtt_client.disconnect().await;
-                result
-            }
+        match self.mqtt(credentials).await {
+            Ok(mqtt_client) => mqtt_client.get_state(external_id).await,
             Err(e) => {
                 // An unknown state is an error, not "off": callers keep the cached state
                 warn!("Meross MQTT connection failed for get_device_state: {}", e);
@@ -460,19 +511,11 @@ impl SmartHomeProvider for MerossProvider {
     }
 
     async fn supports_power_reading(&self, credentials: &Value, external_id: &str) -> Result<bool, ProviderError> {
-        let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
-        mqtt_client.connect().await?;
-        let result = mqtt_client.supports_electricity(external_id).await;
-        let _ = mqtt_client.disconnect().await;
-        result
+        self.mqtt(credentials).await?.supports_electricity(external_id).await
     }
 
     async fn read_power(&self, credentials: &Value, external_id: &str) -> Result<f32, ProviderError> {
-        let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
-        mqtt_client.connect().await?;
-        let result = mqtt_client.get_power(external_id).await;
-        let _ = mqtt_client.disconnect().await;
-        result
+        self.mqtt(credentials).await?.get_power(external_id).await
     }
 
     async fn turn_on(
@@ -490,23 +533,10 @@ impl SmartHomeProvider for MerossProvider {
                 "No token provided".to_string(),
             ))?;
 
-        // mqtt_domain from API is like "mqtt-eu-5.meross.com", port 2001 with TLS
-        let mqtt_domain = credentials
-            .get("mqtt_domain")
-            .and_then(|v| v.as_str())
-            .unwrap_or("mqtt-eu-5.meross.com");
-        info!("Meross MQTT domain: {} (port 2001 TLS)", mqtt_domain);
-
-        // Create MQTT client and connect
-        let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
-        info!("Meross MQTT client created, attempting to connect...");
-
-        match mqtt_client.connect().await {
-            Ok(()) => {
-                info!("Meross MQTT connected successfully, sending turn_on command...");
+        match self.mqtt(credentials).await {
+            Ok(mqtt_client) => {
                 let result = mqtt_client.turn_on(external_id, 0).await;
                 info!("Meross turn_on result: {:?}", result);
-                let _ = mqtt_client.disconnect().await;
                 result
             }
             Err(e @ ProviderError::AuthenticationFailed(_)) => Err(e),
@@ -536,23 +566,10 @@ impl SmartHomeProvider for MerossProvider {
                 "No token provided".to_string(),
             ))?;
 
-        // mqtt_domain from API is like "mqtt-eu-5.meross.com", port 2001 with TLS
-        let mqtt_domain = credentials
-            .get("mqtt_domain")
-            .and_then(|v| v.as_str())
-            .unwrap_or("mqtt-eu-5.meross.com");
-        info!("Meross MQTT domain: {} (port 2001 TLS)", mqtt_domain);
-
-        // Create MQTT client and connect
-        let mut mqtt_client = super::meross_mqtt::MerossMqttClient::from_credentials(credentials)?;
-        info!("Meross MQTT client created, attempting to connect...");
-
-        match mqtt_client.connect().await {
-            Ok(()) => {
-                info!("Meross MQTT connected successfully, sending turn_off command...");
+        match self.mqtt(credentials).await {
+            Ok(mqtt_client) => {
                 let result = mqtt_client.turn_off(external_id, 0).await;
                 info!("Meross turn_off result: {:?}", result);
-                let _ = mqtt_client.disconnect().await;
                 result
             }
             Err(e @ ProviderError::AuthenticationFailed(_)) => Err(e),
@@ -577,9 +594,31 @@ impl SmartHomeProvider for MerossProvider {
     }
 }
 
+/// Identifies the account's MQTT session: a new key (credentials refreshed)
+/// gets a new connection
+fn connection_key(credentials: &Value) -> Result<String, ProviderError> {
+    let field = |name: &str| credentials.get(name).and_then(Value::as_str).unwrap_or_default();
+    if field("user_id").is_empty() || field("key").is_empty() {
+        return Err(ProviderError::AuthenticationFailed("Missing MQTT credentials".to_string()));
+    }
+    let key_hash = md5::compute(field("key").as_bytes());
+    Ok(format!("{}@{}#{:x}", field("user_id"), field("mqtt_domain"), key_hash))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_connection_key_changes_with_the_key() {
+        let creds = |key: &str| serde_json::json!({ "user_id": "42", "key": key, "mqtt_domain": "mqtt-eu-5.meross.com" });
+        let first = connection_key(&creds("a")).unwrap();
+        assert_eq!(first, connection_key(&creds("a")).unwrap());
+        assert_ne!(first, connection_key(&creds("b")).unwrap());
+        // The key itself is not kept in the map
+        assert!(!first.contains("#a"));
+        assert!(connection_key(&serde_json::json!({ "user_id": "42" })).is_err());
+    }
 
     #[test]
     fn test_provider_name() {
