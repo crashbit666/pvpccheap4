@@ -17,6 +17,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,6 +45,7 @@ fun LoginScreen(
 
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showForgot by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
@@ -126,11 +129,65 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            TextButton(onClick = { showForgot = true }) {
+                Text("Has oblidat la contrasenya?")
+            }
 
             TextButton(onClick = onNavigateToRegister) {
                 Text("No tens compte? Registra't")
             }
         }
     }
+
+    if (showForgot) {
+        ForgotPasswordDialog(
+            isSending = uiState.isSendingReset,
+            sent = uiState.resetSent,
+            onSend = viewModel::forgotPassword,
+            onDismiss = {
+                showForgot = false
+                viewModel.clearResetSent()
+            }
+        )
+    }
+}
+
+@Composable
+private fun ForgotPasswordDialog(isSending: Boolean, sent: Boolean, onSend: (String) -> Unit, onDismiss: () -> Unit) {
+    var email by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Recuperar la contrasenya") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (sent) {
+                    Text(
+                        "Si hi ha un compte amb aquest correu verificat, t'hi hem enviat un enllaç per posar una contrasenya nova. " +
+                            "Caduca d'aquí a una hora. Mira també la carpeta de correu brossa."
+                    )
+                } else {
+                    Text("Escriu el correu del teu compte i t'enviarem un enllaç per posar una contrasenya nova.")
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Correu electrònic") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (sent) {
+                TextButton(onClick = onDismiss) { Text("Entesos") }
+            } else {
+                TextButton(onClick = { onSend(email) }, enabled = email.contains('@') && !isSending) {
+                    if (isSending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Enviar")
+                }
+            }
+        },
+        dismissButton = { if (!sent) TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
+    )
 }

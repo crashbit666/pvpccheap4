@@ -1,5 +1,6 @@
 use actix_web::web;
 
+pub mod account_pages;
 pub mod alerts;
 pub mod auth;
 pub mod automation;
@@ -15,7 +16,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     // Privacy policy, terms and account deletion (public web pages)
     cfg.service(legal::privacy)
         .service(legal::terms)
-        .service(legal::delete_account);
+        .service(legal::delete_account)
+        .service(account_pages::verify_email)
+        .service(account_pages::reset_password_form)
+        .service(account_pages::reset_password);
 
     // Auth routes (public)
     cfg.service(
@@ -23,6 +27,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(auth::register)
             .service(auth::login)
             .service(auth::me)
+            .service(auth::change_email)
+            .service(auth::forgot_password)
             .service(auth::change_password)
             .service(auth::delete_account),
     );

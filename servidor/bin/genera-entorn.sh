@@ -41,6 +41,11 @@ serveis = {
         "CONTACT_EMAIL": env.get("CONTACT_EMAIL") or "",
         # Opcional: regles escrites amb paraules (API de Claude)
         "ANTHROPIC_API_KEY": env.get("ANTHROPIC_API_KEY") or "",
+        # Opcional: correus del compte (verificar el correu, recuperar la contrasenya)
+        "BREVO_API_KEY": env.get("BREVO_API_KEY") or "",
+        "MAIL_FROM": env.get("MAIL_FROM") or "",
+        "MAIL_FROM_NAME": env.get("MAIL_FROM_NAME") or "PVPC Cheap",
+        "PUBLIC_URL": env.get("PUBLIC_URL") or "https://pvpccheap.crashbit.cat",
         "RUST_LOG": env.get("RUST_LOG") or "info",
         "HOST": "0.0.0.0",
         "PORT": "8080",

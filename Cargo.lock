@@ -442,6 +442,7 @@ dependencies = [
  "rustls-native-certs",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "tokio-cron-scheduler",
  "tokio-rustls",

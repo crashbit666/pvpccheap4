@@ -4,7 +4,9 @@ import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.local.TokenManager
 import com.crashbit.pvpccheap4.data.model.Account
 import com.crashbit.pvpccheap4.data.model.AuthResponse
+import com.crashbit.pvpccheap4.data.model.ChangeEmailRequest
 import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
+import com.crashbit.pvpccheap4.data.model.ForgotPasswordRequest
 import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
 import com.crashbit.pvpccheap4.data.model.LoginRequest
 import com.crashbit.pvpccheap4.data.model.RegisterRequest
@@ -79,17 +81,23 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    suspend fun register(username: String, password: String): Result<AuthResponse> {
+    suspend fun register(username: String, password: String, email: String?): Result<AuthResponse> {
         return try {
-            val response = apiService.register(RegisterRequest(username, password))
+            val response = apiService.register(RegisterRequest(username, password, email))
             if (response.isSuccessful && response.body() != null) {
                 val authResponse = response.body()!!
                 // Registration successful, now login
                 return login(username, password)
             } else {
+                val body = response.errorBody()?.string().orEmpty()
                 Result.Error(
-                    if (response.code() == 409) "Aquest nom d'usuari ja existeix"
-                    else if (response.code() == 400) "La contrasenya ha de tenir almenys 8 caràcters"
+                    if (response.code() == 409) {
+                        if (body.contains("Email")) "Aquest correu ja té un compte" else "Aquest nom d'usuari ja existeix"
+                    }
+                    else if (response.code() == 400) {
+                        if (body.contains("email")) "El correu no és vàlid"
+                        else "La contrasenya ha de tenir almenys 8 caràcters"
+                    }
                     else "No s'ha pogut crear el compte (error ${response.code()})",
                     response.code()
                 )
@@ -106,6 +114,34 @@ class AuthRepository @Inject constructor(
                 Result.Success(response.body()!!)
             } else {
                 Result.Error("No s'ha pogut llegir el compte", response.code())
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    suspend fun changeEmail(email: String, password: String): Result<Unit> {
+        return try {
+            val response = apiService.changeEmail(ChangeEmailRequest(email, password))
+            when {
+                response.isSuccessful -> Result.Success(Unit)
+                response.code() == 403 -> Result.Error("La contrasenya no és correcta", 403)
+                response.code() == 409 -> Result.Error("Aquest correu ja té un altre compte", 409)
+                response.code() == 400 -> Result.Error("El correu no és vàlid", 400)
+                else -> Result.Error("No s'ha pogut desar el correu", response.code())
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    suspend fun forgotPassword(email: String): Result<Unit> {
+        return try {
+            val response = apiService.forgotPassword(ForgotPasswordRequest(email))
+            when {
+                response.isSuccessful -> Result.Success(Unit)
+                response.code() == 503 -> Result.Error("Ara mateix no es poden enviar correus", 503)
+                else -> Result.Error("No s'ha pogut enviar el correu", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)

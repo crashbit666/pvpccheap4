@@ -10,8 +10,10 @@ què i quins drets tens.</p>
 
 <h2>Quines dades guardem</h2>
 <ul>
-  <li><strong>Compte</strong>: el nom d'usuari i la contrasenya. La contrasenya
-      no es guarda mai tal qual, només un resum irreversible (Argon2).</li>
+  <li><strong>Compte</strong>: el nom d'usuari, la contrasenya i el correu
+      electrònic. La contrasenya no es guarda mai tal qual, només un resum
+      irreversible (Argon2). El correu només serveix per verificar-lo i per
+      enviar-te l'enllaç si oblides la contrasenya; no t'enviarem publicitat.</li>
   <li><strong>Integracions</strong>: segons el proveïdor, el correu i la
       contrasenya del teu compte de Meross i el testimoni de sessió que en
       retorna, o l'adreça i el token d'accés del teu Home Assistant. Es guarden
@@ -43,6 +45,9 @@ registres tècnics es basen en l'interès legítim de mantenir el servei segur
   <li><strong>Home Assistant</strong>: si el connectes, el servidor es connecta
       a la teva instal·lació per encendre i apagar els dispositius que hi
       tens.</li>
+  <li><strong>Brevo</strong> (Sendinblue SAS, França): envia els correus del
+      compte (verificar el correu i recuperar la contrasenya). Rep la teva
+      adreça i el text del correu.</li>
   <li><strong>Anthropic</strong>: si escrius una regla amb paraules (opció de
       pagament), el text i el nom dels teus dispositius s'envien a l'API de
       Claude d'Anthropic perquè en proposi la configuració. No s'hi envia res

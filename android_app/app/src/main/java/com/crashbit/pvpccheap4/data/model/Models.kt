@@ -10,7 +10,9 @@ data class LoginRequest(
 
 data class RegisterRequest(
     val username: String,
-    val password: String
+    val password: String,
+    /** To recover the password */
+    val email: String? = null
 )
 
 data class AuthResponse(
@@ -28,7 +30,10 @@ data class Account(
     val isPremium: Boolean = false,
     /** Rules written in plain words are set up on the server */
     @SerializedName("ai_rules_available")
-    val aiRulesAvailable: Boolean = false
+    val aiRulesAvailable: Boolean = false,
+    val email: String? = null,
+    @SerializedName("email_verified")
+    val emailVerified: Boolean = false
 )
 
 // Price models
@@ -236,6 +241,10 @@ data class ChangePasswordRequest(
 )
 
 data class DeleteAccountRequest(val password: String)
+
+data class ChangeEmailRequest(val email: String, val password: String)
+
+data class ForgotPasswordRequest(val email: String)
 
 /** A device action that failed and the automatic retries could not fix */
 data class Alert(

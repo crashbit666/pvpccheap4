@@ -8,7 +8,7 @@ const PRIVACY: &str = include_str!("../../static/privacitat.html");
 const TERMS: &str = include_str!("../../static/condicions.html");
 const DELETE_ACCOUNT: &str = include_str!("../../static/esborrar-compte.html");
 
-fn escape(text: &str) -> String {
+pub(super) fn escape(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -29,6 +29,12 @@ fn render(title: &str, body: &str, email: Option<&str>) -> String {
     LAYOUT
         .replace("{{TITLE}}", title)
         .replace("{{BODY}}", &body.replace("{{CONTACT}}", &contact(email)))
+}
+
+/// A page with the site layout, for the account pages too
+pub(super) fn html(title: &str, body: &str) -> String {
+    let email = std::env::var("CONTACT_EMAIL").ok();
+    render(title, body, email.as_deref())
 }
 
 fn page(title: &str, body: &str) -> HttpResponse {

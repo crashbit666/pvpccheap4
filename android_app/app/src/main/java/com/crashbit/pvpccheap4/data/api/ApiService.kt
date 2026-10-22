@@ -3,7 +3,9 @@ package com.crashbit.pvpccheap4.data.api
 import com.crashbit.pvpccheap4.data.model.Account
 import com.crashbit.pvpccheap4.data.model.AddIntegrationRequest
 import com.crashbit.pvpccheap4.data.model.Alert
+import com.crashbit.pvpccheap4.data.model.ChangeEmailRequest
 import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
+import com.crashbit.pvpccheap4.data.model.ForgotPasswordRequest
 import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
 import com.crashbit.pvpccheap4.data.model.AuthResponse
 import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
@@ -108,6 +110,14 @@ interface ApiService {
 
     @GET("api/auth/me")
     suspend fun getAccount(): Response<Account>
+
+    /** Sets the account's email and sends the link that verifies it */
+    @PUT("api/auth/email")
+    suspend fun changeEmail(@Body request: ChangeEmailRequest): Response<Unit>
+
+    /** Emails a link to set a new password (same answer whether the account exists or not) */
+    @POST("api/auth/forgot-password")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequest): Response<Unit>
 
     // Rules endpoints
     /** Proposes a rule from plain words; nothing is saved */

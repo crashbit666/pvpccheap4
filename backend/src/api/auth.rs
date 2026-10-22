@@ -4,6 +4,7 @@ use crate::{
     models::User,
     schema::{devices, user_integrations, users},
     services::auth::{self, Claims},
+    services::{mailer, user_tokens},
 };
 use actix_web::{HttpResponse, Responder, delete, get, post, put, web};
 use diesel::prelude::*;
@@ -13,6 +14,67 @@ use serde::Deserialize;
 pub struct AuthRequest {
     pub username: String,
     pub password: String,
+    /// To recover the password; optional so older apps can still register
+    #[serde(default)]
+    pub email: Option<String>,
+}
+
+/// Enough to catch typos; the verification email does the rest
+fn valid_email(email: &str) -> bool {
+    let Some((local, domain)) = email.split_once('@') else { return false };
+    email.len() <= 254
+        && !local.is_empty()
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && !email.chars().any(|c| c.is_whitespace() || c == '<' || c == '>')
+        && !domain.contains('@')
+}
+
+/// Whether another account already uses this address
+fn email_taken(conn: &mut PgConnection, email: &str, except_user: Option<i32>) -> bool {
+    users::table
+        .filter(diesel::dsl::sql::<diesel::sql_types::Bool>("lower(email) = lower(")
+            .bind::<diesel::sql_types::Text, _>(email)
+            .sql(")"))
+        .filter(users::id.ne(except_user.unwrap_or(-1)))
+        .select(users::id)
+        .first::<i32>(conn)
+        .is_ok()
+}
+
+/// Sends the link that verifies `email`. Errors are logged: the account
+/// works without it, and the user can ask again.
+async fn send_verification(pool: &DbPool, user_id: i32, email: &str) -> bool {
+    if !mailer::is_configured() {
+        log::warn!("Email not configured: no verification for user {}", user_id);
+        return false;
+    }
+    let token = {
+        let Ok(mut conn) = pool.get() else { return false };
+        let _ = user_tokens::invalidate(&mut conn, user_id, user_tokens::VERIFY_EMAIL);
+        match user_tokens::create(&mut conn, user_id, user_tokens::VERIFY_EMAIL, email, chrono::Duration::days(2)) {
+            Ok(t) => t,
+            Err(e) => {
+                log::warn!("Could not create a verification token: {}", e);
+                return false;
+            }
+        }
+    };
+    let Some(link) = mailer::public_link(&format!("verificar-correu?token={}", token)) else { return false };
+    let text = format!(
+        "Hola,\n\nPer confirmar que aquest és el correu del teu compte de PVPC Cheap, obre aquest enllaç:\n\n{}\n\n\
+         Serveix per recuperar la contrasenya si mai l'oblides. Caduca d'aquí a 2 dies.\n\n\
+         Si no has estat tu, no cal que facis res.\n",
+        link
+    );
+    match mailer::send(email, "Confirma el teu correu", &text).await {
+        Ok(()) => true,
+        Err(e) => {
+            log::warn!("Could not send the verification email of user {}: {}", user_id, e);
+            false
+        }
+    }
 }
 
 pub const MIN_PASSWORD_LEN: usize = 8;
@@ -30,7 +92,14 @@ pub async fn register(pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> 
         return HttpResponse::BadRequest()
             .body(format!("Password must have at least {} characters", MIN_PASSWORD_LEN));
     }
+    let email = item.email.as_deref().map(str::trim).filter(|e| !e.is_empty());
+    if email.is_some_and(|e| !valid_email(e)) {
+        return HttpResponse::BadRequest().body("Invalid email");
+    }
     let mut conn = pool.get().expect("Couldn't get db connection");
+    if email.is_some_and(|e| email_taken(&mut conn, e, None)) {
+        return HttpResponse::Conflict().body("Email already in use");
+    }
 
     // Hash password
     let hashed = match auth::hash_password(&item.password) {
@@ -43,11 +112,16 @@ pub async fn register(pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> 
         .values((
             users::username.eq(&item.username),
             users::password_hash.eq(&hashed),
+            users::email.eq(email),
         ))
         .get_result::<User>(&mut conn);
 
     match new_user {
         Ok(user) => {
+            drop(conn);
+            if let Some(email) = email {
+                send_verification(&pool, user.id, email).await;
+            }
             HttpResponse::Ok().json(serde_json::json!({"id": user.id, "username": user.username}))
         }
         Err(_) => HttpResponse::Conflict().body("Username already exists"),
@@ -95,11 +169,113 @@ pub async fn me(pool: web::Data<DbPool>, claims: Claims) -> impl Responder {
             "id": user.id,
             "username": user.username,
             "is_premium": user.is_premium,
+            "email": user.email,
+            "email_verified": user.email_verified,
             // Rules written in plain words: paid, and the server needs an API key
             "ai_rules_available": crate::services::rule_assistant::is_configured(),
         })),
         Err(_) => HttpResponse::NotFound().body("User not found"),
     }
+}
+
+#[derive(Deserialize)]
+pub struct ChangeEmailRequest {
+    pub email: String,
+    pub password: String,
+}
+
+/// Sets the account's email (unverified) and sends the link that verifies
+/// it. Sending the same address again resends the link.
+#[put("/email")]
+pub async fn change_email(pool: web::Data<DbPool>, claims: Claims, item: web::Json<ChangeEmailRequest>) -> impl Responder {
+    let email = item.email.trim();
+    if !valid_email(email) {
+        return HttpResponse::BadRequest().body("Invalid email");
+    }
+    let user = {
+        let Ok(mut conn) = pool.get() else {
+            return HttpResponse::InternalServerError().body("Database connection error");
+        };
+        let user = match authenticated_user(&mut conn, &claims, &item.password) {
+            Ok(u) => u,
+            Err(response) => return response,
+        };
+        if email_taken(&mut conn, email, Some(user.id)) {
+            return HttpResponse::Conflict().body("Email already in use");
+        }
+        let same = user.email.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(email));
+        if same && user.email_verified {
+            return HttpResponse::Ok().json(serde_json::json!({"email": email, "email_verified": true, "sent": false}));
+        }
+        if !same
+            && diesel::update(users::table.find(user.id))
+                .set((users::email.eq(email), users::email_verified.eq(false)))
+                .execute(&mut conn)
+                .is_err()
+        {
+            return HttpResponse::InternalServerError().body("Error saving email");
+        }
+        user
+    };
+    let sent = send_verification(&pool, user.id, email).await;
+    HttpResponse::Ok().json(serde_json::json!({"email": email, "email_verified": false, "sent": sent}))
+}
+
+#[derive(Deserialize)]
+pub struct ForgotPasswordRequest {
+    pub email: String,
+}
+
+/// A link to set a new password, sent to a verified address. The answer is
+/// the same whether the address has an account or not.
+#[post("/forgot-password")]
+pub async fn forgot_password(pool: web::Data<DbPool>, item: web::Json<ForgotPasswordRequest>) -> impl Responder {
+    if !mailer::is_configured() {
+        return HttpResponse::ServiceUnavailable().body("Email is not configured");
+    }
+    let email = item.email.trim().to_string();
+    let answer = HttpResponse::Ok().json(serde_json::json!({"ok": true}));
+    if !valid_email(&email) {
+        return answer;
+    }
+    let token = {
+        let Ok(mut conn) = pool.get() else { return answer };
+        let user: Option<User> = users::table
+            .filter(users::email_verified.eq(true))
+            .filter(diesel::dsl::sql::<diesel::sql_types::Bool>("lower(email) = lower(")
+                .bind::<diesel::sql_types::Text, _>(&email)
+                .sql(")"))
+            .first(&mut conn)
+            .ok();
+        let Some(user) = user else { return answer };
+        // One email every few minutes at most
+        let now = crate::time::now_naive();
+        if user_tokens::last_sent(&mut conn, user.id, user_tokens::RESET_PASSWORD)
+            .is_some_and(|at| now - at < chrono::Duration::minutes(2))
+        {
+            return answer;
+        }
+        let _ = user_tokens::invalidate(&mut conn, user.id, user_tokens::RESET_PASSWORD);
+        match user_tokens::create(&mut conn, user.id, user_tokens::RESET_PASSWORD, &email, chrono::Duration::hours(1)) {
+            Ok(t) => (user, t),
+            Err(e) => {
+                log::warn!("Could not create a reset token: {}", e);
+                return answer;
+            }
+        }
+    };
+    let (user, token) = token;
+    let Some(link) = mailer::public_link(&format!("restablir-contrasenya?token={}", token)) else { return answer };
+    let text = format!(
+        "Hola, {},\n\nHas demanat canviar la contrasenya del teu compte de PVPC Cheap. Obre aquest enllaç per posar-ne una de nova:\n\n{}\n\n\
+         Caduca d'aquí a una hora i només es pot fer servir un cop.\n\n\
+         Si no ho has demanat tu, no cal que facis res: la contrasenya no canviarà.\n",
+        user.username, link
+    );
+    if let Err(e) = mailer::send(&email, "Canvia la contrasenya", &text).await {
+        log::warn!("Could not send the reset email of user {}: {}", user.id, e);
+    }
+    answer
 }
 
 /// Loads the logged-in user and checks their password.
@@ -275,5 +451,19 @@ mod tests {
 
         assert_eq!(request.username.len(), 255);
         assert_eq!(request.password.len(), 1000);
+    }
+}
+
+#[cfg(test)]
+mod email_tests {
+    use super::valid_email;
+
+    #[test]
+    fn test_valid_email() {
+        assert!(valid_email("anna@example.cat"));
+        assert!(valid_email("a.b+c@sub.example.com"));
+        for bad in ["", "anna", "anna@", "@example.cat", "anna@example", "an na@example.cat", "a@b@c.cat", "a@.cat", "a@cat."] {
+            assert!(!valid_email(bad), "{bad}");
+        }
     }
 }

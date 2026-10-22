@@ -16,6 +16,8 @@ pub struct User {
     pub created_at: NaiveDateTime,
     pub token_version: i32,
     pub is_premium: bool,
+    pub email: Option<String>,
+    pub email_verified: bool,
 }
 
 #[derive(Queryable, Selectable, Insertable, Serialize, Deserialize, Debug, Clone)]

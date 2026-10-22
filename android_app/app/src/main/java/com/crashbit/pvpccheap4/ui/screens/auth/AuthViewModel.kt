@@ -15,7 +15,10 @@ import javax.inject.Inject
 data class AuthUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isSuccess: Boolean = false
+    val isSuccess: Boolean = false,
+    val isSendingReset: Boolean = false,
+    /** The reset link was asked for */
+    val resetSent: Boolean = false
 )
 
 @HiltViewModel
@@ -48,11 +51,11 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun register(username: String, password: String) {
+    fun register(username: String, password: String, email: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState(isLoading = true)
 
-            when (val result = authRepository.register(username, password)) {
+            when (val result = authRepository.register(username, password, email.trim())) {
                 is Result.Success -> {
                     _uiState.value = AuthUiState(isSuccess = true)
                 }
@@ -64,6 +67,22 @@ class AuthViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /** Asks for the email with the link to set a new password */
+    fun forgotPassword(email: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSendingReset = true)
+            _uiState.value = when (val result = authRepository.forgotPassword(email.trim())) {
+                is Result.Success -> _uiState.value.copy(isSendingReset = false, resetSent = true)
+                is Result.Error -> _uiState.value.copy(isSendingReset = false, error = result.message)
+                is Result.Loading -> _uiState.value
+            }
+        }
+    }
+
+    fun clearResetSent() {
+        _uiState.value = _uiState.value.copy(resetSent = false)
     }
 
     fun logout() {

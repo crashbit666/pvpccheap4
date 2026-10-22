@@ -61,6 +61,7 @@ import androidx.lifecycle.viewModelScope
 import com.crashbit.pvpccheap4.BuildConfig
 import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.alerts.AlertsWorker
+import com.crashbit.pvpccheap4.data.model.Account
 import com.crashbit.pvpccheap4.data.repository.AuthRepository
 import com.crashbit.pvpccheap4.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -76,7 +77,9 @@ data class AccountUiState(
     /** Error shown inside the open dialog */
     val dialogError: String? = null,
     val passwordChanged: Boolean = false,
-    val accountDeleted: Boolean = false
+    val accountDeleted: Boolean = false,
+    val account: Account? = null,
+    val emailSaved: Boolean = false
 )
 
 @HiltViewModel
@@ -88,6 +91,36 @@ class AccountViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(AccountUiState())
     val uiState: StateFlow<AccountUiState> = _uiState.asStateFlow()
+
+    init {
+        loadAccount()
+    }
+
+    /** Also when coming back from the browser, after verifying the email */
+    fun loadAccount() {
+        viewModelScope.launch {
+            val result = authRepository.getAccount()
+            if (result is Result.Success) {
+                _uiState.value = _uiState.value.copy(account = result.data)
+            }
+        }
+    }
+
+    fun changeEmail(email: String, password: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isWorking = true, dialogError = null)
+            _uiState.value = when (val result = authRepository.changeEmail(email.trim(), password)) {
+                is Result.Success -> _uiState.value.copy(
+                    isWorking = false,
+                    emailSaved = true,
+                    message = "T'hem enviat un correu per verificar-lo"
+                )
+                is Result.Error -> _uiState.value.copy(isWorking = false, dialogError = result.message)
+                is Result.Loading -> _uiState.value
+            }
+            if (_uiState.value.emailSaved) loadAccount()
+        }
+    }
 
     fun changePassword(current: String, new: String) {
         viewModelScope.launch {
@@ -116,7 +149,7 @@ class AccountViewModel @Inject constructor(
     }
 
     fun consumeMessage() {
-        _uiState.value = _uiState.value.copy(message = null, passwordChanged = false)
+        _uiState.value = _uiState.value.copy(message = null, passwordChanged = false, emailSaved = false)
     }
 }
 
@@ -133,6 +166,7 @@ fun AccountScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showChangePassword by remember { mutableStateOf(false) }
+    var showChangeEmail by remember { mutableStateOf(false) }
     var showDeleteAccount by remember { mutableStateOf(false) }
     var showLogout by remember { mutableStateOf(false) }
 
@@ -142,6 +176,7 @@ fun AccountScreen(
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             notificationsAllowed = AlertsWorker.canNotify(context)
+            viewModel.loadAccount()
         }
     }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -159,6 +194,9 @@ fun AccountScreen(
 
     LaunchedEffect(uiState.passwordChanged) {
         if (uiState.passwordChanged) showChangePassword = false
+    }
+    LaunchedEffect(uiState.emailSaved) {
+        if (uiState.emailSaved) showChangeEmail = false
     }
     LaunchedEffect(uiState.message) {
         uiState.message?.let {
@@ -227,6 +265,28 @@ fun AccountScreen(
                         Icon(painterResource(R.drawable.ic_notifications), contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Activar les notificacions")
+                    }
+                }
+            }
+
+            uiState.account?.let { account ->
+                val email = account.email
+                SettingsCard(
+                    title = "Correu",
+                    text = when {
+                        email == null -> "Afegeix-hi el teu correu: és l'única manera de recuperar la contrasenya si l'oblides."
+                        account.emailVerified -> "$email · verificat. Si oblides la contrasenya, t'hi enviarem l'enllaç per canviar-la."
+                        else -> "$email · pendent de verificar. Obre l'enllaç que t'hem enviat (mira també el correu brossa)."
+                    }
+                ) {
+                    OutlinedButton(onClick = { showChangeEmail = true }) {
+                        Text(
+                            when {
+                                email == null -> "Afegir el correu"
+                                account.emailVerified -> "Canviar el correu"
+                                else -> "Tornar a enviar o canviar"
+                            }
+                        )
                     }
                 }
             }
@@ -300,6 +360,19 @@ fun AccountScreen(
                 viewModel.clearDialogError()
             },
             onConfirm = viewModel::changePassword
+        )
+    }
+
+    if (showChangeEmail) {
+        ChangeEmailDialog(
+            initial = uiState.account?.email.orEmpty(),
+            isWorking = uiState.isWorking,
+            error = uiState.dialogError,
+            onDismiss = {
+                showChangeEmail = false
+                viewModel.clearDialogError()
+            },
+            onConfirm = viewModel::changeEmail
         )
     }
 
@@ -391,6 +464,44 @@ private fun ChangePasswordDialog(
             TextButton(onClick = { onConfirm(current, new) }, enabled = valid && !isWorking) {
                 if (isWorking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Text("Canviar")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
+    )
+}
+
+@Composable
+private fun ChangeEmailDialog(
+    initial: String,
+    isWorking: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onConfirm: (email: String, password: String) -> Unit
+) {
+    var email by remember { mutableStateOf(initial) }
+    var password by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Correu del compte") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("T'hi enviarem un enllaç per verificar-lo. Escriu la contrasenya per confirmar el canvi.")
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Correu electrònic") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                PasswordField(password, { password = it }, "Contrasenya")
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(email, password) }, enabled = email.contains('@') && password.isNotEmpty() && !isWorking) {
+                if (isWorking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("Enviar")
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }

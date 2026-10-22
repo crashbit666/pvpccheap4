@@ -46,6 +46,7 @@ fun RegisterScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
 
@@ -102,6 +103,21 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Correu electrònic") },
+                supportingText = { Text("Per recuperar la contrasenya si l'oblides") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
                 label = { Text("Contrasenya") },
@@ -136,9 +152,10 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { viewModel.register(username, password) },
+                onClick = { viewModel.register(username, password, email) },
                 enabled = !uiState.isLoading &&
                         username.isNotBlank() &&
+                        email.contains('@') &&
                         password.isNotBlank() &&
                         password == confirmPassword,
                 modifier = Modifier.fillMaxWidth()
