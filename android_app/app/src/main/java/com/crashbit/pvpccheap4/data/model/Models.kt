@@ -86,6 +86,19 @@ data class Device(
     val createdAt: String? = null
 )
 
+/** How long the appliance runs before it finishes, learnt from its plug's readings */
+data class DeviceUsage(
+    @SerializedName("finished_runs")
+    val finishedRuns: Int = 0,
+    @SerializedName("unfinished_runs")
+    val unfinishedRuns: Int = 0,
+    val restarts: Int = 0,
+    @SerializedName("typical_minutes")
+    val typicalMinutes: Int? = null,
+    @SerializedName("suggested_hours")
+    val suggestedHours: Int? = null
+)
+
 data class UpdateDeviceRequest(
     @SerializedName("power_watts")
     val powerWatts: Int? = null

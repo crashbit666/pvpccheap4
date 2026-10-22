@@ -6,6 +6,7 @@ import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
+import com.crashbit.pvpccheap4.data.model.DeviceUsage
 import com.crashbit.pvpccheap4.data.model.Integration
 import com.crashbit.pvpccheap4.data.model.Rule
 import com.crashbit.pvpccheap4.data.model.Savings
@@ -172,6 +173,19 @@ class DeviceRepository @Inject constructor(
                 Result.Success(response.body()!!)
             } else {
                 Result.Error("No s'ha pogut llegir l'estat del dispositiu", response.code())
+            }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    suspend fun getDeviceUsage(id: String): Result<DeviceUsage> {
+        return try {
+            val response = apiService.getDeviceUsage(id)
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("No s'ha pogut llegir el consum del dispositiu", response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)

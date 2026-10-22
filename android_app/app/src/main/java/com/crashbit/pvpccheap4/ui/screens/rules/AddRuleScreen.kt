@@ -34,6 +34,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.crashbit.pvpccheap4.data.model.Device
+import com.crashbit.pvpccheap4.data.model.DeviceUsage
 import com.crashbit.pvpccheap4.data.model.Rule
 import com.crashbit.pvpccheap4.data.model.RuleConfig
 import com.crashbit.pvpccheap4.data.repository.DeviceRepository
@@ -75,7 +77,9 @@ data class AddRuleUiState(
     val isLoadingDevices: Boolean = true,
     /** Rule being edited, null when creating a new one */
     val editingRule: Rule? = null,
-    val isLoadingRule: Boolean = false
+    val isLoadingRule: Boolean = false,
+    /** What the selected device's readings say about the hours it needs */
+    val usage: DeviceUsage? = null
 )
 
 @HiltViewModel
@@ -134,6 +138,18 @@ class AddRuleViewModel @Inject constructor(
         }
     }
 
+    /** Learns how long [device] runs, when its plug measures power */
+    fun loadUsage(device: Device?) {
+        _uiState.value = _uiState.value.copy(usage = null)
+        if (device?.measuresPower != true) return
+        viewModelScope.launch {
+            val result = deviceRepository.getDeviceUsage(device.id)
+            if (result is Result.Success) {
+                _uiState.value = _uiState.value.copy(usage = result.data)
+            }
+        }
+    }
+
     /** Creates the rule, or updates the one being edited keeping its enabled state. */
     fun saveRule(rule: Rule) {
         viewModelScope.launch {
@@ -160,6 +176,41 @@ class AddRuleViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+}
+
+/** "2 h 20 min", "45 min" */
+private fun formatMinutes(minutes: Int): String = when {
+    minutes < 60 -> "$minutes min"
+    minutes % 60 == 0 -> "${minutes / 60} h"
+    else -> "${minutes / 60} h ${minutes % 60} min"
+}
+
+/** What the plug learnt about the hours the appliance needs, with a button to use them */
+@Composable
+private fun UsageHint(usage: DeviceUsage, hours: Int, max: Int, onApply: (Int) -> Unit) {
+    val suggested = usage.suggestedHours
+    val text = when {
+        suggested != null && usage.typicalMinutes != null ->
+            "Segons el que ha consumit les últimes ${usage.finishedRuns.coerceAtMost(10)} vegades, " +
+                "acostuma a acabar en ${formatMinutes(usage.typicalMinutes)}: en té prou amb $suggested h."
+        usage.finishedRuns >= 3 ->
+            "S'encén i s'apaga sol (deu tenir termòstat): no es pot saber quantes hores necessita."
+        usage.unfinishedRuns > 0 ->
+            "Algunes vegades s'ha apagat abans d'acabar: potser li calen més hores."
+        else ->
+            "Quan hagi acabat unes quantes vegades, et dirà quantes hores necessita."
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f)
+        )
+        if (suggested != null && suggested != hours && suggested <= max) {
+            TextButton(onClick = { onApply(suggested) }) { Text("Posa'n $suggested h") }
+        }
     }
 }
 
@@ -309,6 +360,10 @@ fun AddRuleScreen(
             }
             RuleType.MANUAL -> {}
         }
+    }
+
+    LaunchedEffect(selectedDevice?.id) {
+        viewModel.loadUsage(selectedDevice)
     }
 
     // Auto-select first device when loaded (new rules only)
@@ -531,6 +586,14 @@ fun AddRuleScreen(
                                 onChange = { cheapestHours = it }
                             )
                         }
+                        uiState.usage?.let { usage ->
+                            UsageHint(
+                                usage = usage,
+                                hours = cheapestHours,
+                                max = if (cheapestWindows.isEmpty()) 24 else windowHoursTotal,
+                                onApply = { cheapestHours = it }
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -567,6 +630,9 @@ fun AddRuleScreen(
                             max = deadlineWindow.length,
                             onChange = { deadlineHours = it }
                         )
+                    }
+                    uiState.usage?.let { usage ->
+                        UsageHint(usage = usage, hours = deadlineHours, max = deadlineWindow.length, onApply = { deadlineHours = it })
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(

@@ -47,6 +47,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(devices::sync_devices)
             .service(devices::control_device)
             .service(devices::get_device_state)
+            .service(devices::get_device_usage)
             .service(devices::update_device)
             .service(devices::delete_device),
     );

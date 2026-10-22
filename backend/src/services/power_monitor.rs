@@ -2,7 +2,8 @@
 //! savings use what the appliance really drew instead of a typed power.
 //! With a rule's "stop_when_done", a plug whose power drops (the scooter is
 //! charged, the water is hot) is switched off and the rule's remaining hours
-//! in that window are not used.
+//! in that window are not used. The readings also tell how long the
+//! appliance runs before it finishes, to suggest the hours a rule needs.
 
 use crate::{
     db::DbPool,
@@ -29,12 +30,116 @@ const DONE_MAX_WATTS: f32 = 30.0;
 /// Two low readings this close in a row: not a single dip
 const DONE_GAP_MINUTES: i64 = 11;
 
+/// The threshold below which the appliance is idle, given its peak power
+fn idle_threshold(peak: f32) -> f32 {
+    (peak * DONE_SHARE).clamp(DONE_MIN_WATTS, DONE_MAX_WATTS)
+}
+
 /// True when the last two readings (newest first) are low and close together
 fn has_finished(readings: &[(NaiveDateTime, f32)]) -> bool {
     let [(last_at, last), (prev_at, prev), ..] = readings else { return false };
     let peak = readings.iter().map(|(_, w)| *w).fold(0.0, f32::max);
-    let threshold = (peak * DONE_SHARE).clamp(DONE_MIN_WATTS, DONE_MAX_WATTS);
+    let threshold = idle_threshold(peak);
     *last_at - *prev_at <= Duration::minutes(DONE_GAP_MINUTES) && *last < threshold && *prev < threshold
+}
+
+/// Minutes between two readings (the cron job)
+const SAMPLE_MINUTES: i64 = 5;
+/// Readings further apart than this belong to different runs: the plug was
+/// switched off before the appliance finished
+const RUN_GAP_HOURS: i64 = 12;
+/// Drawing power again this soon after finishing: the appliance has a
+/// thermostat and switches itself on and off
+const RESTART_MINUTES: i64 = 60;
+/// Finished runs needed before suggesting hours, and how many recent ones count
+const MIN_RUNS: usize = 3;
+const RECENT_RUNS: usize = 10;
+/// Days of readings looked at
+pub const USAGE_DAYS: i64 = 30;
+
+/// How long the appliance runs before it finishes, learnt from its readings
+#[derive(Debug, Default, PartialEq, serde::Serialize)]
+pub struct Usage {
+    /// Runs that ended with the power dropping (the appliance finished)
+    pub finished_runs: usize,
+    /// Runs cut off before finishing (the rule's hours ran out)
+    pub unfinished_runs: usize,
+    /// Times the appliance drew power again soon after finishing
+    pub restarts: usize,
+    /// Minutes of a typical run (80th percentile of the recent ones)
+    pub typical_minutes: Option<i64>,
+    /// Whole hours that cover a typical run
+    pub suggested_hours: Option<i64>,
+}
+
+/// Splits the readings (oldest first) into runs: drawing power until two low
+/// readings in a row. Counts only the minutes it drew power, so a run spread
+/// over several cheap hours adds up.
+pub fn learn_usage(readings: &[(NaiveDateTime, f32)]) -> Usage {
+    let mut usage = Usage::default();
+    let mut runs: Vec<i64> = Vec::new();
+    let mut active = 0i64; // minutes drawing power in the current run
+    let mut peak = 0f32;
+    let mut low_at: Option<NaiveDateTime> = None; // first of the low readings
+    let mut finished_at: Option<NaiveDateTime> = None;
+    let mut last_at: Option<NaiveDateTime> = None;
+
+    for &(at, watts) in readings {
+        if last_at.is_some_and(|last| at - last > Duration::hours(RUN_GAP_HOURS)) {
+            if active > 0 {
+                usage.unfinished_runs += 1;
+            }
+            active = 0;
+            peak = 0.0;
+            low_at = None;
+        }
+        let gap_ok = last_at.is_some_and(|last| at - last <= Duration::minutes(DONE_GAP_MINUTES));
+
+        if watts >= idle_threshold(peak) {
+            if active == 0 && finished_at.is_some_and(|done| at - done <= Duration::minutes(RESTART_MINUTES)) {
+                usage.restarts += 1;
+            }
+            active += SAMPLE_MINUTES;
+            peak = peak.max(watts);
+            low_at = None;
+        } else if active > 0 {
+            match low_at {
+                Some(_) if gap_ok => {
+                    runs.push(active);
+                    usage.finished_runs += 1;
+                    finished_at = Some(at);
+                    active = 0;
+                    peak = 0.0;
+                    low_at = None;
+                }
+                _ => low_at = Some(at),
+            }
+        }
+        last_at = Some(at);
+    }
+
+    // A thermostat's runs say nothing about the hours it needs
+    if runs.len() >= MIN_RUNS && usage.restarts * 2 < runs.len() {
+        let mut recent: Vec<i64> = runs[runs.len().saturating_sub(RECENT_RUNS)..].to_vec();
+        recent.sort_unstable();
+        let typical = recent[(recent.len() * 8).div_ceil(10) - 1];
+        usage.typical_minutes = Some(typical);
+        usage.suggested_hours = Some((typical as f64 / 60.0).ceil().max(1.0) as i64);
+    }
+    usage
+}
+
+/// What the device's readings of the last USAGE_DAYS say
+pub fn device_usage(pool: &DbPool, device_id: i32) -> Result<Usage, String> {
+    let mut conn = pool.get().map_err(|e| e.to_string())?;
+    let readings: Vec<(NaiveDateTime, f32)> = power_readings::table
+        .filter(power_readings::device_id.eq(device_id))
+        .filter(power_readings::measured_at.ge(crate::time::now_naive() - Duration::days(USAGE_DAYS)))
+        .order(power_readings::measured_at.asc())
+        .select((power_readings::measured_at, power_readings::watts))
+        .load(&mut conn)
+        .map_err(|e| e.to_string())?;
+    Ok(learn_usage(&readings))
 }
 
 /// (device id, external id, is on, measures power, provider, stored credentials)
@@ -244,6 +349,68 @@ mod tests {
         assert!(has_finished(&[(at(52), 0.0), (at(47), 0.0), (at(42), 2000.0)]));
         // A small charger tapering at 5 W of a 60 W peak is not done (3 W)
         assert!(!has_finished(&[(at(52), 5.0), (at(47), 5.0), (at(42), 60.0)]));
+    }
+
+    /// One run per night at 02:00: `minutes` drawing 130 W, then 2 W readings
+    fn nightly_runs(minutes: &[i64]) -> Vec<(NaiveDateTime, f32)> {
+        let mut readings = vec![];
+        for (day, &run) in minutes.iter().enumerate() {
+            let start = at(0) + Duration::days(day as i64);
+            for i in 0..run / SAMPLE_MINUTES + 2 {
+                let watts = if i < run / SAMPLE_MINUTES { 130.0 } else { 2.0 };
+                readings.push((start + Duration::minutes(i * SAMPLE_MINUTES), watts));
+            }
+        }
+        readings
+    }
+
+    #[test]
+    fn test_learns_the_hours_a_charger_needs() {
+        let usage = learn_usage(&nightly_runs(&[100, 110, 95, 140, 105]));
+        assert_eq!(usage.finished_runs, 5);
+        assert_eq!(usage.unfinished_runs, 0);
+        // 80th percentile of 95, 100, 105, 110, 140 → 110 min → 2 h
+        assert_eq!(usage.typical_minutes, Some(110));
+        assert_eq!(usage.suggested_hours, Some(2));
+    }
+
+    #[test]
+    fn test_needs_a_few_runs_before_suggesting() {
+        let usage = learn_usage(&nightly_runs(&[100, 110]));
+        assert_eq!(usage.finished_runs, 2);
+        assert_eq!(usage.suggested_hours, None);
+    }
+
+    #[test]
+    fn test_run_spread_over_cheap_hours_adds_up() {
+        // 02:00–02:55 and 05:00–05:25 drawing power, then it finishes
+        let mut readings: Vec<_> = (0..12).map(|i| (at(i * 5), 130.0)).collect();
+        readings.extend((0..6).map(|i| (at(180 + i * 5), 130.0)));
+        readings.extend([(at(210), 2.0), (at(215), 2.0)]);
+        let runs: Vec<_> = (1..4).flat_map(|d| readings.iter().map(move |&(t, w)| (t + Duration::days(d), w))).collect();
+        let usage = learn_usage(&runs);
+        assert_eq!(usage.finished_runs, 3);
+        assert_eq!(usage.typical_minutes, Some(90));
+        assert_eq!(usage.suggested_hours, Some(2));
+    }
+
+    #[test]
+    fn test_run_cut_off_is_unfinished() {
+        // Switched off while still drawing power, and the next night it finishes
+        let mut readings: Vec<_> = (0..12).map(|i| (at(i * 5), 130.0)).collect();
+        readings.extend(nightly_runs(&[0, 30]).into_iter().skip(2));
+        let usage = learn_usage(&readings);
+        assert_eq!(usage.unfinished_runs, 1);
+        assert_eq!(usage.finished_runs, 1);
+    }
+
+    #[test]
+    fn test_thermostat_gets_no_suggestion() {
+        // A heater: 20 min on, 15 min off, all night
+        let readings: Vec<_> = (0..60).map(|i| (at(i * 5), if i % 7 < 4 { 1500.0 } else { 0.0 })).collect();
+        let usage = learn_usage(&readings);
+        assert!(usage.restarts >= 2);
+        assert_eq!(usage.suggested_hours, None);
     }
 
     #[test]

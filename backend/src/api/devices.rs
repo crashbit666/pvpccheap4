@@ -3,7 +3,7 @@ use crate::{
     integrations::{ProviderError, ProviderRegistry},
     models::{Device, UserIntegration},
     schema::{devices, user_integrations},
-    services::{auth::Claims, credentials},
+    services::{auth::Claims, credentials, power_monitor},
 };
 use actix_web::{delete, get, post, web, HttpResponse, Responder};
 use diesel::prelude::*;
@@ -498,6 +498,33 @@ pub async fn get_device_state(
     match provider.get_device_state(&session, &device.external_id).await {
         Ok(state) => HttpResponse::Ok().json(state),
         Err(e) => HttpResponse::InternalServerError().body(format!("Failed to get state: {}", e)),
+    }
+}
+
+/// How long the appliance runs before it finishes, learnt from the power
+/// its plug measured, and the hours a rule should give it
+#[get("/{device_id}/usage")]
+pub async fn get_device_usage(pool: web::Data<DbPool>, claims: Claims, path: web::Path<i32>) -> impl Responder {
+    let device_id = path.into_inner();
+    let Ok(user_id) = claims.sub.parse::<i32>() else {
+        return HttpResponse::BadRequest().body("Invalid user ID");
+    };
+    let owned = match pool.get() {
+        Ok(mut conn) => devices::table
+            .inner_join(user_integrations::table)
+            .filter(devices::id.eq(device_id))
+            .filter(user_integrations::user_id.eq(user_id))
+            .select(devices::id)
+            .first::<i32>(&mut conn)
+            .is_ok(),
+        Err(_) => return HttpResponse::InternalServerError().body("Database connection error"),
+    };
+    if !owned {
+        return HttpResponse::NotFound().body("Device not found");
+    }
+    match power_monitor::device_usage(&pool, device_id) {
+        Ok(usage) => HttpResponse::Ok().json(usage),
+        Err(e) => HttpResponse::InternalServerError().body(e),
     }
 }
 

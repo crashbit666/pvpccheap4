@@ -8,6 +8,7 @@ import com.crashbit.pvpccheap4.data.model.AuthResponse
 import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
+import com.crashbit.pvpccheap4.data.model.DeviceUsage
 import com.crashbit.pvpccheap4.data.model.Integration
 import com.crashbit.pvpccheap4.data.model.LoginRequest
 import com.crashbit.pvpccheap4.data.model.PriceData
@@ -95,6 +96,9 @@ interface ApiService {
         @Query("from") from: String? = null,
         @Query("to") to: String? = null
     ): Response<Savings>
+
+    @GET("api/devices/{id}/usage")
+    suspend fun getDeviceUsage(@Path("id") id: String): Response<DeviceUsage>
 
     @GET("api/devices/{id}/state")
     suspend fun getDeviceState(@Path("id") id: String): Response<DeviceActionResponse>
