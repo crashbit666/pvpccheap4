@@ -22,6 +22,27 @@ pub fn public_link(path: &str) -> Option<String> {
     env("PUBLIC_URL").map(|base| format!("{}/{}", base.trim_end_matches('/'), path.trim_start_matches('/')))
 }
 
+/// Uses the key without sending anything (yesterday's statistics). Brevo
+/// disables keys unused for 90 days; this keeps it alive and tells early if
+/// it stopped working.
+pub async fn check_key() -> Result<(), String> {
+    let Some(key) = env("BREVO_API_KEY") else {
+        return Err("BREVO_API_KEY is not set".to_string());
+    };
+    let response = reqwest::Client::new()
+        .get("https://api.brevo.com/v3/smtp/statistics/aggregatedReport?days=1")
+        .timeout(Duration::from_secs(20))
+        .header("api-key", key)
+        .send()
+        .await
+        .map_err(|e| e.without_url().to_string())?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("Brevo answered {}", response.status()))
+    }
+}
+
 pub async fn send(to: &str, subject: &str, text: &str) -> Result<(), String> {
     let (Some(key), Some(from)) = (env("BREVO_API_KEY"), env("MAIL_FROM")) else {
         return Err("Email is not configured".to_string());

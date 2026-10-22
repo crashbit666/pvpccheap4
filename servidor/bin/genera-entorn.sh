@@ -55,6 +55,10 @@ serveis = {
         "DATABASE_URL": cal("DATABASE_URL"),
         "ESIOS_TOKEN": cal("ESIOS_TOKEN"),
         "CREDENTIALS_KEY": cal("CREDENTIALS_KEY"),
+        # Per fer servir la clau de Brevo cada setmana (caduca si no s'usa)
+        "BREVO_API_KEY": env.get("BREVO_API_KEY") or "",
+        "MAIL_FROM": env.get("MAIL_FROM") or "",
+        "PUBLIC_URL": env.get("PUBLIC_URL") or "https://pvpccheap.crashbit.cat",
         "RUST_LOG": env.get("RUST_LOG") or "info",
         "TZ": "Europe/Madrid",
     },

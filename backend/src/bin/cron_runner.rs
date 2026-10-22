@@ -113,6 +113,15 @@ async fn main() {
     .expect("Failed to create power job");
     sched.add(power_job).await.expect("Failed to add power job");
 
+    // Brevo disables API keys unused for 90 days
+    let mail_job = Job::new_async_tz("0 10 5 * * Mon", Madrid, |_uuid, _l| {
+        Box::pin(async move {
+            check_mail_key().await;
+        })
+    })
+    .expect("Failed to create mail key job");
+    sched.add(mail_job).await.expect("Failed to add mail key job");
+
     // Start the scheduler
     sched.start().await.expect("Failed to start scheduler");
 
@@ -121,6 +130,8 @@ async fn main() {
     log::info!("  - run-automation: every hour at :00");
     log::info!("  - retry-failed: every minute");
     log::info!("  - power-readings: every 5 minutes");
+    log::info!("  - mail-key: Mondays at 05:10");
+    tokio::spawn(check_mail_key());
 
     // Keep the process running
     loop {
@@ -376,6 +387,17 @@ async fn sample_power(pool: Arc<DbPool>) {
 }
 
 /// Retry failed executions that are due for retry
+async fn check_mail_key() {
+    use backend::services::mailer;
+    if !mailer::is_configured() {
+        return;
+    }
+    match mailer::check_key().await {
+        Ok(()) => log::info!("Brevo API key works"),
+        Err(e) => log::error!("Brevo API key does not work, account emails will fail: {}", e),
+    }
+}
+
 async fn retry_failed_executions(pool: Arc<DbPool>) {
     let registry = registry();
     let engine = AutomationEngine::new((*pool).clone(), registry);
