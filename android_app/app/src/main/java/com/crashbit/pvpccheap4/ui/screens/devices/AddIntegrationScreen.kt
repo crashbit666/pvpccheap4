@@ -1,7 +1,9 @@
 package com.crashbit.pvpccheap4.ui.screens.devices
 
 import com.crashbit.pvpccheap4.R
+import androidx.annotation.StringRes
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -101,7 +103,7 @@ class AddIntegrationViewModel @Inject constructor(
 /** A credential the provider asks for */
 data class CredentialField(
     val key: String,
-    val label: String,
+    @StringRes val label: Int,
     val keyboardType: KeyboardType,
     val secret: Boolean = false,
     val placeholder: String? = null
@@ -112,25 +114,23 @@ enum class Provider(
     val id: String,
     val displayName: String,
     val fields: List<CredentialField>,
-    val help: String
+    @StringRes val help: Int
 ) {
     MEROSS(
         "meross", "Meross",
         listOf(
-            CredentialField("email", "Correu electrònic", KeyboardType.Email),
-            CredentialField("password", "Contrasenya", KeyboardType.Password, secret = true)
+            CredentialField("email", R.string.devices_field_email, KeyboardType.Email),
+            CredentialField("password", R.string.devices_field_password, KeyboardType.Password, secret = true)
         ),
-        "El correu i la contrasenya del teu compte de l'app de Meross."
+        R.string.devices_help_meross
     ),
     HOME_ASSISTANT(
         "home_assistant", "Home Assistant",
         listOf(
-            CredentialField("url", "Adreça de Home Assistant", KeyboardType.Uri, placeholder = "https://xxxx.ui.nabu.casa"),
-            CredentialField("token", "Token d'accés", KeyboardType.Password, secret = true)
+            CredentialField("url", R.string.devices_field_ha_url, KeyboardType.Uri, placeholder = "https://xxxx.ui.nabu.casa"),
+            CredentialField("token", R.string.devices_field_ha_token, KeyboardType.Password, secret = true)
         ),
-        "Serveix per a qualsevol endoll o llum que tinguis a Home Assistant (Shelly, Tuya, Zigbee...). " +
-            "L'adreça ha de ser accessible des d'Internet, per exemple la de Home Assistant Cloud. " +
-            "El token es crea a Home Assistant: el teu perfil → Seguretat → Tokens d'accés de llarga durada → Crea un token."
+        R.string.devices_help_home_assistant
     )
 }
 
@@ -168,10 +168,10 @@ fun AddIntegrationScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Afegir integració") },
+                title = { Text(stringResource(R.string.devices_add_integration)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Enrere")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.devices_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -190,7 +190,7 @@ fun AddIntegrationScreen(
         ) {
             if (Provider.entries.size > 1) {
                 Text(
-                    text = "Selecciona el proveïdor",
+                    text = stringResource(R.string.devices_select_provider),
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -227,14 +227,14 @@ fun AddIntegrationScreen(
             }
 
             Text(
-                text = "Credencials de ${selectedProvider.displayName}",
+                text = stringResource(R.string.devices_credentials_of, selectedProvider.displayName),
                 style = MaterialTheme.typography.titleMedium
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = selectedProvider.help,
+                text = stringResource(selectedProvider.help),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -244,7 +244,7 @@ fun AddIntegrationScreen(
                 OutlinedTextField(
                     value = values[field.key] ?: "",
                     onValueChange = { values[field.key] = it },
-                    label = { Text(field.label) },
+                    label = { Text(stringResource(field.label)) },
                     placeholder = field.placeholder?.let { { Text(it) } },
                     singleLine = true,
                     visualTransformation = if (field.secret) PasswordVisualTransformation() else VisualTransformation.None,
@@ -272,15 +272,14 @@ fun AddIntegrationScreen(
                         modifier = Modifier.height(20.dp)
                     )
                 } else {
-                    Text("Afegir integració")
+                    Text(stringResource(R.string.devices_add_integration))
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Les credencials s'utilitzen per connectar amb el servei del proveïdor i descobrir els teus dispositius. " +
-                    "Si ja l'havies afegit, només se n'actualitzen les credencials: els dispositius i les regles es mantenen.",
+                text = stringResource(R.string.devices_credentials_footer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

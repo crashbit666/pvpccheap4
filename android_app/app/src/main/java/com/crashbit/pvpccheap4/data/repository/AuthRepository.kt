@@ -1,5 +1,8 @@
 package com.crashbit.pvpccheap4.data.repository
 
+import android.content.Context
+import androidx.annotation.StringRes
+import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.local.TokenManager
 import com.crashbit.pvpccheap4.data.model.Account
@@ -11,9 +14,27 @@ import com.crashbit.pvpccheap4.data.model.ForgotPasswordRequest
 import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
 import com.crashbit.pvpccheap4.data.model.LoginRequest
 import com.crashbit.pvpccheap4.data.model.RegisterRequest
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * Holds the application context so the shared Result helpers can return
+ * translated messages without a Context parameter. Set by AuthRepository
+ * (and safe to set again from the Application class).
+ */
+object ResultMessages {
+    @Volatile
+    private var appContext: Context? = null
+
+    fun init(context: Context) {
+        appContext = context.applicationContext
+    }
+
+    internal fun get(@StringRes id: Int, fallback: String): String =
+        appContext?.getString(id) ?: fallback
+}
 
 sealed class Result<out T> {
     data class Success<T>(val data: T) : Result<T>()
@@ -25,9 +46,10 @@ sealed class Result<out T> {
     data object Loading : Result<Nothing>()
 
     companion object {
-        private const val CONNECTION_ERROR_MESSAGE = "No hi ha accés al servei del núvol de PVPCCheap"
-
-        fun connectionError(): Error = Error(CONNECTION_ERROR_MESSAGE, isConnectionError = true)
+        fun connectionError(): Error = Error(
+            ResultMessages.get(R.string.account_error_connection, "Can't reach the PVPC Cheap cloud service"),
+            isConnectionError = true
+        )
 
         fun isConnectionException(e: Exception): Boolean {
             return e is java.net.ConnectException ||
@@ -43,7 +65,7 @@ sealed class Result<out T> {
             return if (isConnectionException(e)) {
                 connectionError()
             } else {
-                Error(e.message ?: "Error de xarxa")
+                Error(e.message ?: ResultMessages.get(R.string.account_error_network, "Network error"))
             }
         }
     }
@@ -51,9 +73,14 @@ sealed class Result<out T> {
 
 @Singleton
 class AuthRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val apiService: ApiService,
     private val tokenManager: TokenManager
 ) {
+    init {
+        ResultMessages.init(context)
+    }
+
     val isLoggedIn: Flow<Boolean> = tokenManager.isLoggedIn
     val userEmail: Flow<String?> = tokenManager.userEmail
     val userName: Flow<String?> = tokenManager.userName
@@ -68,12 +95,12 @@ class AuthRepository @Inject constructor(
                     tokenManager.saveUserInfo(username, username)
                     Result.Success(authResponse)
                 } else {
-                    Result.Error(authResponse.error ?: "No s'ha pogut entrar")
+                    Result.Error(authResponse.error ?: context.getString(R.string.account_error_login))
                 }
             } else {
                 Result.Error(
-                    if (response.code() == 401) "Usuari o contrasenya incorrectes"
-                    else "No s'ha pogut entrar (error ${response.code()})",
+                    if (response.code() == 401) context.getString(R.string.account_error_bad_credentials)
+                    else context.getString(R.string.account_error_login_code, response.code()),
                     response.code()
                 )
             }
@@ -93,13 +120,13 @@ class AuthRepository @Inject constructor(
                 val body = response.errorBody()?.string().orEmpty()
                 Result.Error(
                     if (response.code() == 409) {
-                        if (body.contains("Email")) "Aquest correu ja té un compte" else "Aquest nom d'usuari ja existeix"
+                        if (body.contains("Email")) context.getString(R.string.account_error_email_taken) else context.getString(R.string.account_error_username_taken)
                     }
                     else if (response.code() == 400) {
-                        if (body.contains("email")) "El correu no és vàlid"
-                        else "La contrasenya ha de tenir almenys 8 caràcters"
+                        if (body.contains("email")) context.getString(R.string.account_error_email_invalid)
+                        else context.getString(R.string.account_error_password_short)
                     }
-                    else "No s'ha pogut crear el compte (error ${response.code()})",
+                    else context.getString(R.string.account_error_register_code, response.code()),
                     response.code()
                 )
             }
@@ -114,7 +141,7 @@ class AuthRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut llegir el compte", response.code())
+                Result.Error(context.getString(R.string.account_error_read_account), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -126,10 +153,10 @@ class AuthRepository @Inject constructor(
             val response = apiService.changeEmail(ChangeEmailRequest(email, password))
             when {
                 response.isSuccessful -> Result.Success(Unit)
-                response.code() == 403 -> Result.Error("La contrasenya no és correcta", 403)
-                response.code() == 409 -> Result.Error("Aquest correu ja té un altre compte", 409)
-                response.code() == 400 -> Result.Error("El correu no és vàlid", 400)
-                else -> Result.Error("No s'ha pogut desar el correu", response.code())
+                response.code() == 403 -> Result.Error(context.getString(R.string.account_error_wrong_password), 403)
+                response.code() == 409 -> Result.Error(context.getString(R.string.account_error_email_other_account), 409)
+                response.code() == 400 -> Result.Error(context.getString(R.string.account_error_email_invalid), 400)
+                else -> Result.Error(context.getString(R.string.account_error_save_email), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -140,7 +167,7 @@ class AuthRepository @Inject constructor(
         return try {
             val response = apiService.changeZone(ChangeZoneRequest(zone))
             if (response.isSuccessful) Result.Success(Unit)
-            else Result.Error("No s'ha pogut canviar la zona", response.code())
+            else Result.Error(context.getString(R.string.account_error_change_zone), response.code())
         } catch (e: Exception) {
             Result.fromException(e)
         }
@@ -151,8 +178,8 @@ class AuthRepository @Inject constructor(
             val response = apiService.forgotPassword(ForgotPasswordRequest(email))
             when {
                 response.isSuccessful -> Result.Success(Unit)
-                response.code() == 503 -> Result.Error("Ara mateix no es poden enviar correus", 503)
-                else -> Result.Error("No s'ha pogut enviar el correu", response.code())
+                response.code() == 503 -> Result.Error(context.getString(R.string.account_error_mail_unavailable), 503)
+                else -> Result.Error(context.getString(R.string.account_error_send_mail), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -168,9 +195,9 @@ class AuthRepository @Inject constructor(
                     response.body()?.token?.let { tokenManager.saveToken(it) }
                     Result.Success(Unit)
                 }
-                response.code() == 403 -> Result.Error("La contrasenya actual no és correcta", 403)
-                response.code() == 400 -> Result.Error("La contrasenya nova ha de tenir almenys 8 caràcters", 400)
-                else -> Result.Error("No s'ha pogut canviar la contrasenya", response.code())
+                response.code() == 403 -> Result.Error(context.getString(R.string.account_error_wrong_current_password), 403)
+                response.code() == 400 -> Result.Error(context.getString(R.string.account_error_new_password_short), 400)
+                else -> Result.Error(context.getString(R.string.account_error_change_password), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -186,8 +213,8 @@ class AuthRepository @Inject constructor(
                     tokenManager.clearSession()
                     Result.Success(Unit)
                 }
-                response.code() == 403 -> Result.Error("La contrasenya no és correcta", 403)
-                else -> Result.Error("No s'ha pogut esborrar el compte", response.code())
+                response.code() == 403 -> Result.Error(context.getString(R.string.account_error_wrong_password), 403)
+                else -> Result.Error(context.getString(R.string.account_error_delete_account), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -204,7 +231,7 @@ class AuthRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut obtenir l'usuari", response.code())
+                Result.Error(context.getString(R.string.account_error_get_user), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="main_nav_devices">Devices</string>
+    <string name="main_nav_rules">Rules</string>
+    <string name="main_nav_schedule">Schedule</string>
+    <string name="main_nav_prices">Prices</string>
+    <string name="main_prices_title">Prices</string>
+    <string name="main_prices_tab_today">Today</string>
+    <string name="main_prices_tab_tomorrow">Tomorrow</string>
+    <string name="main_prices_current">Current price</string>
+    <string name="main_prices_cheap">Cheap</string>
+    <string name="main_prices_tomorrow_unavailable">Tomorrow\'s prices not available</string>
+    <string name="main_prices_none">No prices available</string>
+    <string name="main_prices_tomorrow_published">Tomorrow\'s prices are published after 8:30 pm</string>
+    <string name="main_prices_auto_load">Prices will load automatically</string>
+    <string name="main_schedule_title">Schedule</string>
+    <string name="main_schedule_previous_day">Previous day</string>
+    <string name="main_schedule_next_day">Next day</string>
+    <string name="main_status_off">Off</string>
+    <string name="main_status_on">On</string>
+    <string name="main_status_failed">Failed</string>
+    <string name="main_status_retrying">Retrying</string>
+    <string name="main_status_missed">Missed</string>
+    <string name="main_status_done">Already finished</string>
+    <string name="main_status_pending">Pending</string>
+    <string name="main_status_executing">Running</string>
+    <string name="main_schedule_empty_title">No scheduled activity</string>
+    <string name="main_schedule_empty_body">Your devices\' scheduled runs will appear here</string>
+    <string name="main_error_prices">Couldn\'t load prices</string>
+    <string name="main_error_prices_tomorrow">Couldn\'t load tomorrow\'s prices</string>
+    <string name="main_error_cheapest_hours">Couldn\'t load the cheapest hours</string>
+</resources>

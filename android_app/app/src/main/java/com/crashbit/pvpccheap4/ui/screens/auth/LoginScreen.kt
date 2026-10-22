@@ -28,11 +28,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.crashbit.pvpccheap4.R
 
 @Composable
 fun LoginScreen(
@@ -78,7 +80,7 @@ fun LoginScreen(
             )
 
             Text(
-                text = "Automatitza els teus dispositius",
+                text = stringResource(R.string.account_login_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -88,7 +90,7 @@ fun LoginScreen(
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text("Usuari") },
+                label = { Text(stringResource(R.string.account_username)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
@@ -102,7 +104,7 @@ fun LoginScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Contrasenya") },
+                label = { Text(stringResource(R.string.account_password)) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
@@ -125,16 +127,16 @@ fun LoginScreen(
                         modifier = Modifier.height(20.dp)
                     )
                 } else {
-                    Text("Entrar")
+                    Text(stringResource(R.string.account_login))
                 }
             }
 
             TextButton(onClick = { showForgot = true }) {
-                Text("Has oblidat la contrasenya?")
+                Text(stringResource(R.string.account_forgot_password))
             }
 
             TextButton(onClick = onNavigateToRegister) {
-                Text("No tens compte? Registra't")
+                Text(stringResource(R.string.account_no_account))
             }
         }
     }
@@ -157,20 +159,17 @@ private fun ForgotPasswordDialog(isSending: Boolean, sent: Boolean, onSend: (Str
     var email by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Recuperar la contrasenya") },
+        title = { Text(stringResource(R.string.account_forgot_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (sent) {
-                    Text(
-                        "Si hi ha un compte amb aquest correu verificat, t'hi hem enviat un enllaç per posar una contrasenya nova. " +
-                            "Caduca d'aquí a una hora. Mira també la carpeta de correu brossa."
-                    )
+                    Text(stringResource(R.string.account_forgot_sent))
                 } else {
-                    Text("Escriu el correu del teu compte i t'enviarem un enllaç per posar una contrasenya nova.")
+                    Text(stringResource(R.string.account_forgot_text))
                     OutlinedTextField(
                         value = email,
                         onValueChange = { email = it },
-                        label = { Text("Correu electrònic") },
+                        label = { Text(stringResource(R.string.account_email)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
                         modifier = Modifier.fillMaxWidth()
@@ -180,14 +179,14 @@ private fun ForgotPasswordDialog(isSending: Boolean, sent: Boolean, onSend: (Str
         },
         confirmButton = {
             if (sent) {
-                TextButton(onClick = onDismiss) { Text("Entesos") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.account_ok)) }
             } else {
                 TextButton(onClick = { onSend(email) }, enabled = email.contains('@') && !isSending) {
                     if (isSending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else Text("Enviar")
+                    else Text(stringResource(R.string.account_send))
                 }
             }
         },
-        dismissButton = { if (!sent) TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
+        dismissButton = { if (!sent) TextButton(onClick = onDismiss) { Text(stringResource(R.string.account_cancel)) } }
     )
 }

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="main_nav_devices">Dispositius</string>
+    <string name="main_nav_rules">Regles</string>
+    <string name="main_nav_schedule">Horari</string>
+    <string name="main_nav_prices">Preus</string>
+    <string name="main_prices_title">Preus</string>
+    <string name="main_prices_tab_today">Avui</string>
+    <string name="main_prices_tab_tomorrow">Demà</string>
+    <string name="main_prices_current">Preu actual</string>
+    <string name="main_prices_cheap">Barat</string>
+    <string name="main_prices_tomorrow_unavailable">Preus de demà no disponibles</string>
+    <string name="main_prices_none">No hi ha preus disponibles</string>
+    <string name="main_prices_tomorrow_published">Els preus de demà es publiquen després de les 20:30</string>
+    <string name="main_prices_auto_load">Els preus es carregaran automàticament</string>
+    <string name="main_schedule_title">Horari</string>
+    <string name="main_schedule_previous_day">Dia anterior</string>
+    <string name="main_schedule_next_day">Dia següent</string>
+    <string name="main_status_off">Apagat</string>
+    <string name="main_status_on">Encès</string>
+    <string name="main_status_failed">Fallat</string>
+    <string name="main_status_retrying">Reintentant</string>
+    <string name="main_status_missed">Perdut</string>
+    <string name="main_status_done">Ja havia acabat</string>
+    <string name="main_status_pending">Pendent</string>
+    <string name="main_status_executing">Executant</string>
+    <string name="main_schedule_empty_title">Cap activitat programada</string>
+    <string name="main_schedule_empty_body">Les execucions programades dels teus dispositius apareixeran aquí</string>
+    <string name="main_error_prices">No s\'han pogut carregar els preus</string>
+    <string name="main_error_prices_tomorrow">No s\'han pogut carregar els preus de demà</string>
+    <string name="main_error_cheapest_hours">No s\'han pogut carregar les hores més barates</string>
+</resources>

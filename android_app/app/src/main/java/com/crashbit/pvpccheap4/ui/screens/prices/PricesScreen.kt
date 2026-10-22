@@ -1,6 +1,8 @@
 package com.crashbit.pvpccheap4.ui.screens.prices
 
+import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.ui.formatPrice
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,12 +54,15 @@ fun PricesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Avui", "Demà")
+    val tabs = listOf(
+        stringResource(R.string.main_prices_tab_today),
+        stringResource(R.string.main_prices_tab_tomorrow)
+    )
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Preus") },
+                title = { Text(stringResource(R.string.main_prices_title)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 )
@@ -187,7 +192,7 @@ fun CurrentPriceSummary(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Preu actual",
+                text = stringResource(R.string.main_prices_current),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -270,7 +275,7 @@ fun PriceItem(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "Barat",
+                            text = stringResource(R.string.main_prices_cheap),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFF4CAF50)
                         )
@@ -291,16 +296,20 @@ fun EmptyPricesMessage(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = if (isTomorrow) "Preus de demà no disponibles" else "No hi ha preus disponibles",
+            text = if (isTomorrow) {
+                stringResource(R.string.main_prices_tomorrow_unavailable)
+            } else {
+                stringResource(R.string.main_prices_none)
+            },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = if (isTomorrow) {
-                "Els preus de demà es publiquen després de les 20:30"
+                stringResource(R.string.main_prices_tomorrow_published)
             } else {
-                "Els preus es carregaran automàticament"
+                stringResource(R.string.main_prices_auto_load)
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)

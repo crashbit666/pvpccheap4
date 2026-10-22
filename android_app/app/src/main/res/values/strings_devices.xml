@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Devices screen -->
+    <string name="devices_title">Devices</string>
+    <string name="devices_sync">Sync</string>
+    <string name="devices_account">Account</string>
+    <string name="devices_add_integration">Add integration</string>
+    <string name="devices_integrations">Integrations</string>
+    <string name="devices_press_sync">Tap the sync button to discover devices</string>
+    <string name="devices_alert_check_wifi">%1$s. Check that the plug is connected to Wi-Fi.</string>
+    <string name="devices_delete_integration_title">Remove %1$s</string>
+    <plurals name="devices_delete_integration_text">
+        <item quantity="one">Its %1$d device and all the rules that control it will be removed from the app. The plugs are not deleted from %2$s, but the app will no longer turn them on or off.</item>
+        <item quantity="other">Its %1$d devices and all the rules that control them will be removed from the app. The plugs are not deleted from %2$s, but the app will no longer turn them on or off.</item>
+    </plurals>
+    <string name="devices_delete">Remove</string>
+    <string name="devices_cancel">Cancel</string>
+    <string name="devices_integration_active">Active</string>
+    <string name="devices_integration_inactive">Inactive</string>
+    <string name="devices_mode_manual">Manual</string>
+    <string name="devices_mode_automatic">Automatic · %1$s</string>
+    <string name="devices_measures_power">%1$s · measures consumption</string>
+    <string name="devices_empty_title">No devices set up</string>
+    <string name="devices_empty_text">Add an integration to sync your devices</string>
+    <string name="devices_connection_error_title">Can\'t reach the service</string>
+    <string name="devices_connection_error_text">Couldn\'t connect to the PVPCCheap cloud. Check your internet connection.</string>
+    <string name="devices_retry">Try again</string>
+
+    <!-- Devices view model -->
+    <string name="devices_no_integrations">No integrations set up</string>
+    <string name="devices_sync_error">Error syncing %1$s: %2$s</string>
+    <string name="devices_sync_done">Synced: %1$s (%2$s)</string>
+    <plurals name="devices_sync_count">
+        <item quantity="one">%d device</item>
+        <item quantity="other">%d devices</item>
+    </plurals>
+    <plurals name="devices_sync_new">
+        <item quantity="one">%d new</item>
+        <item quantity="other">%d new</item>
+    </plurals>
+
+    <!-- Savings -->
+    <string name="devices_savings_this_month">This month</string>
+    <string name="devices_savings_saved">You saved %1$s</string>
+    <string name="devices_savings_overpaid">You paid %1$s extra</string>
+    <string name="devices_savings_cheaper">%1$s cheaper than average</string>
+    <string name="devices_savings_dearer">%1$s dearer than average</string>
+    <plurals name="devices_savings_hours_on">
+        <item quantity="one">%d h on</item>
+        <item quantity="other">%d h on</item>
+    </plurals>
+    <string name="devices_savings_below_average">%1$s, %2$s below the day\'s average price</string>
+    <string name="devices_savings_above_average">%1$s, %2$s above the day\'s average price</string>
+    <string name="devices_savings_paid">%1$s · you paid %2$s</string>
+    <string name="devices_savings_all_measured">Using the consumption measured by the plugs.</string>
+    <string name="devices_savings_partly_measured">Using measured consumption for %1$d of %2$d h; the rest, with the power you entered.</string>
+    <string name="devices_savings_set_power">Tap a device and enter its power to see this in euros.</string>
+
+    <!-- Device power dialog -->
+    <string name="devices_power_title">Power of %1$s</string>
+    <string name="devices_power_text">How many watts the appliance uses when it\'s on. You\'ll find it on the label or in the manual. It\'s used to work out how many euros you save.</string>
+    <string name="devices_power_measured">This plug measures consumption: savings use what it measures. The power you enter will only be used for the hours that couldn\'t be measured.</string>
+    <string name="devices_power_label">Power (W)</string>
+    <string name="devices_power_typical">Typical values</string>
+    <string name="devices_save">Save</string>
+    <string name="devices_appliance_water_heater">Water heater</string>
+    <string name="devices_appliance_heater">Heater or radiator</string>
+    <string name="devices_appliance_electric_car">Electric car</string>
+    <string name="devices_appliance_scooter">Scooter or e-bike</string>
+    <string name="devices_appliance_washing_machine">Washing machine</string>
+    <string name="devices_appliance_dishwasher">Dishwasher</string>
+    <string name="devices_appliance_air_conditioning">Air conditioning</string>
+    <string name="devices_appliance_dehumidifier">Dehumidifier</string>
+
+    <!-- Add integration -->
+    <string name="devices_back">Back</string>
+    <string name="devices_select_provider">Choose the provider</string>
+    <string name="devices_credentials_of">%1$s credentials</string>
+    <string name="devices_credentials_footer">Your credentials are used to connect to the provider\'s service and discover your devices. If you had already added it, only the credentials are updated: devices and rules are kept.</string>
+    <string name="devices_field_email">Email</string>
+    <string name="devices_field_password">Password</string>
+    <string name="devices_field_ha_url">Home Assistant address</string>
+    <string name="devices_field_ha_token">Access token</string>
+    <string name="devices_help_meross">The email and password of your Meross app account.</string>
+    <string name="devices_help_home_assistant">Works with any plug or light you have in Home Assistant (Shelly, Tuya, Zigbee...). The address must be reachable from the internet, for example your Home Assistant Cloud one. Create the token in Home Assistant: your profile → Security → Long-lived access tokens → Create token.</string>
+
+    <!-- Repository errors -->
+    <string name="devices_error_load_alerts">Couldn\'t load the alerts</string>
+    <string name="devices_error_save_power">Couldn\'t save the power</string>
+    <string name="devices_error_savings">Couldn\'t calculate the savings</string>
+    <string name="devices_error_load_integrations">Couldn\'t load the integrations</string>
+    <string name="devices_error_ha_unreachable">Couldn\'t connect to Home Assistant. Check that the address is reachable from the internet</string>
+    <string name="devices_error_provider_unreachable">Couldn\'t connect to the provider. Please try again later</string>
+    <string name="devices_error_ha_invalid_url">The address isn\'t valid: it must start with https:// and be reachable from the internet</string>
+    <string name="devices_error_ha_token">Home Assistant didn\'t accept the token. Please check it</string>
+    <string name="devices_error_add_integration">Couldn\'t add the integration. Check your email and password</string>
+    <string name="devices_error_delete_integration">Couldn\'t remove the integration</string>
+    <string name="devices_error_load_devices">Couldn\'t load the devices</string>
+    <string name="devices_error_sync_devices">Couldn\'t sync the devices</string>
+    <string name="devices_error_control">Couldn\'t control the device</string>
+    <string name="devices_error_device_state">Couldn\'t read the device state</string>
+    <string name="devices_error_device_usage">Couldn\'t read the device consumption</string>
+    <string name="devices_error_draft_premium">Writing rules in your own words is a paid feature</string>
+    <string name="devices_error_draft_limit">You\'ve asked for a lot of suggestions today. You can ask for more tomorrow.</string>
+    <string name="devices_error_draft_no_reply">The assistant didn\'t respond. Please try again.</string>
+    <string name="devices_error_draft_unavailable">Not available right now</string>
+    <string name="devices_error_draft">Couldn\'t suggest the rule</string>
+    <string name="devices_error_load_rules">Couldn\'t load the rules</string>
+    <string name="devices_error_create_rule">Couldn\'t create the rule</string>
+    <string name="devices_error_update_rule">Couldn\'t update the rule</string>
+    <string name="devices_error_delete_rule">Couldn\'t delete the rule</string>
+    <string name="devices_error_toggle_rule">Couldn\'t change the rule</string>
+    <string name="devices_error_load_schedule">Couldn\'t load the schedule</string>
+    <string name="devices_error_rule_limit">The free plan has 4 rules. Go premium from your account to get more.</string>
+    <string name="devices_error_with_detail">%1$s: %2$s</string>
+
+    <!-- Alerts -->
+    <string name="devices_alert_title_on">Couldn\'t turn on %1$s</string>
+    <string name="devices_alert_title_off">Couldn\'t turn off %1$s</string>
+    <string name="devices_alert_detail">At %1$s on %2$s · rule %3$s</string>
+    <string name="devices_alerts_channel_name">Device alerts</string>
+    <string name="devices_alerts_channel_description">When a plug couldn\'t be turned on or off</string>
+</resources>

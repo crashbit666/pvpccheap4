@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Rules list -->
+    <string name="rules_title">Rules</string>
+    <string name="rules_add">Add rule</string>
+    <string name="rules_delete_title">Delete rule</string>
+    <string name="rules_delete_confirm">Are you sure you want to delete the rule \"%1$s\"?</string>
+    <string name="rules_delete">Delete</string>
+    <string name="rules_cancel">Cancel</string>
+    <string name="rules_ok">OK</string>
+    <string name="rules_empty_title">No rules yet</string>
+    <string name="rules_empty_text">Create rules to automate your devices based on the electricity price</string>
+    <string name="rules_card_once_date">only on %1$s/%2$s</string>
+    <string name="rules_card_once">just once</string>
+    <string name="rules_card_stop">turns off when done</string>
+    <string name="rules_card_deadline">%1$d h before %2$s (from %3$s)</string>
+    <string name="rules_card_cheapest_day">%1$d cheapest h of the day</string>
+    <string name="rules_card_window_hours">%1$d h in %2$s</string>
+    <string name="rules_card_cheapest_windows">%1$d cheapest h · %2$s</string>
+    <string name="rules_card_price">Price ≤ %1$s</string>
+    <string name="rules_card_schedule">Every day %1$s</string>
+
+    <!-- Rule types -->
+    <string name="rules_type_cheapest_name">Cheapest hours</string>
+    <string name="rules_type_cheapest_desc">Turns the device on during the X cheapest hours of the day</string>
+    <string name="rules_type_deadline_name">Ready by a set time</string>
+    <string name="rules_type_deadline_desc">Picks the cheapest hours so it\'s ready by the time you choose, like the car charged by 8:00</string>
+    <string name="rules_type_threshold_name">Price threshold</string>
+    <string name="rules_type_threshold_desc">Turns on during the hours when the price is at or below the one you choose</string>
+    <string name="rules_type_schedule_name">Time window</string>
+    <string name="rules_type_schedule_desc">Turns on every day during a fixed time window, regardless of the price</string>
+    <string name="rules_type_manual_name">Manual</string>
+    <string name="rules_type_manual_desc">Manual control with no automation</string>
+
+    <!-- Add / edit rule -->
+    <string name="rules_error_not_found">Rule not found</string>
+    <string name="rules_ai_title">Describe it in words</string>
+    <string name="rules_ai_paid">Paid</string>
+    <string name="rules_ai_premium_info">Say what you want, for example “charge the scooter for 4 hours before 8”, and the rule fills itself in. It\'s a premium plan feature you can turn on from your account.</string>
+    <string name="rules_ai_info">Say what you want and the rule fills itself in. Check it before creating it.</string>
+    <string name="rules_ai_placeholder">Charge the scooter for 4 hours before 8</string>
+    <string name="rules_ai_propose">Suggest</string>
+    <plurals name="rules_usage_typical">
+        <item quantity="one">Based on its consumption the last time, it usually finishes in %2$s: %3$d h is enough.</item>
+        <item quantity="other">Based on its consumption the last %1$d times, it usually finishes in %2$s: %3$d h is enough.</item>
+    </plurals>
+    <string name="rules_usage_thermostat">It turns on and off by itself (it probably has a thermostat): there\'s no way to tell how many hours it needs.</string>
+    <string name="rules_usage_unfinished">Sometimes it was switched off before finishing: it may need more hours.</string>
+    <string name="rules_usage_learning">Once it has finished a few times, you\'ll see how many hours it needs.</string>
+    <string name="rules_usage_apply">Use %1$d h</string>
+    <plurals name="rules_summary_cheapest_day">
+        <item quantity="one">It will turn on during the cheapest hour of each day.</item>
+        <item quantity="other">It will turn on during the %1$d cheapest hours of each day.</item>
+    </plurals>
+    <plurals name="rules_summary_cheapest_day_once">
+        <item quantity="one">This time it will turn on during the cheapest hour of the day.</item>
+        <item quantity="other">This time it will turn on during the %1$d cheapest hours of the day.</item>
+    </plurals>
+    <string name="rules_summary_per_window">It will turn on %1$s, always picking the cheapest hours in each window.</string>
+    <string name="rules_summary_per_window_once">This time it will turn on %1$s, always picking the cheapest hours in each window.</string>
+    <string name="rules_summary_window_item">%1$d h between %2$s</string>
+    <plurals name="rules_summary_cheapest_total">
+        <item quantity="one">It will turn on during the cheapest hour across %2$s.</item>
+        <item quantity="other">It will turn on during the %1$d cheapest hours across %2$s. They may all fall in the same window if it\'s the cheapest.</item>
+    </plurals>
+    <plurals name="rules_summary_cheapest_total_once">
+        <item quantity="one">This time it will turn on during the cheapest hour across %2$s.</item>
+        <item quantity="other">This time it will turn on during the %1$d cheapest hours across %2$s. They may all fall in the same window if it\'s the cheapest.</item>
+    </plurals>
+    <string name="rules_list_and">" and "</string>
+    <string name="rules_error_overlap">Windows can\'t overlap</string>
+    <string name="rules_error_windows_too_short">The windows add up to %1$d h: %2$d h won\'t fit</string>
+    <string name="rules_error_deadline_too_short">There are only %3$d h between %1$s and %2$s</string>
+    <string name="rules_error_invalid_price">Enter a valid price, for example 0.12</string>
+    <string name="rules_error_no_windows">Add at least one window</string>
+    <string name="rules_title_edit">Edit rule</string>
+    <string name="rules_title_new">New rule</string>
+    <string name="rules_back">Back</string>
+    <string name="rules_name_label">Rule name</string>
+    <string name="rules_device">Device</string>
+    <string name="rules_device_locked">To change the device, create a new rule</string>
+    <string name="rules_no_devices">No devices. Add an integration first.</string>
+    <string name="rules_select_device">Select a device</string>
+    <string name="rules_type_title">Rule type</string>
+    <string name="rules_config">Settings</string>
+    <string name="rules_windows_title">When it can turn on</string>
+    <string name="rules_windows_empty_any">No windows: any time of day</string>
+    <string name="rules_distribution_title">How the hours are picked</string>
+    <string name="rules_distribution_total">The cheapest across all windows</string>
+    <string name="rules_distribution_per_window">The cheapest in each window</string>
+    <string name="rules_hours_title">Number of hours</string>
+    <string name="rules_deadline_title">When it must be ready</string>
+    <string name="rules_deadline_ready_at">Ready by</string>
+    <string name="rules_deadline_start_at">Can start at</string>
+    <string name="rules_deadline_needed">Hours it needs</string>
+    <string name="rules_deadline_summary">Every day it will pick the %1$d cheapest h between %2$s and %3$s, so it will be done by %3$s.</string>
+    <string name="rules_deadline_summary_once">This time it will pick the %1$d cheapest h between %2$s and %3$s, so it will be done by %3$s.</string>
+    <string name="rules_deadline_pick_ready">Must be ready by</string>
+    <string name="rules_threshold_label">Price threshold (€/kWh)</string>
+    <string name="rules_threshold_summary">It will turn on during the hours when the price is %1$s or less</string>
+    <string name="rules_threshold_hint">Enter a price, for example 0.12</string>
+    <string name="rules_schedule_title">When it turns on</string>
+    <string name="rules_schedule_empty">Add the windows when it should turn on</string>
+    <string name="rules_schedule_summary">The device will turn on every day %1$s, whatever the price</string>
+    <string name="rules_manual_info">This rule has no automatic settings. You can control the device manually.</string>
+    <string name="rules_once_title">Just once</string>
+    <string name="rules_once_info">It will apply to the next window and then turn itself off.</string>
+    <string name="rules_stop_title">Turn off when done</string>
+    <string name="rules_stop_info">When consumption drops close to zero, it will turn off and won\'t use the remaining hours.</string>
+    <string name="rules_save_changes">Save changes</string>
+    <string name="rules_create">Create rule</string>
+
+    <!-- Time windows editor -->
+    <string name="rules_window_remove">Remove window %1$s</string>
+    <string name="rules_window_add">Add window</string>
+    <string name="rules_window_start">Window start</string>
+    <string name="rules_window_end">Window end</string>
+    <string name="rules_picker_info">Windows use whole hours, like electricity prices: %1$s will be used.</string>
+
+    <!-- Help -->
+    <string name="rules_help_what_means">What it means: %1$s</string>
+    <string name="rules_help_ok">Got it</string>
+    <string name="rules_help_type_text">• Cheapest hours: every day it picks the hours with the lowest price and only turns the device on during them. Good for charging a scooter or heating water.\n\n• Ready by a set time: like the previous one, but you tell it when it must be done (for example, the car charged by 8:00) and from what time it can start.\n\n• Price threshold: turns the device on in every hour when the price is at or below the one you choose. If no hour is cheap enough on a given day, it doesn\'t turn on.\n\n• Time window: turns the device on every day at the hours you choose, regardless of the price, like a timer.\n\n• Manual: does nothing by itself; the device is only controlled from the app.\n\nOutside the chosen hours, the app turns the device off.</string>
+    <string name="rules_help_windows_text">Windows limit the hours of the day when it can turn on. The allowed hours are shown in colour on the bar.\n\n• Tap the start or end time of a window to change it.\n• If the end is before the start (for example from 20:00 to 06:00), the window runs overnight.\n• The end hour isn\'t included: from 14:00 to 16:00 is 2 hours, 14:00 and 15:00.\n• They use whole hours because the electricity price changes every hour.\n• With no windows, it can pick any hour of the day.\n\nNext-day prices are published around 20:15. That\'s why an overnight window is only worked out once they are known, and nothing turns on before then.</string>
+    <string name="rules_help_distribution_text">• The cheapest across all: picks the cheapest hours looking at all the windows together. They may all fall in the same window if it\'s the cheapest.\nExample: 3 h between 14:00–16:00 and 20:00–06:00. If the night is cheaper, all 3 hours will be at night.\n\n• The cheapest in each window: each window has its own number of hours, and it always turns on in all of them.\nExample: 1 h in 14:00–16:00 and 4 h in 20:00–06:00. There will always be 1 h in the afternoon and 4 h at night, the cheapest of each.\n\nHours are picked per day, and an overnight window counts for the day it ends. With 14:00–16:00 and 20:00–06:00, each day they are split between the previous night and the afternoon.</string>
+    <string name="rules_help_hours_text">How many hours the device must be on each day. The cheapest ones are always picked.\n\nIf you edit the rule after it has already been on for some hours today, those hours count and only the remaining ones are looked for.</string>
+    <string name="rules_help_deadline_text">Every day it picks the cheapest hours between the time it can start and the time it must be ready.\n\nExample: the car gets home at 20:00, needs 4 hours of charging and must be charged by 8:00. It will pick the 4 cheapest hours between 20:00 and 8:00.\n\n• The deadline hour isn\'t included: by 8:00 it will be done.\n• If both times are the same, it can use the 24 hours before the deadline.\n• Next-day prices are published around 20:15: if the interval runs overnight, the hours are picked once they are known, and nothing turns on before then.</string>
+    <string name="rules_help_threshold_text">The device turns on in every hour when the price is at or below this value.\n\nIt\'s the same €/kWh price you see in the Prices tab. You can type it with a comma or a dot, for example 0.12.</string>
+    <string name="rules_help_once_text">The rule applies to the next window that hasn\'t ended yet, for example just tonight, and then turns itself off.\n\nUseful when you need something different from the usual just once: charging the car for a trip, running the washing machine before you get back...\n\nIf you turn it on again later, it will apply to the following window.</string>
+    <string name="rules_help_stop_text">The plug measures how much power the appliance uses. When it drops close to zero for 10 minutes (the scooter is charged, the water heater is hot), it turns off and won\'t turn on again until the next window.\n\nGood for chargers, water heaters, washing machines or dishwashers.\n\nDon\'t turn it on for appliances with a thermostat that stop and start by themselves, like a heater or a radiator: they would be switched off the first time they paused.\n\nOnly shown for plugs that measure consumption.</string>
+    <string name="rules_help_schedule_text">The device turns on every day during the windows you choose, even if the price is high, and turns off at the end time.\n\n• Tap the start or end time to change it.\n• If the end is before the start (for example from 22:00 to 06:00), the window runs overnight.\n• You can add several windows, for example in the morning and in the evening.</string>
+</resources>

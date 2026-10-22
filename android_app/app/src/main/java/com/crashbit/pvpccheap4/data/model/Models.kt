@@ -1,5 +1,7 @@
 package com.crashbit.pvpccheap4.data.model
 
+import androidx.annotation.StringRes
+import com.crashbit.pvpccheap4.R
 import com.google.gson.annotations.SerializedName
 
 // Auth models
@@ -52,11 +54,11 @@ data class GooglePurchaseRequest(
 data class ChangeZoneRequest(val zone: String)
 
 /** Price zones of the PVPC (Canàries is not served yet) */
-enum class Zone(val id: String, val displayName: String) {
-    PENINSULA("peninsula", "Península"),
-    BALEARS("balears", "Illes Balears"),
-    CEUTA("ceuta", "Ceuta"),
-    MELILLA("melilla", "Melilla");
+enum class Zone(val id: String, @StringRes val nameRes: Int) {
+    PENINSULA("peninsula", R.string.account_zone_peninsula),
+    BALEARS("balears", R.string.account_zone_balears),
+    CEUTA("ceuta", R.string.account_zone_ceuta),
+    MELILLA("melilla", R.string.account_zone_melilla);
 
     companion object {
         fun of(id: String) = entries.find { it.id == id } ?: PENINSULA
@@ -287,15 +289,7 @@ data class Alert(
     @SerializedName("failed_at")
     val failedAt: String,
     val error: String? = null
-) {
-    /** "No s'ha pogut apagar Enchufe caldera" */
-    val title: String
-        get() = "No s'ha pogut ${if (action == "turn_on") "encendre" else "apagar"} $deviceName"
-
-    /** "a les 01:00 (regla patinet)" */
-    val detail: String
-        get() = "A les ${failedAt.substringAfter('T').take(5)} del ${failedAt.take(10).split('-').reversed().joinToString("/")} · regla $ruleName"
-}
+)
 
 // Savings
 data class DeviceSavings(

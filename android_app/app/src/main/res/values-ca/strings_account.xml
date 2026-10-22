@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Zones -->
+    <string name="account_zone_peninsula">Península</string>
+    <string name="account_zone_balears">Illes Balears</string>
+    <string name="account_zone_ceuta">Ceuta</string>
+    <string name="account_zone_melilla">Melilla</string>
+
+    <!-- Common -->
+    <string name="account_cancel">Cancel·lar</string>
+    <string name="account_close">Tancar</string>
+    <string name="account_send">Enviar</string>
+    <string name="account_back">Enrere</string>
+    <string name="account_username">Usuari</string>
+    <string name="account_password">Contrasenya</string>
+    <string name="account_email">Correu electrònic</string>
+    <string name="account_privacy">Privacitat</string>
+    <string name="account_terms">Condicions</string>
+    <string name="account_passwords_mismatch">Les contrasenyes no coincideixen</string>
+
+    <!-- Login -->
+    <string name="account_login_subtitle">Automatitza els teus dispositius</string>
+    <string name="account_login">Entrar</string>
+    <string name="account_forgot_password">Has oblidat la contrasenya?</string>
+    <string name="account_no_account">No tens compte? Registra\'t</string>
+    <string name="account_forgot_title">Recuperar la contrasenya</string>
+    <string name="account_forgot_sent">Si hi ha un compte amb aquest correu verificat, t\'hi hem enviat un enllaç per posar una contrasenya nova. Caduca d\'aquí a una hora. Mira també la carpeta de correu brossa.</string>
+    <string name="account_forgot_text">Escriu el correu del teu compte i t\'enviarem un enllaç per posar una contrasenya nova.</string>
+    <string name="account_ok">Entesos</string>
+
+    <!-- Register -->
+    <string name="account_register_title">Crear compte</string>
+    <string name="account_register_subtitle">Registra\'t per començar</string>
+    <string name="account_register_email_hint">Per recuperar la contrasenya si l\'oblides</string>
+    <string name="account_confirm_password">Confirma contrasenya</string>
+    <string name="account_register">Registrar-se</string>
+    <string name="account_register_terms_notice">En crear el compte acceptes les condicions d\'ús i la política de privacitat.</string>
+    <string name="account_have_account">Ja tens compte? Entra</string>
+
+    <!-- Account screen -->
+    <string name="account_title">Compte</string>
+    <string name="account_signed_in">Sessió iniciada</string>
+    <string name="account_zone_changed">Ara fas servir els preus de %1$s</string>
+    <string name="account_email_verification_sent">T\'hem enviat un correu per verificar-lo</string>
+    <string name="account_password_changed">Contrasenya canviada</string>
+    <string name="account_alerts_title">Avisos</string>
+    <string name="account_alerts_on">T\'avisarem si un endoll no s\'ha pogut encendre o apagar després dels reintents.</string>
+    <string name="account_alerts_off">Les notificacions estan desactivades: no sabràs si un endoll es queda encès o apagat per error.</string>
+    <string name="account_enable_notifications">Activar les notificacions</string>
+    <string name="account_email_title">Correu</string>
+    <string name="account_email_missing">Afegeix-hi el teu correu: és l\'única manera de recuperar la contrasenya si l\'oblides.</string>
+    <string name="account_email_verified">%1$s · verificat. Si oblides la contrasenya, t\'hi enviarem l\'enllaç per canviar-la.</string>
+    <string name="account_email_pending">%1$s · pendent de verificar. Obre l\'enllaç que t\'hem enviat (mira també el correu brossa).</string>
+    <string name="account_email_add">Afegir el correu</string>
+    <string name="account_email_change">Canviar el correu</string>
+    <string name="account_email_resend">Tornar a enviar o canviar</string>
+    <string name="account_zone_title">Zona</string>
+    <string name="account_zone_text">%1$s. Els preus de Ceuta i Melilla són diferents en algunes hores; les Balears tenen els mateixos que la Península.</string>
+    <string name="account_zone_change">Canviar la zona</string>
+    <string name="account_security_title">Seguretat</string>
+    <string name="account_security_text">Canvia la contrasenya amb què entres a l\'app. Es tancarà la sessió als altres mòbils.</string>
+    <string name="account_change_password">Canviar la contrasenya</string>
+    <string name="account_session_title">Sessió</string>
+    <string name="account_session_text">Les regles continuen funcionant encara que tanquis la sessió.</string>
+    <string name="account_logout">Tancar la sessió</string>
+    <string name="account_privacy_text">Quines dades guardem, per a què i quins drets tens.</string>
+    <string name="account_delete_title">Esborrar el compte</string>
+    <string name="account_delete_text">Esborra el compte i tot el que hi ha: integracions, dispositius, regles i historial. No es pot desfer.</string>
+    <string name="account_logout_dialog_text">Les regles continuaran encenent i apagant els endolls. Per tornar a entrar et caldrà la contrasenya.</string>
+    <string name="account_zone_dialog_title">On ets?</string>
+    <string name="account_zone_canaries">Les Canàries encara no hi són.</string>
+
+    <!-- Plan -->
+    <string name="account_plan_per_month">%1$s/mes</string>
+    <string name="account_plan_per_year">%1$s/any</string>
+    <string name="account_plan_premium">Pla prèmium</string>
+    <string name="account_plan_free">Pla gratuït</string>
+    <string name="account_plan_premium_renews">Regles il·limitades i regles amb paraules. Es renova el %1$s; ho pots cancel·lar a Google Play.</string>
+    <string name="account_plan_premium_text">Regles il·limitades i regles amb paraules.</string>
+    <string name="account_plan_free_text">Fins a %1$d regles. Amb el pla prèmium en tindràs tantes com vulguis i podràs escriure-les amb paraules.</string>
+    <string name="account_purchases_unavailable">Les compres encara no estan disponibles. Instal·la l\'app des de Google Play.</string>
+    <string name="account_restore_purchases">Restaurar les compres</string>
+
+    <!-- Dialogs -->
+    <string name="account_current_password">Contrasenya actual</string>
+    <string name="account_new_password">Contrasenya nova</string>
+    <string name="account_repeat_new_password">Repeteix la contrasenya nova</string>
+    <string name="account_min_8_chars">Almenys 8 caràcters</string>
+    <string name="account_change">Canviar</string>
+    <string name="account_email_dialog_title">Correu del compte</string>
+    <string name="account_email_dialog_text">T\'hi enviarem un enllaç per verificar-lo. Escriu la contrasenya per confirmar el canvi.</string>
+    <string name="account_delete_dialog_text">S\'esborraran per sempre les integracions, els dispositius, les regles i l\'historial. Els endolls que una regla tingui encesos ara s\'apagaran. Escriu la contrasenya per confirmar-ho.</string>
+    <string name="account_delete">Esborrar</string>
+
+    <!-- Errors from the server -->
+    <string name="account_error_connection">No hi ha accés al servei del núvol de PVPCCheap</string>
+    <string name="account_error_network">Error de xarxa</string>
+    <string name="account_error_login">No s\'ha pogut entrar</string>
+    <string name="account_error_bad_credentials">Usuari o contrasenya incorrectes</string>
+    <string name="account_error_login_code">No s\'ha pogut entrar (error %1$d)</string>
+    <string name="account_error_email_taken">Aquest correu ja té un compte</string>
+    <string name="account_error_username_taken">Aquest nom d\'usuari ja existeix</string>
+    <string name="account_error_email_invalid">El correu no és vàlid</string>
+    <string name="account_error_password_short">La contrasenya ha de tenir almenys 8 caràcters</string>
+    <string name="account_error_register_code">No s\'ha pogut crear el compte (error %1$d)</string>
+    <string name="account_error_read_account">No s\'ha pogut llegir el compte</string>
+    <string name="account_error_wrong_password">La contrasenya no és correcta</string>
+    <string name="account_error_email_other_account">Aquest correu ja té un altre compte</string>
+    <string name="account_error_save_email">No s\'ha pogut desar el correu</string>
+    <string name="account_error_change_zone">No s\'ha pogut canviar la zona</string>
+    <string name="account_error_mail_unavailable">Ara mateix no es poden enviar correus</string>
+    <string name="account_error_send_mail">No s\'ha pogut enviar el correu</string>
+    <string name="account_error_wrong_current_password">La contrasenya actual no és correcta</string>
+    <string name="account_error_new_password_short">La contrasenya nova ha de tenir almenys 8 caràcters</string>
+    <string name="account_error_change_password">No s\'ha pogut canviar la contrasenya</string>
+    <string name="account_error_delete_account">No s\'ha pogut esborrar el compte</string>
+    <string name="account_error_get_user">No s\'ha pogut obtenir l\'usuari</string>
+
+    <!-- Billing -->
+    <string name="account_billing_failed">No s\'ha pogut completar la compra</string>
+    <string name="account_billing_unavailable">Google Play no està disponible</string>
+    <string name="account_billing_no_purchases">No hi ha cap compra en aquest compte de Google</string>
+    <string name="account_billing_pending">El pagament està pendent. S\'activarà quan es completi.</string>
+    <string name="account_billing_success">Ja ets prèmium. Gràcies!</string>
+    <string name="account_billing_activation_failed">S\'ha pagat, però no s\'ha pogut activar. Torna-ho a provar amb «Restaurar les compres».</string>
+</resources>

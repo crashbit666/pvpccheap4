@@ -3,6 +3,11 @@ package com.crashbit.pvpccheap4.ui.screens.rules
 import com.crashbit.pvpccheap4.ui.formatPrice
 import com.crashbit.pvpccheap4.R
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -100,6 +105,7 @@ data class AddRuleUiState(
 class AddRuleViewModel @Inject constructor(
     private val deviceRepository: DeviceRepository,
     private val authRepository: AuthRepository,
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -156,7 +162,7 @@ class AddRuleViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         editingRule = rule,
                         isLoadingRule = false,
-                        error = if (rule == null) "No s'ha trobat la regla" else null
+                        error = if (rule == null) context.getString(R.string.rules_error_not_found) else null
                     )
                 }
                 is Result.Error -> {
@@ -238,10 +244,10 @@ private fun WriteInWords(isPremium: Boolean, isDrafting: Boolean, message: Strin
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Escriu-la amb paraules", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.rules_ai_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 if (!isPremium) {
                     Text(
-                        "Pagament",
+                        stringResource(R.string.rules_ai_paid),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer,
                         modifier = Modifier
@@ -253,15 +259,14 @@ private fun WriteInWords(isPremium: Boolean, isDrafting: Boolean, message: Strin
             Spacer(modifier = Modifier.height(4.dp))
             if (!isPremium) {
                 Text(
-                    "Explica què vols, per exemple «carrega el patinet 4 hores abans de les 8», i la regla s'omple sola. " +
-                        "És una opció del pla prèmium, que pots activar des del teu compte.",
+                    stringResource(R.string.rules_ai_premium_info),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 return@Column
             }
             Text(
-                "Explica què vols i la regla s'omple sola. Revisa-la abans de crear-la.",
+                stringResource(R.string.rules_ai_info),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -269,7 +274,7 @@ private fun WriteInWords(isPremium: Boolean, isDrafting: Boolean, message: Strin
             OutlinedTextField(
                 value = text,
                 onValueChange = { if (it.length <= 500) text = it },
-                placeholder = { Text("Carrega el patinet 4 hores abans de les 8") },
+                placeholder = { Text(stringResource(R.string.rules_ai_placeholder)) },
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -288,7 +293,7 @@ private fun WriteInWords(isPremium: Boolean, isDrafting: Boolean, message: Strin
                     if (isDrafting) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(20.dp))
                     } else {
-                        Text("Proposa")
+                        Text(stringResource(R.string.rules_ai_propose))
                     }
                 }
             }
@@ -308,15 +313,13 @@ private fun formatMinutes(minutes: Int): String = when {
 private fun UsageHint(usage: DeviceUsage, hours: Int, max: Int, onApply: (Int) -> Unit) {
     val suggested = usage.suggestedHours
     val text = when {
-        suggested != null && usage.typicalMinutes != null ->
-            "Segons el que ha consumit les últimes ${usage.finishedRuns.coerceAtMost(10)} vegades, " +
-                "acostuma a acabar en ${formatMinutes(usage.typicalMinutes)}: en té prou amb $suggested h."
-        usage.finishedRuns >= 3 ->
-            "S'encén i s'apaga sol (deu tenir termòstat): no es pot saber quantes hores necessita."
-        usage.unfinishedRuns > 0 ->
-            "Algunes vegades s'ha apagat abans d'acabar: potser li calen més hores."
-        else ->
-            "Quan hagi acabat unes quantes vegades, et dirà quantes hores necessita."
+        suggested != null && usage.typicalMinutes != null -> {
+            val runs = usage.finishedRuns.coerceAtMost(10)
+            pluralStringResource(R.plurals.rules_usage_typical, runs, runs, formatMinutes(usage.typicalMinutes), suggested)
+        }
+        usage.finishedRuns >= 3 -> stringResource(R.string.rules_usage_thermostat)
+        usage.unfinishedRuns > 0 -> stringResource(R.string.rules_usage_unfinished)
+        else -> stringResource(R.string.rules_usage_learning)
     }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -326,7 +329,7 @@ private fun UsageHint(usage: DeviceUsage, hours: Int, max: Int, onApply: (Int) -
             modifier = Modifier.weight(1f)
         )
         if (suggested != null && suggested != hours && suggested <= max) {
-            TextButton(onClick = { onApply(suggested) }) { Text("Posa'n $suggested h") }
+            TextButton(onClick = { onApply(suggested) }) { Text(stringResource(R.string.rules_usage_apply, suggested)) }
         }
     }
 }
@@ -334,35 +337,41 @@ private fun UsageHint(usage: DeviceUsage, hours: Int, max: Int, onApply: (Int) -
 /** [apiType] is what the backend stores; a deadline is a cheapest_hours rule with goal "deadline" */
 enum class RuleType(
     val id: String,
-    val displayName: String,
-    val description: String,
+    @StringRes val displayName: Int,
+    @StringRes val description: Int,
     val apiType: String = id
 ) {
-    CHEAPEST_HOURS("cheapest_hours", "Hores més barates", "Encén el dispositiu durant les X hores més barates del dia"),
+    CHEAPEST_HOURS("cheapest_hours", R.string.rules_type_cheapest_name, R.string.rules_type_cheapest_desc),
     DEADLINE(
         "deadline",
-        "Llest abans d'una hora",
-        "Tria les hores més barates perquè estigui llest a l'hora que diguis, com el cotxe carregat a les 8:00",
+        R.string.rules_type_deadline_name,
+        R.string.rules_type_deadline_desc,
         apiType = "cheapest_hours"
     ),
-    PRICE_THRESHOLD("price_threshold", "Llindar de preu", "Encén les hores en què el preu és igual o més baix que el que triïs"),
-    TIME_SCHEDULE("time_schedule", "Franja horària", "Encén cada dia durant una franja horària fixa, sense mirar el preu"),
-    MANUAL("manual", "Manual", "Control manual sense automatització")
+    PRICE_THRESHOLD("price_threshold", R.string.rules_type_threshold_name, R.string.rules_type_threshold_desc),
+    TIME_SCHEDULE("time_schedule", R.string.rules_type_schedule_name, R.string.rules_type_schedule_desc),
+    MANUAL("manual", R.string.rules_type_manual_name, R.string.rules_type_manual_desc)
 }
 
 /** Accepts both "0,12" (Catalan keyboard) and "0.12". */
 private fun parsePrice(value: String) = value.trim().replace(',', '.').toDoubleOrNull()
 
-/** Plain-language description of what a cheapest_hours rule will do. */
-private fun cheapestSummary(windows: List<HourWindow>, perWindow: Boolean, hours: Int): String = when {
-    windows.isEmpty() ->
-        "S'encendrà les $hours hores més barates de cada dia."
-    perWindow ->
-        "S'encendrà " + windows.joinToString(", ") { "${it.hours.coerceAtMost(it.length)} h entre ${it.label}" } +
-            ", triant sempre les més barates de cada franja."
-    else ->
-        "S'encendrà les $hours hores més barates del conjunt ${windows.joinToString(" i ") { it.label }}. " +
-            "Poden caure totes a la mateixa franja si és la més barata."
+/** Plain-language description of what a cheapest_hours rule will do; [once] when it runs a single time. */
+@Composable
+private fun cheapestSummary(windows: List<HourWindow>, perWindow: Boolean, hours: Int, once: Boolean): String = when {
+    windows.isEmpty() -> pluralStringResource(
+        if (once) R.plurals.rules_summary_cheapest_day_once else R.plurals.rules_summary_cheapest_day,
+        hours, hours
+    )
+    perWindow -> stringResource(
+        if (once) R.string.rules_summary_per_window_once else R.string.rules_summary_per_window,
+        windows.map { stringResource(R.string.rules_summary_window_item, it.hours.coerceAtMost(it.length), it.label) }
+            .joinToString(", ")
+    )
+    else -> pluralStringResource(
+        if (once) R.plurals.rules_summary_cheapest_total_once else R.plurals.rules_summary_cheapest_total,
+        hours, hours, windows.joinToString(stringResource(R.string.rules_list_and)) { it.label }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -409,20 +418,20 @@ fun AddRuleScreen(
 
     val configError: String? = when (selectedRuleType) {
         RuleType.CHEAPEST_HOURS -> when {
-            cheapestWindows.overlap() -> "Les franges no es poden encavalcar"
+            cheapestWindows.overlap() -> stringResource(R.string.rules_error_overlap)
             !usePerWindow && cheapestWindows.isNotEmpty() && cheapestHours > windowHoursTotal ->
-                "Les franges sumen $windowHoursTotal h: no hi caben $cheapestHours h"
+                stringResource(R.string.rules_error_windows_too_short, windowHoursTotal, cheapestHours)
             else -> null
         }
         RuleType.DEADLINE ->
             if (deadlineHours > deadlineWindow.length)
-                "Entre les ${hh(deadlineFrom)} i les ${hh(deadlineAt)} només hi ha ${deadlineWindow.length} h"
+                stringResource(R.string.rules_error_deadline_too_short, hh(deadlineFrom), hh(deadlineAt), deadlineWindow.length)
             else null
         RuleType.PRICE_THRESHOLD ->
-            if (parsePrice(priceThreshold) == null) "Escriu un preu vàlid, per exemple 0,12" else null
+            if (parsePrice(priceThreshold) == null) stringResource(R.string.rules_error_invalid_price) else null
         RuleType.TIME_SCHEDULE -> when {
-            scheduleWindows.isEmpty() -> "Afegeix almenys una franja"
-            scheduleWindows.overlap() -> "Les franges no es poden encavalcar"
+            scheduleWindows.isEmpty() -> stringResource(R.string.rules_error_no_windows)
+            scheduleWindows.overlap() -> stringResource(R.string.rules_error_overlap)
             else -> null
         }
         RuleType.MANUAL -> null
@@ -442,6 +451,8 @@ fun AddRuleScreen(
     }
 
     val isEditing = uiState.editingRule != null || uiState.isLoadingRule
+    // Resolved here because the default rule name is built in a click handler
+    val selectedTypeName = stringResource(selectedRuleType.displayName)
 
     /** Puts [rule] in the form: the rule being edited, or one proposed from plain words */
     fun fill(rule: Rule) {
@@ -515,10 +526,10 @@ fun AddRuleScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEditing) "Editar regla" else "Nova regla") },
+                title = { Text(stringResource(if (isEditing) R.string.rules_title_edit else R.string.rules_title_new)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Enrere")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.rules_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -549,7 +560,7 @@ fun AddRuleScreen(
             OutlinedTextField(
                 value = ruleName,
                 onValueChange = { ruleName = it },
-                label = { Text("Nom de la regla") },
+                label = { Text(stringResource(R.string.rules_name_label)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth()
@@ -559,7 +570,7 @@ fun AddRuleScreen(
 
             // Device selector
             Text(
-                text = "Dispositiu",
+                text = stringResource(R.string.rules_device),
                 style = MaterialTheme.typography.titleMedium
             )
 
@@ -574,12 +585,12 @@ fun AddRuleScreen(
                     onValueChange = {},
                     readOnly = true,
                     enabled = false,
-                    supportingText = { Text("Per canviar de dispositiu, crea una regla nova") },
+                    supportingText = { Text(stringResource(R.string.rules_device_locked)) },
                     modifier = Modifier.fillMaxWidth()
                 )
             } else if (uiState.devices.isEmpty()) {
                 Text(
-                    text = "No hi ha dispositius. Afegeix una integració primer.",
+                    text = stringResource(R.string.rules_no_devices),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -589,7 +600,7 @@ fun AddRuleScreen(
                     onExpandedChange = { deviceDropdownExpanded = it }
                 ) {
                     OutlinedTextField(
-                        value = selectedDevice?.name ?: "Selecciona un dispositiu",
+                        value = selectedDevice?.name ?: stringResource(R.string.rules_select_device),
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = deviceDropdownExpanded) },
@@ -619,7 +630,7 @@ fun AddRuleScreen(
             // Rule type selector
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Tipus de regla",
+                    text = stringResource(R.string.rules_type_title),
                     style = MaterialTheme.typography.titleMedium
                 )
                 InfoButton(RuleHelp.ruleType)
@@ -647,11 +658,11 @@ fun AddRuleScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = ruleType.displayName,
+                                text = stringResource(ruleType.displayName),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Text(
-                                text = ruleType.description,
+                                text = stringResource(ruleType.description),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -664,7 +675,7 @@ fun AddRuleScreen(
 
             // Rule configuration based on type
             Text(
-                text = "Configuració",
+                text = stringResource(R.string.rules_config),
                 style = MaterialTheme.typography.titleMedium
             )
 
@@ -672,22 +683,22 @@ fun AddRuleScreen(
 
             when (selectedRuleType) {
                 RuleType.CHEAPEST_HOURS -> {
-                    SectionTitle("Quan pot encendre's", RuleHelp.windows)
+                    SectionTitle(stringResource(R.string.rules_windows_title), RuleHelp.windows)
                     Spacer(modifier = Modifier.height(8.dp))
                     TimeWindowsEditor(
                         windows = cheapestWindows,
                         onChange = { cheapestWindows = it },
                         perWindowHours = usePerWindow,
-                        emptyText = "Sense franges: qualsevol hora del dia"
+                        emptyText = stringResource(R.string.rules_windows_empty_any)
                     )
 
                     if (cheapestWindows.size > 1) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        SectionTitle("Com es trien les hores", RuleHelp.distribution)
+                        SectionTitle(stringResource(R.string.rules_distribution_title), RuleHelp.distribution)
                         Column(Modifier.selectableGroup()) {
                             listOf(
-                                false to "Les més barates entre totes les franges",
-                                true to "Les més barates de cada franja"
+                                false to stringResource(R.string.rules_distribution_total),
+                                true to stringResource(R.string.rules_distribution_per_window)
                             ).forEach { (value, label) ->
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -724,7 +735,7 @@ fun AddRuleScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                text = "Nombre d'hores",
+                                text = stringResource(R.string.rules_hours_title),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             InfoButton(RuleHelp.hours)
@@ -747,23 +758,22 @@ fun AddRuleScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = cheapestSummary(cheapestWindows, usePerWindow, cheapestHours)
-                            .let { if (once) it.replace(" de cada dia", " del dia").replace("S'encendrà", "Aquesta vegada s'encendrà") else it },
+                        text = cheapestSummary(cheapestWindows, usePerWindow, cheapestHours, once),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 RuleType.DEADLINE -> {
-                    SectionTitle("Quan ha d'estar llest", RuleHelp.deadline)
+                    SectionTitle(stringResource(R.string.rules_deadline_title), RuleHelp.deadline)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("Llest a les", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.rules_deadline_ready_at), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         OutlinedButton(onClick = { pickingDeadline = true }) {
                             Text(hh(deadlineAt), style = MaterialTheme.typography.titleMedium)
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("Pot començar a les", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.rules_deadline_start_at), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         OutlinedButton(onClick = { pickingDeadline = false }) {
                             Text(hh(deadlineFrom), style = MaterialTheme.typography.titleMedium)
                         }
@@ -772,7 +782,7 @@ fun AddRuleScreen(
                     DayBar(listOf(deadlineWindow))
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("Hores que necessita", style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.rules_deadline_needed), style = MaterialTheme.typography.bodyLarge)
                         InfoButton(RuleHelp.hours)
                         Spacer(modifier = Modifier.weight(1f))
                         HoursStepper(
@@ -786,14 +796,16 @@ fun AddRuleScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "${if (once) "Aquesta vegada" else "Cada dia"} triarà les $deadlineHours h més barates entre les ${hh(deadlineFrom)} " +
-                            "i les ${hh(deadlineAt)}, de manera que a les ${hh(deadlineAt)} ja haurà acabat.",
+                        text = stringResource(
+                            if (once) R.string.rules_deadline_summary_once else R.string.rules_deadline_summary,
+                            deadlineHours, hh(deadlineFrom), hh(deadlineAt)
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     pickingDeadline?.let { isReadyTime ->
                         HourPickerDialog(
-                            title = if (isReadyTime) "Ha d'estar llest a les" else "Pot començar a les",
+                            title = stringResource(if (isReadyTime) R.string.rules_deadline_pick_ready else R.string.rules_deadline_start_at),
                             initialHour = if (isReadyTime) deadlineAt else deadlineFrom,
                             onDismiss = { pickingDeadline = null },
                             onConfirm = { hour ->
@@ -809,7 +821,7 @@ fun AddRuleScreen(
                     OutlinedTextField(
                         value = priceThreshold,
                         onValueChange = { priceThreshold = it },
-                        label = { Text("Llindar de preu (€/kWh)") },
+                        label = { Text(stringResource(R.string.rules_threshold_label)) },
                         trailingIcon = { InfoButton(RuleHelp.threshold) },
                         singleLine = true,
                         isError = parsePrice(priceThreshold) == null,
@@ -822,26 +834,28 @@ fun AddRuleScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = parsePrice(priceThreshold)?.let {
-                            "S'encendrà les hores en què el preu sigui de ${formatPrice(it)} o menys"
-                        } ?: "Escriu un preu, per exemple 0,12",
+                            stringResource(R.string.rules_threshold_summary, formatPrice(it))
+                        } ?: stringResource(R.string.rules_threshold_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 RuleType.TIME_SCHEDULE -> {
-                    SectionTitle("Quan s'encén", RuleHelp.schedule)
+                    SectionTitle(stringResource(R.string.rules_schedule_title), RuleHelp.schedule)
                     Spacer(modifier = Modifier.height(8.dp))
                     TimeWindowsEditor(
                         windows = scheduleWindows,
                         onChange = { scheduleWindows = it },
                         perWindowHours = false,
-                        emptyText = "Afegeix les franges en què s'ha d'encendre"
+                        emptyText = stringResource(R.string.rules_schedule_empty)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = if (scheduleWindows.isEmpty()) "" else
-                            "El dispositiu s'encendrà cada dia ${scheduleWindows.joinToString(" i ") { it.label }}, sigui quin sigui el preu",
+                        text = if (scheduleWindows.isEmpty()) "" else stringResource(
+                            R.string.rules_schedule_summary,
+                            scheduleWindows.joinToString(stringResource(R.string.rules_list_and)) { it.label }
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -849,7 +863,7 @@ fun AddRuleScreen(
 
                 RuleType.MANUAL -> {
                     Text(
-                        text = "Aquesta regla no té configuració automàtica. Podràs controlar el dispositiu manualment.",
+                        text = stringResource(R.string.rules_manual_info),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -861,11 +875,11 @@ fun AddRuleScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Només un cop", style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.rules_once_title), style = MaterialTheme.typography.titleSmall)
                             InfoButton(RuleHelp.once)
                         }
                         Text(
-                            "S'aplicarà a la propera franja i després es desactivarà.",
+                            stringResource(R.string.rules_once_info),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -879,11 +893,11 @@ fun AddRuleScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Apagar quan hagi acabat", style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.rules_stop_title), style = MaterialTheme.typography.titleSmall)
                             InfoButton(RuleHelp.stopWhenDone)
                         }
                         Text(
-                            "Quan el consum baixi gairebé a zero, s'apagarà i no gastarà les hores que quedin.",
+                            stringResource(R.string.rules_stop_info),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -931,7 +945,7 @@ fun AddRuleScreen(
                         }
 
                         val rule = Rule(
-                            name = ruleName.ifBlank { "${selectedRuleType.displayName} - ${device.name}" },
+                            name = ruleName.ifBlank { "$selectedTypeName - ${device.name}" },
                             deviceId = device.id.toIntOrNull() ?: 0,
                             ruleType = selectedRuleType.apiType,
                             action = "turn_on",
@@ -954,7 +968,7 @@ fun AddRuleScreen(
                         modifier = Modifier.height(20.dp)
                     )
                 } else {
-                    Text(if (isEditing) "Desar canvis" else "Crear regla")
+                    Text(stringResource(if (isEditing) R.string.rules_save_changes else R.string.rules_create))
                 }
             }
         }

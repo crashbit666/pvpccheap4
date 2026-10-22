@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Devices screen -->
+    <string name="devices_title">Dispositivos</string>
+    <string name="devices_sync">Sincronizar</string>
+    <string name="devices_account">Cuenta</string>
+    <string name="devices_add_integration">Añadir integración</string>
+    <string name="devices_integrations">Integraciones</string>
+    <string name="devices_press_sync">Pulsa el botón de sincronizar para descubrir dispositivos</string>
+    <string name="devices_alert_check_wifi">%1$s. Comprueba que el enchufe esté conectado a la wifi.</string>
+    <string name="devices_delete_integration_title">Eliminar %1$s</string>
+    <plurals name="devices_delete_integration_text">
+        <item quantity="one">Se quitará de la app su %1$d dispositivo y todas las reglas que lo controlan. Los enchufes no se borran de %2$s, pero la app ya no los encenderá ni apagará.</item>
+        <item quantity="many">Se quitarán de la app sus %1$d dispositivos y todas las reglas que los controlan. Los enchufes no se borran de %2$s, pero la app ya no los encenderá ni apagará.</item>
+        <item quantity="other">Se quitarán de la app sus %1$d dispositivos y todas las reglas que los controlan. Los enchufes no se borran de %2$s, pero la app ya no los encenderá ni apagará.</item>
+    </plurals>
+    <string name="devices_delete">Eliminar</string>
+    <string name="devices_cancel">Cancelar</string>
+    <string name="devices_integration_active">Activa</string>
+    <string name="devices_integration_inactive">Inactiva</string>
+    <string name="devices_mode_manual">Manual</string>
+    <string name="devices_mode_automatic">Automático · %1$s</string>
+    <string name="devices_measures_power">%1$s · mide el consumo</string>
+    <string name="devices_empty_title">Ningún dispositivo configurado</string>
+    <string name="devices_empty_text">Añade una integración para sincronizar tus dispositivos</string>
+    <string name="devices_connection_error_title">No hay acceso al servicio</string>
+    <string name="devices_connection_error_text">No se ha podido conectar con la nube de PVPCCheap. Comprueba tu conexión a internet.</string>
+    <string name="devices_retry">Volver a intentarlo</string>
+
+    <!-- Devices view model -->
+    <string name="devices_no_integrations">No hay integraciones configuradas</string>
+    <string name="devices_sync_error">Error al sincronizar %1$s: %2$s</string>
+    <string name="devices_sync_done">Sincronizados: %1$s (%2$s)</string>
+    <plurals name="devices_sync_count">
+        <item quantity="one">%d dispositivo</item>
+        <item quantity="many">%d dispositivos</item>
+        <item quantity="other">%d dispositivos</item>
+    </plurals>
+    <plurals name="devices_sync_new">
+        <item quantity="one">%d nuevo</item>
+        <item quantity="many">%d nuevos</item>
+        <item quantity="other">%d nuevos</item>
+    </plurals>
+
+    <!-- Savings -->
+    <string name="devices_savings_this_month">Este mes</string>
+    <string name="devices_savings_saved">Has ahorrado %1$s</string>
+    <string name="devices_savings_overpaid">Has pagado %1$s de más</string>
+    <string name="devices_savings_cheaper">%1$s más barato que la media</string>
+    <string name="devices_savings_dearer">%1$s más caro que la media</string>
+    <plurals name="devices_savings_hours_on">
+        <item quantity="one">%d h encendida</item>
+        <item quantity="many">%d h encendidas</item>
+        <item quantity="other">%d h encendidas</item>
+    </plurals>
+    <string name="devices_savings_below_average">%1$s, %2$s por debajo del precio medio del día</string>
+    <string name="devices_savings_above_average">%1$s, %2$s por encima del precio medio del día</string>
+    <string name="devices_savings_paid">%1$s · has pagado %2$s</string>
+    <string name="devices_savings_all_measured">Con el consumo que han medido los enchufes.</string>
+    <string name="devices_savings_partly_measured">Con el consumo medido en %1$d de %2$d h; el resto, con la potencia indicada.</string>
+    <string name="devices_savings_set_power">Toca un dispositivo e indica su potencia para verlo en euros.</string>
+
+    <!-- Device power dialog -->
+    <string name="devices_power_title">Potencia de %1$s</string>
+    <string name="devices_power_text">Cuántos vatios usa el aparato cuando está encendido. Lo encontrarás en la etiqueta o en el manual. Sirve para calcular cuántos euros ahorras.</string>
+    <string name="devices_power_measured">Este enchufe mide el consumo: el ahorro usa lo que mide. La potencia que indiques solo se usará en las horas que no se haya podido medir.</string>
+    <string name="devices_power_label">Potencia (W)</string>
+    <string name="devices_power_typical">Valores típicos</string>
+    <string name="devices_save">Guardar</string>
+    <string name="devices_appliance_water_heater">Termo eléctrico</string>
+    <string name="devices_appliance_heater">Estufa o radiador</string>
+    <string name="devices_appliance_electric_car">Coche eléctrico</string>
+    <string name="devices_appliance_scooter">Patinete o bicicleta</string>
+    <string name="devices_appliance_washing_machine">Lavadora</string>
+    <string name="devices_appliance_dishwasher">Lavavajillas</string>
+    <string name="devices_appliance_air_conditioning">Aire acondicionado</string>
+    <string name="devices_appliance_dehumidifier">Deshumidificador</string>
+
+    <!-- Add integration -->
+    <string name="devices_back">Atrás</string>
+    <string name="devices_select_provider">Selecciona el proveedor</string>
+    <string name="devices_credentials_of">Credenciales de %1$s</string>
+    <string name="devices_credentials_footer">Las credenciales se usan para conectar con el servicio del proveedor y descubrir tus dispositivos. Si ya lo habías añadido, solo se actualizan las credenciales: los dispositivos y las reglas se mantienen.</string>
+    <string name="devices_field_email">Correo electrónico</string>
+    <string name="devices_field_password">Contraseña</string>
+    <string name="devices_field_ha_url">Dirección de Home Assistant</string>
+    <string name="devices_field_ha_token">Token de acceso</string>
+    <string name="devices_help_meross">El correo y la contraseña de tu cuenta de la app de Meross.</string>
+    <string name="devices_help_home_assistant">Sirve para cualquier enchufe o luz que tengas en Home Assistant (Shelly, Tuya, Zigbee...). La dirección debe ser accesible desde Internet, por ejemplo la de Home Assistant Cloud. El token se crea en Home Assistant: tu perfil → Seguridad → Tokens de acceso de larga duración → Crear token.</string>
+
+    <!-- Repository errors -->
+    <string name="devices_error_load_alerts">No se han podido cargar los avisos</string>
+    <string name="devices_error_save_power">No se ha podido guardar la potencia</string>
+    <string name="devices_error_savings">No se ha podido calcular el ahorro</string>
+    <string name="devices_error_load_integrations">No se han podido cargar las integraciones</string>
+    <string name="devices_error_ha_unreachable">No se ha podido conectar con Home Assistant. Comprueba que la dirección es accesible desde Internet</string>
+    <string name="devices_error_provider_unreachable">No se ha podido conectar con el proveedor. Vuelve a intentarlo más tarde</string>
+    <string name="devices_error_ha_invalid_url">La dirección no es válida: debe empezar por https:// y ser accesible desde Internet</string>
+    <string name="devices_error_ha_token">Home Assistant no ha aceptado el token. Revísalo</string>
+    <string name="devices_error_add_integration">No se ha podido añadir la integración. Revisa el correo y la contraseña</string>
+    <string name="devices_error_delete_integration">No se ha podido eliminar la integración</string>
+    <string name="devices_error_load_devices">No se han podido cargar los dispositivos</string>
+    <string name="devices_error_sync_devices">No se han podido sincronizar los dispositivos</string>
+    <string name="devices_error_control">No se ha podido controlar el dispositivo</string>
+    <string name="devices_error_device_state">No se ha podido leer el estado del dispositivo</string>
+    <string name="devices_error_device_usage">No se ha podido leer el consumo del dispositivo</string>
+    <string name="devices_error_draft_premium">Escribir las reglas con palabras es una opción de pago</string>
+    <string name="devices_error_draft_limit">Hoy ya has pedido muchas propuestas. Mañana podrás pedir más.</string>
+    <string name="devices_error_draft_no_reply">El asistente no ha respondido. Vuelve a intentarlo.</string>
+    <string name="devices_error_draft_unavailable">Ahora mismo no está disponible</string>
+    <string name="devices_error_draft">No se ha podido proponer la regla</string>
+    <string name="devices_error_load_rules">No se han podido cargar las reglas</string>
+    <string name="devices_error_create_rule">No se ha podido crear la regla</string>
+    <string name="devices_error_update_rule">No se ha podido actualizar la regla</string>
+    <string name="devices_error_delete_rule">No se ha podido eliminar la regla</string>
+    <string name="devices_error_toggle_rule">No se ha podido cambiar la regla</string>
+    <string name="devices_error_load_schedule">No se ha podido cargar el horario</string>
+    <string name="devices_error_rule_limit">El plan gratuito tiene 4 reglas. Hazte prémium desde tu cuenta para tener más.</string>
+    <string name="devices_error_with_detail">%1$s: %2$s</string>
+
+    <!-- Alerts -->
+    <string name="devices_alert_title_on">No se ha podido encender %1$s</string>
+    <string name="devices_alert_title_off">No se ha podido apagar %1$s</string>
+    <string name="devices_alert_detail">A las %1$s del %2$s · regla %3$s</string>
+    <string name="devices_alerts_channel_name">Avisos de los dispositivos</string>
+    <string name="devices_alerts_channel_description">Cuando un enchufe no se ha podido encender o apagar</string>
+</resources>

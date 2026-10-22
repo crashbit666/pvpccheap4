@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Rules list -->
+    <string name="rules_title">Reglas</string>
+    <string name="rules_add">Añadir regla</string>
+    <string name="rules_delete_title">Eliminar regla</string>
+    <string name="rules_delete_confirm">¿Seguro que quieres eliminar la regla \"%1$s\"?</string>
+    <string name="rules_delete">Eliminar</string>
+    <string name="rules_cancel">Cancelar</string>
+    <string name="rules_ok">Aceptar</string>
+    <string name="rules_empty_title">No hay reglas configuradas</string>
+    <string name="rules_empty_text">Crea reglas para automatizar tus dispositivos según el precio de la luz</string>
+    <string name="rules_card_once_date">solo el %1$s/%2$s</string>
+    <string name="rules_card_once">una sola vez</string>
+    <string name="rules_card_stop">se apaga al terminar</string>
+    <string name="rules_card_deadline">%1$d h antes de las %2$s (desde las %3$s)</string>
+    <string name="rules_card_cheapest_day">%1$d h más baratas del día</string>
+    <string name="rules_card_window_hours">%1$d h en %2$s</string>
+    <string name="rules_card_cheapest_windows">%1$d h más baratas · %2$s</string>
+    <string name="rules_card_price">Precio ≤ %1$s</string>
+    <string name="rules_card_schedule">Cada día %1$s</string>
+
+    <!-- Rule types -->
+    <string name="rules_type_cheapest_name">Horas más baratas</string>
+    <string name="rules_type_cheapest_desc">Enciende el dispositivo durante las X horas más baratas del día</string>
+    <string name="rules_type_deadline_name">Listo antes de una hora</string>
+    <string name="rules_type_deadline_desc">Elige las horas más baratas para que esté listo a la hora que digas, como el coche cargado a las 8:00</string>
+    <string name="rules_type_threshold_name">Umbral de precio</string>
+    <string name="rules_type_threshold_desc">Enciende en las horas en que el precio es igual o más bajo que el que elijas</string>
+    <string name="rules_type_schedule_name">Franja horaria</string>
+    <string name="rules_type_schedule_desc">Enciende cada día durante una franja horaria fija, sin mirar el precio</string>
+    <string name="rules_type_manual_name">Manual</string>
+    <string name="rules_type_manual_desc">Control manual sin automatización</string>
+
+    <!-- Add / edit rule -->
+    <string name="rules_error_not_found">No se ha encontrado la regla</string>
+    <string name="rules_ai_title">Escríbela con palabras</string>
+    <string name="rules_ai_paid">De pago</string>
+    <string name="rules_ai_premium_info">Explica qué quieres, por ejemplo «carga el patinete 4 horas antes de las 8», y la regla se rellena sola. Es una opción del plan prémium, que puedes activar desde tu cuenta.</string>
+    <string name="rules_ai_info">Explica qué quieres y la regla se rellena sola. Revísala antes de crearla.</string>
+    <string name="rules_ai_placeholder">Carga el patinete 4 horas antes de las 8</string>
+    <string name="rules_ai_propose">Proponer</string>
+    <plurals name="rules_usage_typical">
+        <item quantity="one">Según lo que consumió la última vez, suele terminar en %2$s: le bastan %3$d h.</item>
+        <item quantity="other">Según lo que ha consumido las últimas %1$d veces, suele terminar en %2$s: le bastan %3$d h.</item>
+    </plurals>
+    <string name="rules_usage_thermostat">Se enciende y se apaga solo (debe de tener termostato): no se puede saber cuántas horas necesita.</string>
+    <string name="rules_usage_unfinished">Algunas veces se ha apagado antes de terminar: quizá necesite más horas.</string>
+    <string name="rules_usage_learning">Cuando haya terminado unas cuantas veces, te dirá cuántas horas necesita.</string>
+    <string name="rules_usage_apply">Poner %1$d h</string>
+    <plurals name="rules_summary_cheapest_day">
+        <item quantity="one">Se encenderá en la hora más barata de cada día.</item>
+        <item quantity="other">Se encenderá en las %1$d horas más baratas de cada día.</item>
+    </plurals>
+    <plurals name="rules_summary_cheapest_day_once">
+        <item quantity="one">Esta vez se encenderá en la hora más barata del día.</item>
+        <item quantity="other">Esta vez se encenderá en las %1$d horas más baratas del día.</item>
+    </plurals>
+    <string name="rules_summary_per_window">Se encenderá %1$s, eligiendo siempre las más baratas de cada franja.</string>
+    <string name="rules_summary_per_window_once">Esta vez se encenderá %1$s, eligiendo siempre las más baratas de cada franja.</string>
+    <string name="rules_summary_window_item">%1$d h entre %2$s</string>
+    <plurals name="rules_summary_cheapest_total">
+        <item quantity="one">Se encenderá en la hora más barata del conjunto %2$s.</item>
+        <item quantity="other">Se encenderá en las %1$d horas más baratas del conjunto %2$s. Pueden caer todas en la misma franja si es la más barata.</item>
+    </plurals>
+    <plurals name="rules_summary_cheapest_total_once">
+        <item quantity="one">Esta vez se encenderá en la hora más barata del conjunto %2$s.</item>
+        <item quantity="other">Esta vez se encenderá en las %1$d horas más baratas del conjunto %2$s. Pueden caer todas en la misma franja si es la más barata.</item>
+    </plurals>
+    <string name="rules_list_and">" y "</string>
+    <string name="rules_error_overlap">Las franjas no se pueden solapar</string>
+    <string name="rules_error_windows_too_short">Las franjas suman %1$d h: no caben %2$d h</string>
+    <string name="rules_error_deadline_too_short">Entre las %1$s y las %2$s solo hay %3$d h</string>
+    <string name="rules_error_invalid_price">Escribe un precio válido, por ejemplo 0,12</string>
+    <string name="rules_error_no_windows">Añade al menos una franja</string>
+    <string name="rules_title_edit">Editar regla</string>
+    <string name="rules_title_new">Nueva regla</string>
+    <string name="rules_back">Atrás</string>
+    <string name="rules_name_label">Nombre de la regla</string>
+    <string name="rules_device">Dispositivo</string>
+    <string name="rules_device_locked">Para cambiar de dispositivo, crea una regla nueva</string>
+    <string name="rules_no_devices">No hay dispositivos. Añade una integración primero.</string>
+    <string name="rules_select_device">Selecciona un dispositivo</string>
+    <string name="rules_type_title">Tipo de regla</string>
+    <string name="rules_config">Configuración</string>
+    <string name="rules_windows_title">Cuándo puede encenderse</string>
+    <string name="rules_windows_empty_any">Sin franjas: cualquier hora del día</string>
+    <string name="rules_distribution_title">Cómo se eligen las horas</string>
+    <string name="rules_distribution_total">Las más baratas entre todas las franjas</string>
+    <string name="rules_distribution_per_window">Las más baratas de cada franja</string>
+    <string name="rules_hours_title">Número de horas</string>
+    <string name="rules_deadline_title">Cuándo tiene que estar listo</string>
+    <string name="rules_deadline_ready_at">Listo a las</string>
+    <string name="rules_deadline_start_at">Puede empezar a las</string>
+    <string name="rules_deadline_needed">Horas que necesita</string>
+    <string name="rules_deadline_summary">Cada día elegirá las %1$d h más baratas entre las %2$s y las %3$s, de modo que a las %3$s ya habrá terminado.</string>
+    <string name="rules_deadline_summary_once">Esta vez elegirá las %1$d h más baratas entre las %2$s y las %3$s, de modo que a las %3$s ya habrá terminado.</string>
+    <string name="rules_deadline_pick_ready">Tiene que estar listo a las</string>
+    <string name="rules_threshold_label">Umbral de precio (€/kWh)</string>
+    <string name="rules_threshold_summary">Se encenderá en las horas en que el precio sea de %1$s o menos</string>
+    <string name="rules_threshold_hint">Escribe un precio, por ejemplo 0,12</string>
+    <string name="rules_schedule_title">Cuándo se enciende</string>
+    <string name="rules_schedule_empty">Añade las franjas en las que se tiene que encender</string>
+    <string name="rules_schedule_summary">El dispositivo se encenderá cada día %1$s, sea cual sea el precio</string>
+    <string name="rules_manual_info">Esta regla no tiene configuración automática. Podrás controlar el dispositivo manualmente.</string>
+    <string name="rules_once_title">Solo una vez</string>
+    <string name="rules_once_info">Se aplicará a la próxima franja y después se desactivará.</string>
+    <string name="rules_stop_title">Apagar al terminar</string>
+    <string name="rules_stop_info">Cuando el consumo baje casi a cero, se apagará y no gastará las horas que queden.</string>
+    <string name="rules_save_changes">Guardar cambios</string>
+    <string name="rules_create">Crear regla</string>
+
+    <!-- Time windows editor -->
+    <string name="rules_window_remove">Quitar la franja %1$s</string>
+    <string name="rules_window_add">Añadir franja</string>
+    <string name="rules_window_start">Inicio de la franja</string>
+    <string name="rules_window_end">Fin de la franja</string>
+    <string name="rules_picker_info">Las franjas van por horas enteras, como el precio de la luz: se usará %1$s.</string>
+
+    <!-- Help -->
+    <string name="rules_help_what_means">Qué significa: %1$s</string>
+    <string name="rules_help_ok">Entendido</string>
+    <string name="rules_help_type_text">• Horas más baratas: cada día elige las horas con el precio más bajo y solo enciende el dispositivo en esas horas. Va bien para cargar el patinete o calentar el agua.\n\n• Listo antes de una hora: como la anterior, pero le dices a qué hora tiene que haber terminado (por ejemplo, el coche cargado a las 8:00) y desde qué hora puede empezar.\n\n• Umbral de precio: enciende el dispositivo en todas las horas en que el precio sea igual o más bajo que el que elijas. Si un día ninguna hora es lo bastante barata, no se enciende.\n\n• Franja horaria: enciende el dispositivo cada día en las horas que elijas, sin mirar el precio, como un temporizador.\n\n• Manual: no hace nada sola; el dispositivo solo se controla desde la app.\n\nFuera de las horas elegidas, la app apaga el dispositivo.</string>
+    <string name="rules_help_windows_text">Las franjas limitan las horas del día en que se puede encender. En la barra se ven en color las horas permitidas.\n\n• Toca la hora de inicio o de fin de una franja para cambiarla.\n• Si el fin es antes que el inicio (por ejemplo de 20:00 a 06:00), la franja pasa la noche.\n• La hora de fin no cuenta: de 14:00 a 16:00 son 2 horas, las de las 14 y las 15.\n• Van por horas enteras porque el precio de la luz cambia cada hora.\n• Sin ninguna franja, puede elegir cualquier hora del día.\n\nLos precios del día siguiente se publican hacia las 20:15. Por eso una franja que pasa la noche solo se calcula cuando ya se conocen, y antes de esa hora no enciende nada.</string>
+    <string name="rules_help_distribution_text">• Las más baratas entre todas: elige las horas más baratas mirando todas las franjas juntas. Pueden caer todas en la misma franja si es la más barata.\nEjemplo: 3 h entre 14:00–16:00 y 20:00–06:00. Si la noche es más barata, las 3 horas serán de noche.\n\n• Las más baratas de cada franja: cada franja tiene su número de horas, y siempre se enciende en todas.\nEjemplo: 1 h en 14:00–16:00 y 4 h en 20:00–06:00. Siempre habrá 1 h por la tarde y 4 h por la noche, las más baratas de cada una.\n\nLas horas se eligen por días, y una franja de noche cuenta para el día en que termina. Con 14:00–16:00 y 20:00–06:00, cada día se reparten entre la noche anterior y la tarde.</string>
+    <string name="rules_help_hours_text">Cuántas horas tiene que encenderse el dispositivo cada día. Siempre se eligen las más baratas.\n\nSi editas la regla cuando ya se ha encendido algunas horas hoy, esas horas cuentan y solo se buscan las que faltan.</string>
+    <string name="rules_help_deadline_text">Cada día elige las horas más baratas entre la hora en que puede empezar y la hora en que tiene que estar listo.\n\nEjemplo: el coche llega a casa a las 20:00, necesita 4 horas de carga y tiene que estar cargado a las 8:00. Elegirá las 4 horas más baratas entre las 20:00 y las 8:00.\n\n• La hora límite no cuenta: a las 8:00 ya habrá terminado.\n• Si las dos horas son iguales, puede usar las 24 horas antes de la hora límite.\n• Los precios del día siguiente se publican hacia las 20:15: si el intervalo pasa la noche, las horas se eligen cuando ya se conocen, y antes de esa hora no enciende nada.</string>
+    <string name="rules_help_threshold_text">El dispositivo se enciende cada hora en que el precio sea igual o más bajo que este valor.\n\nEs el mismo precio en €/kWh que ves en la pestaña Precios. Puedes escribirlo con coma o con punto, por ejemplo 0,12.</string>
+    <string name="rules_help_once_text">La regla se aplica a la próxima franja que todavía no ha terminado, por ejemplo solo esta noche, y después se desactiva sola.\n\nVa bien cuando por una vez necesitas algo distinto del día a día: cargar el coche para un viaje, poner una lavadora antes de que vuelvas...\n\nSi después la vuelves a activar, se aplicará a la franja siguiente.</string>
+    <string name="rules_help_stop_text">El enchufe mide cuánta potencia usa el aparato. Cuando baja casi a cero durante 10 minutos (el patinete ya está cargado, el agua del termo ya está caliente), se apaga y no se vuelve a encender hasta la franja siguiente.\n\nVa bien para cargadores, termos, lavadoras o lavavajillas.\n\nNo lo actives en aparatos con termostato que se paran y se vuelven a poner en marcha solos, como una estufa o un radiador: se apagarían la primera vez que se pararan.\n\nSolo aparece en los enchufes que miden el consumo.</string>
+    <string name="rules_help_schedule_text">El dispositivo se enciende cada día durante las franjas que elijas, aunque el precio sea caro, y se apaga a la hora de fin.\n\n• Toca la hora de inicio o de fin para cambiarla.\n• Si el fin es antes que el inicio (por ejemplo de 22:00 a 06:00), la franja pasa la noche.\n• Puedes añadir varias franjas, por ejemplo por la mañana y por la noche.</string>
+</resources>

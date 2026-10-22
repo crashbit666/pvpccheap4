@@ -10,6 +10,7 @@
 pub mod api;
 pub mod db;
 pub mod integrations;
+pub mod lang;
 pub mod models;
 pub mod schema;
 pub mod services;

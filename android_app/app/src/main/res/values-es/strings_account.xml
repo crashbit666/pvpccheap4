@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Zones -->
+    <string name="account_zone_peninsula">Península</string>
+    <string name="account_zone_balears">Islas Baleares</string>
+    <string name="account_zone_ceuta">Ceuta</string>
+    <string name="account_zone_melilla">Melilla</string>
+
+    <!-- Common -->
+    <string name="account_cancel">Cancelar</string>
+    <string name="account_close">Cerrar</string>
+    <string name="account_send">Enviar</string>
+    <string name="account_back">Atrás</string>
+    <string name="account_username">Usuario</string>
+    <string name="account_password">Contraseña</string>
+    <string name="account_email">Correo electrónico</string>
+    <string name="account_privacy">Privacidad</string>
+    <string name="account_terms">Condiciones</string>
+    <string name="account_passwords_mismatch">Las contraseñas no coinciden</string>
+
+    <!-- Login -->
+    <string name="account_login_subtitle">Automatiza tus dispositivos</string>
+    <string name="account_login">Entrar</string>
+    <string name="account_forgot_password">¿Has olvidado la contraseña?</string>
+    <string name="account_no_account">¿No tienes cuenta? Regístrate</string>
+    <string name="account_forgot_title">Recuperar la contraseña</string>
+    <string name="account_forgot_sent">Si hay una cuenta con este correo verificado, te hemos enviado un enlace para poner una contraseña nueva. Caduca dentro de una hora. Mira también la carpeta de correo no deseado.</string>
+    <string name="account_forgot_text">Escribe el correo de tu cuenta y te enviaremos un enlace para poner una contraseña nueva.</string>
+    <string name="account_ok">Entendido</string>
+
+    <!-- Register -->
+    <string name="account_register_title">Crear cuenta</string>
+    <string name="account_register_subtitle">Regístrate para empezar</string>
+    <string name="account_register_email_hint">Para recuperar la contraseña si la olvidas</string>
+    <string name="account_confirm_password">Confirma la contraseña</string>
+    <string name="account_register">Registrarse</string>
+    <string name="account_register_terms_notice">Al crear la cuenta aceptas las condiciones de uso y la política de privacidad.</string>
+    <string name="account_have_account">¿Ya tienes cuenta? Entra</string>
+
+    <!-- Account screen -->
+    <string name="account_title">Cuenta</string>
+    <string name="account_signed_in">Sesión iniciada</string>
+    <string name="account_zone_changed">Ahora usas los precios de %1$s</string>
+    <string name="account_email_verification_sent">Te hemos enviado un correo para verificarlo</string>
+    <string name="account_password_changed">Contraseña cambiada</string>
+    <string name="account_alerts_title">Avisos</string>
+    <string name="account_alerts_on">Te avisaremos si un enchufe no se ha podido encender o apagar después de los reintentos.</string>
+    <string name="account_alerts_off">Las notificaciones están desactivadas: no sabrás si un enchufe se queda encendido o apagado por error.</string>
+    <string name="account_enable_notifications">Activar las notificaciones</string>
+    <string name="account_email_title">Correo</string>
+    <string name="account_email_missing">Añade tu correo: es la única forma de recuperar la contraseña si la olvidas.</string>
+    <string name="account_email_verified">%1$s · verificado. Si olvidas la contraseña, te enviaremos ahí el enlace para cambiarla.</string>
+    <string name="account_email_pending">%1$s · pendiente de verificar. Abre el enlace que te hemos enviado (mira también el correo no deseado).</string>
+    <string name="account_email_add">Añadir el correo</string>
+    <string name="account_email_change">Cambiar el correo</string>
+    <string name="account_email_resend">Reenviar o cambiar</string>
+    <string name="account_zone_title">Zona</string>
+    <string name="account_zone_text">%1$s. Los precios de Ceuta y Melilla son distintos en algunas horas; Baleares tiene los mismos que la Península.</string>
+    <string name="account_zone_change">Cambiar la zona</string>
+    <string name="account_security_title">Seguridad</string>
+    <string name="account_security_text">Cambia la contraseña con la que entras en la app. Se cerrará la sesión en los demás móviles.</string>
+    <string name="account_change_password">Cambiar la contraseña</string>
+    <string name="account_session_title">Sesión</string>
+    <string name="account_session_text">Las reglas siguen funcionando aunque cierres la sesión.</string>
+    <string name="account_logout">Cerrar sesión</string>
+    <string name="account_privacy_text">Qué datos guardamos, para qué y qué derechos tienes.</string>
+    <string name="account_delete_title">Borrar la cuenta</string>
+    <string name="account_delete_text">Borra la cuenta y todo lo que contiene: integraciones, dispositivos, reglas e historial. No se puede deshacer.</string>
+    <string name="account_logout_dialog_text">Las reglas seguirán encendiendo y apagando los enchufes. Para volver a entrar necesitarás la contraseña.</string>
+    <string name="account_zone_dialog_title">¿Dónde estás?</string>
+    <string name="account_zone_canaries">Canarias todavía no está disponible.</string>
+
+    <!-- Plan -->
+    <string name="account_plan_per_month">%1$s/mes</string>
+    <string name="account_plan_per_year">%1$s/año</string>
+    <string name="account_plan_premium">Plan prémium</string>
+    <string name="account_plan_free">Plan gratuito</string>
+    <string name="account_plan_premium_renews">Reglas ilimitadas y reglas con palabras. Se renueva el %1$s; puedes cancelarlo en Google Play.</string>
+    <string name="account_plan_premium_text">Reglas ilimitadas y reglas con palabras.</string>
+    <string name="account_plan_free_text">Hasta %1$d reglas. Con el plan prémium tendrás todas las que quieras y podrás escribirlas con palabras.</string>
+    <string name="account_purchases_unavailable">Las compras todavía no están disponibles. Instala la app desde Google Play.</string>
+    <string name="account_restore_purchases">Restaurar las compras</string>
+
+    <!-- Dialogs -->
+    <string name="account_current_password">Contraseña actual</string>
+    <string name="account_new_password">Contraseña nueva</string>
+    <string name="account_repeat_new_password">Repite la contraseña nueva</string>
+    <string name="account_min_8_chars">Al menos 8 caracteres</string>
+    <string name="account_change">Cambiar</string>
+    <string name="account_email_dialog_title">Correo de la cuenta</string>
+    <string name="account_email_dialog_text">Te enviaremos ahí un enlace para verificarlo. Escribe la contraseña para confirmar el cambio.</string>
+    <string name="account_delete_dialog_text">Se borrarán para siempre las integraciones, los dispositivos, las reglas y el historial. Los enchufes que una regla tenga encendidos ahora se apagarán. Escribe la contraseña para confirmarlo.</string>
+    <string name="account_delete">Borrar</string>
+
+    <!-- Errors from the server -->
+    <string name="account_error_connection">No hay acceso al servicio en la nube de PVPC Cheap</string>
+    <string name="account_error_network">Error de red</string>
+    <string name="account_error_login">No se ha podido entrar</string>
+    <string name="account_error_bad_credentials">Usuario o contraseña incorrectos</string>
+    <string name="account_error_login_code">No se ha podido entrar (error %1$d)</string>
+    <string name="account_error_email_taken">Este correo ya tiene una cuenta</string>
+    <string name="account_error_username_taken">Este nombre de usuario ya existe</string>
+    <string name="account_error_email_invalid">El correo no es válido</string>
+    <string name="account_error_password_short">La contraseña debe tener al menos 8 caracteres</string>
+    <string name="account_error_register_code">No se ha podido crear la cuenta (error %1$d)</string>
+    <string name="account_error_read_account">No se ha podido leer la cuenta</string>
+    <string name="account_error_wrong_password">La contraseña no es correcta</string>
+    <string name="account_error_email_other_account">Este correo ya tiene otra cuenta</string>
+    <string name="account_error_save_email">No se ha podido guardar el correo</string>
+    <string name="account_error_change_zone">No se ha podido cambiar la zona</string>
+    <string name="account_error_mail_unavailable">Ahora mismo no se pueden enviar correos</string>
+    <string name="account_error_send_mail">No se ha podido enviar el correo</string>
+    <string name="account_error_wrong_current_password">La contraseña actual no es correcta</string>
+    <string name="account_error_new_password_short">La contraseña nueva debe tener al menos 8 caracteres</string>
+    <string name="account_error_change_password">No se ha podido cambiar la contraseña</string>
+    <string name="account_error_delete_account">No se ha podido borrar la cuenta</string>
+    <string name="account_error_get_user">No se ha podido obtener el usuario</string>
+
+    <!-- Billing -->
+    <string name="account_billing_failed">No se ha podido completar la compra</string>
+    <string name="account_billing_unavailable">Google Play no está disponible</string>
+    <string name="account_billing_no_purchases">No hay ninguna compra en esta cuenta de Google</string>
+    <string name="account_billing_pending">El pago está pendiente. Se activará cuando se complete.</string>
+    <string name="account_billing_success">Ya eres prémium. ¡Gracias!</string>
+    <string name="account_billing_activation_failed">Se ha pagado, pero no se ha podido activar. Vuelve a intentarlo con «Restaurar las compras».</string>
+</resources>

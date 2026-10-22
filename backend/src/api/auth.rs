@@ -4,9 +4,10 @@ use crate::{
     models::User,
     schema::{automation_rules, devices, user_integrations, users},
     services::auth::{self, Claims},
+    lang::Lang,
     services::{mailer, schedule_computation::ScheduleComputationService, user_tokens},
 };
-use actix_web::{HttpResponse, Responder, delete, get, post, put, web};
+use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, post, put, web};
 use diesel::prelude::*;
 use serde::Deserialize;
 
@@ -45,7 +46,7 @@ fn email_taken(conn: &mut PgConnection, email: &str, except_user: Option<i32>) -
 
 /// Sends the link that verifies `email`. Errors are logged: the account
 /// works without it, and the user can ask again.
-async fn send_verification(pool: &DbPool, user_id: i32, email: &str) -> bool {
+async fn send_verification(pool: &DbPool, user_id: i32, email: &str, lang: Lang) -> bool {
     if !mailer::is_configured() {
         log::warn!("Email not configured: no verification for user {}", user_id);
         return false;
@@ -61,19 +62,76 @@ async fn send_verification(pool: &DbPool, user_id: i32, email: &str) -> bool {
             }
         }
     };
-    let Some(link) = mailer::public_link(&format!("verificar-correu?token={}", token)) else { return false };
-    let text = format!(
-        "Hola,\n\nPer confirmar que aquest és el correu del teu compte de PVPC Cheap, obre aquest enllaç:\n\n{}\n\n\
-         Serveix per recuperar la contrasenya si mai l'oblides. Caduca d'aquí a 2 dies.\n\n\
-         Si no has estat tu, no cal que facis res.\n",
-        link
-    );
-    match mailer::send(email, "Confirma el teu correu", &text).await {
+    let Some(link) = mailer::public_link(&format!("verificar-correu?token={}&lang={}", token, lang.code())) else {
+        return false;
+    };
+    let (subject, text) = verification_email(lang, &link);
+    match mailer::send(email, subject, &text).await {
         Ok(()) => true,
         Err(e) => {
             log::warn!("Could not send the verification email of user {}: {}", user_id, e);
             false
         }
+    }
+}
+
+/// Subject and text of the email that verifies the address
+fn verification_email(lang: Lang, link: &str) -> (&'static str, String) {
+    match lang {
+        Lang::Ca => (
+            "Confirma el teu correu",
+            format!(
+                "Hola,\n\nPer confirmar que aquest és el correu del teu compte de PVPC Cheap, obre aquest enllaç:\n\n{link}\n\n\
+                 Serveix per recuperar la contrasenya si mai l'oblides. Caduca d'aquí a 2 dies.\n\n\
+                 Si no has estat tu, no cal que facis res.\n"
+            ),
+        ),
+        Lang::Es => (
+            "Confirma tu correo",
+            format!(
+                "Hola:\n\nPara confirmar que este es el correo de tu cuenta de PVPC Cheap, abre este enlace:\n\n{link}\n\n\
+                 Sirve para recuperar la contraseña si alguna vez la olvidas. Caduca en 2 días.\n\n\
+                 Si no has sido tú, no tienes que hacer nada.\n"
+            ),
+        ),
+        Lang::En => (
+            "Confirm your email",
+            format!(
+                "Hi,\n\nTo confirm this is the email of your PVPC Cheap account, open this link:\n\n{link}\n\n\
+                 It lets you recover your password if you ever forget it. It expires in 2 days.\n\n\
+                 If it wasn't you, you don't need to do anything.\n"
+            ),
+        ),
+    }
+}
+
+/// Subject and text of the email with the link to set a new password
+fn reset_email(lang: Lang, username: &str, link: &str) -> (&'static str, String) {
+    match lang {
+        Lang::Ca => (
+            "Canvia la contrasenya",
+            format!(
+                "Hola, {username},\n\nHas demanat canviar la contrasenya del teu compte de PVPC Cheap. Obre aquest enllaç per posar-ne una de nova:\n\n{link}\n\n\
+                 Caduca d'aquí a una hora i només es pot fer servir un cop.\n\n\
+                 Si no ho has demanat tu, no cal que facis res: la contrasenya no canviarà.\n"
+            ),
+        ),
+        Lang::Es => (
+            "Cambia la contraseña",
+            format!(
+                "Hola, {username}:\n\nHas pedido cambiar la contraseña de tu cuenta de PVPC Cheap. Abre este enlace para poner una nueva:\n\n{link}\n\n\
+                 Caduca en una hora y solo se puede usar una vez.\n\n\
+                 Si no lo has pedido tú, no tienes que hacer nada: la contraseña no cambiará.\n"
+            ),
+        ),
+        Lang::En => (
+            "Change your password",
+            format!(
+                "Hi {username},\n\nYou asked to change the password of your PVPC Cheap account. Open this link to set a new one:\n\n{link}\n\n\
+                 It expires in one hour and can only be used once.\n\n\
+                 If you didn't ask for it, you don't need to do anything: your password won't change.\n"
+            ),
+        ),
     }
 }
 
@@ -84,7 +142,7 @@ fn password_too_short(password: &str) -> bool {
 }
 
 #[post("/register")]
-pub async fn register(pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> impl Responder {
+pub async fn register(req: HttpRequest, pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> impl Responder {
     if item.username.trim().is_empty() {
         return HttpResponse::BadRequest().body("Username is required");
     }
@@ -120,7 +178,7 @@ pub async fn register(pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> 
         Ok(user) => {
             drop(conn);
             if let Some(email) = email {
-                send_verification(&pool, user.id, email).await;
+                send_verification(&pool, user.id, email, Lang::of(&req)).await;
             }
             HttpResponse::Ok().json(serde_json::json!({"id": user.id, "username": user.username}))
         }
@@ -191,7 +249,12 @@ pub struct ChangeEmailRequest {
 /// Sets the account's email (unverified) and sends the link that verifies
 /// it. Sending the same address again resends the link.
 #[put("/email")]
-pub async fn change_email(pool: web::Data<DbPool>, claims: Claims, item: web::Json<ChangeEmailRequest>) -> impl Responder {
+pub async fn change_email(
+    req: HttpRequest,
+    pool: web::Data<DbPool>,
+    claims: Claims,
+    item: web::Json<ChangeEmailRequest>,
+) -> impl Responder {
     let email = item.email.trim();
     if !valid_email(email) {
         return HttpResponse::BadRequest().body("Invalid email");
@@ -221,7 +284,7 @@ pub async fn change_email(pool: web::Data<DbPool>, claims: Claims, item: web::Js
         }
         user
     };
-    let sent = send_verification(&pool, user.id, email).await;
+    let sent = send_verification(&pool, user.id, email, Lang::of(&req)).await;
     HttpResponse::Ok().json(serde_json::json!({"email": email, "email_verified": false, "sent": sent}))
 }
 
@@ -273,7 +336,12 @@ pub struct ForgotPasswordRequest {
 /// A link to set a new password, sent to a verified address. The answer is
 /// the same whether the address has an account or not.
 #[post("/forgot-password")]
-pub async fn forgot_password(pool: web::Data<DbPool>, item: web::Json<ForgotPasswordRequest>) -> impl Responder {
+pub async fn forgot_password(
+    req: HttpRequest,
+    pool: web::Data<DbPool>,
+    item: web::Json<ForgotPasswordRequest>,
+) -> impl Responder {
+    let lang = Lang::of(&req);
     if !mailer::is_configured() {
         return HttpResponse::ServiceUnavailable().body("Email is not configured");
     }
@@ -309,14 +377,11 @@ pub async fn forgot_password(pool: web::Data<DbPool>, item: web::Json<ForgotPass
         }
     };
     let (user, token) = token;
-    let Some(link) = mailer::public_link(&format!("restablir-contrasenya?token={}", token)) else { return answer };
-    let text = format!(
-        "Hola, {},\n\nHas demanat canviar la contrasenya del teu compte de PVPC Cheap. Obre aquest enllaç per posar-ne una de nova:\n\n{}\n\n\
-         Caduca d'aquí a una hora i només es pot fer servir un cop.\n\n\
-         Si no ho has demanat tu, no cal que facis res: la contrasenya no canviarà.\n",
-        user.username, link
-    );
-    if let Err(e) = mailer::send(&email, "Canvia la contrasenya", &text).await {
+    let Some(link) = mailer::public_link(&format!("restablir-contrasenya?token={}&lang={}", token, lang.code())) else {
+        return answer;
+    };
+    let (subject, text) = reset_email(lang, &user.username, &link);
+    if let Err(e) = mailer::send(&email, subject, &text).await {
         log::warn!("Could not send the reset email of user {}: {}", user.id, e);
     }
     answer

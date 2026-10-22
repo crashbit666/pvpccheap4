@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -214,7 +215,7 @@ fun TimeWindowsEditor(
                         IconButton(onClick = { emit(windows.filterIndexed { i, _ -> i != index }) }) {
                             Icon(
                                 painterResource(R.drawable.ic_delete),
-                                contentDescription = "Treure la franja ${window.label}",
+                                contentDescription = stringResource(R.string.rules_window_remove, window.label),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -222,7 +223,7 @@ fun TimeWindowsEditor(
                     if (perWindowHours) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Hores més barates",
+                                text = stringResource(R.string.rules_type_cheapest_name),
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(1f).padding(start = 12.dp)
                             )
@@ -243,7 +244,7 @@ fun TimeWindowsEditor(
             FilledTonalButton(onClick = { emit(windows + nextFreeWindow(windows)) }) {
                 Icon(painterResource(R.drawable.ic_add), contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Afegir franja")
+                Text(stringResource(R.string.rules_window_add))
             }
         }
     }
@@ -251,7 +252,7 @@ fun TimeWindowsEditor(
     picking?.let { (index, isEnd) ->
         val window = windows.getOrNull(index) ?: return@let
         HourPickerDialog(
-            title = if (isEnd) "Fi de la franja" else "Inici de la franja",
+            title = stringResource(if (isEnd) R.string.rules_window_end else R.string.rules_window_start),
             initialHour = if (isEnd) window.endHour else window.startHour,
             onDismiss = { picking = null },
             onConfirm = { hour ->
@@ -282,18 +283,17 @@ internal fun HourPickerDialog(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 TimePicker(state = state)
                 Text(
-                    text = "Les franges van per hores senceres, com el preu de la llum: " +
-                        "es fa servir ${hh(state.hour)}.",
+                    text = stringResource(R.string.rules_picker_info, hh(state.hour)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(state.hour) }) { Text("D'acord", fontWeight = FontWeight.Medium) }
+            TextButton(onClick = { onConfirm(state.hour) }) { Text(stringResource(R.string.rules_ok), fontWeight = FontWeight.Medium) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel·lar") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.rules_cancel)) }
         }
     )
 }

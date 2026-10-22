@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ca">
+<html lang="{{LANG}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,7 +25,7 @@
 <body>
 <main>
 {{BODY}}
-<nav><a href="/privacitat">Privacitat</a> · <a href="/condicions">Condicions</a> · <a href="/esborrar-compte">Esborrar el compte</a></nav>
+<nav><a href="/privacitat?lang={{LANG}}">{{NAV_PRIVACY}}</a> · <a href="/condicions?lang={{LANG}}">{{NAV_TERMS}}</a> · <a href="/esborrar-compte?lang={{LANG}}">{{NAV_DELETE}}</a></nav>
 </main>
 </body>
 </html>

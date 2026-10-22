@@ -2,7 +2,9 @@ package com.crashbit.pvpccheap4.ui.screens.main
 
 import com.crashbit.pvpccheap4.R
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -37,34 +39,34 @@ import com.crashbit.pvpccheap4.ui.screens.schedule.ScheduleScreen
 
 sealed class BottomNavItem(
     val route: String,
-    val title: String,
+    @param:StringRes val titleRes: Int,
     @param:DrawableRes val selectedIcon: Int,
     @param:DrawableRes val unselectedIcon: Int
 ) {
     data object Devices : BottomNavItem(
         route = "devices",
-        title = "Dispositius",
+        titleRes = R.string.main_nav_devices,
         selectedIcon = R.drawable.ic_home_fill,
         unselectedIcon = R.drawable.ic_home
     )
 
     data object Rules : BottomNavItem(
         route = "rules",
-        title = "Regles",
+        titleRes = R.string.main_nav_rules,
         selectedIcon = R.drawable.ic_rule_fill,
         unselectedIcon = R.drawable.ic_rule
     )
 
     data object Schedule : BottomNavItem(
         route = "schedule",
-        title = "Horari",
+        titleRes = R.string.main_nav_schedule,
         selectedIcon = R.drawable.ic_calendar_month_fill,
         unselectedIcon = R.drawable.ic_calendar_month
     )
 
     data object Prices : BottomNavItem(
         route = "prices",
-        title = "Preus",
+        titleRes = R.string.main_nav_prices,
         selectedIcon = R.drawable.ic_euro_fill,
         unselectedIcon = R.drawable.ic_euro
     )
@@ -195,16 +197,17 @@ fun BottomNavigationBar(
 
     NavigationBar {
         items.forEach { item ->
+            val title = stringResource(item.titleRes)
             val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
 
             NavigationBarItem(
                 icon = {
                     Icon(
                         painter = painterResource(if (selected) item.selectedIcon else item.unselectedIcon),
-                        contentDescription = item.title
+                        contentDescription = title
                     )
                 },
-                label = { Text(item.title) },
+                label = { Text(title) },
                 selected = selected,
                 onClick = {
                     navController.navigate(item.route) {

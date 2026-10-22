@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.crashbit.pvpccheap4.BuildConfig
+import com.crashbit.pvpccheap4.R
 
 @Composable
 fun RegisterScreen(
@@ -75,13 +77,13 @@ fun RegisterScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Crear compte",
+                text = stringResource(R.string.account_register_title),
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.primary
             )
 
             Text(
-                text = "Registra't per començar",
+                text = stringResource(R.string.account_register_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -91,7 +93,7 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text("Usuari") },
+                label = { Text(stringResource(R.string.account_username)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
@@ -105,8 +107,8 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Correu electrònic") },
-                supportingText = { Text("Per recuperar la contrasenya si l'oblides") },
+                label = { Text(stringResource(R.string.account_email)) },
+                supportingText = { Text(stringResource(R.string.account_register_email_hint)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
@@ -120,7 +122,7 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Contrasenya") },
+                label = { Text(stringResource(R.string.account_password)) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
@@ -135,7 +137,7 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = confirmPassword,
                 onValueChange = { confirmPassword = it },
-                label = { Text("Confirma contrasenya") },
+                label = { Text(stringResource(R.string.account_confirm_password)) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
@@ -144,7 +146,7 @@ fun RegisterScreen(
                 ),
                 isError = confirmPassword.isNotEmpty() && password != confirmPassword,
                 supportingText = if (confirmPassword.isNotEmpty() && password != confirmPassword) {
-                    { Text("Les contrasenyes no coincideixen") }
+                    { Text(stringResource(R.string.account_passwords_mismatch)) }
                 } else null,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -166,7 +168,7 @@ fun RegisterScreen(
                         modifier = Modifier.height(20.dp)
                     )
                 } else {
-                    Text("Registrar-se")
+                    Text(stringResource(R.string.account_register))
                 }
             }
 
@@ -174,22 +176,22 @@ fun RegisterScreen(
 
             val uriHandler = LocalUriHandler.current
             Text(
-                text = "En crear el compte acceptes les condicions d'ús i la política de privacitat.",
+                text = stringResource(R.string.account_register_terms_notice),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
             Row {
                 TextButton(onClick = { uriHandler.openUri(BuildConfig.BASE_URL + "condicions") }) {
-                    Text("Condicions")
+                    Text(stringResource(R.string.account_terms))
                 }
                 TextButton(onClick = { uriHandler.openUri(BuildConfig.BASE_URL + "privacitat") }) {
-                    Text("Privacitat")
+                    Text(stringResource(R.string.account_privacy))
                 }
             }
 
             TextButton(onClick = onNavigateToLogin) {
-                Text("Ja tens compte? Entra")
+                Text(stringResource(R.string.account_have_account))
             }
         }
     }

@@ -1,7 +1,9 @@
 package com.crashbit.pvpccheap4.ui.screens.devices
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.Integration
@@ -9,6 +11,7 @@ import com.crashbit.pvpccheap4.data.model.Savings
 import com.crashbit.pvpccheap4.data.repository.DeviceRepository
 import com.crashbit.pvpccheap4.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +36,8 @@ data class DevicesUiState(
 
 @HiltViewModel
 class DevicesViewModel @Inject constructor(
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DevicesUiState())
@@ -103,7 +107,7 @@ class DevicesViewModel @Inject constructor(
             if (integrations.isEmpty()) {
                 _uiState.value = _uiState.value.copy(
                     isSyncing = false,
-                    error = "No hi ha integracions configurades"
+                    error = context.getString(R.string.devices_no_integrations)
                 )
                 return@launch
             }
@@ -120,7 +124,11 @@ class DevicesViewModel @Inject constructor(
                         }
                         is Result.Error -> {
                             _uiState.value = _uiState.value.copy(
-                                error = "Error sincronitzant ${providerDisplayName(integration.providerName)}: ${result.message}"
+                                error = context.getString(
+                                    R.string.devices_sync_error,
+                                    providerDisplayName(integration.providerName),
+                                    result.message
+                                )
                             )
                         }
                         is Result.Loading -> {}
@@ -134,7 +142,11 @@ class DevicesViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         devices = result.data,
                         isSyncing = false,
-                        syncMessage = "Sincronitzats: $totalSynced dispositius ($totalNew nous)"
+                        syncMessage = context.getString(
+                            R.string.devices_sync_done,
+                            context.resources.getQuantityString(R.plurals.devices_sync_count, totalSynced, totalSynced),
+                            context.resources.getQuantityString(R.plurals.devices_sync_new, totalNew, totalNew)
+                        )
                     )
                 }
                 is Result.Error -> {
@@ -201,7 +213,7 @@ class DevicesViewModel @Inject constructor(
                         }
                         _uiState.value = _uiState.value.copy(
                             devices = revertedDevices,
-                            error = result.data.message ?: "No s'ha pogut controlar el dispositiu"
+                            error = result.data.message ?: context.getString(R.string.devices_error_control)
                         )
                     }
                 }

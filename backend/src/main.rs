@@ -4,6 +4,7 @@ use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 mod api;
 mod db;
 mod integrations;
+mod lang;
 mod models;
 mod schema;
 mod services;

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Devices screen -->
+    <string name="devices_title">Dispositius</string>
+    <string name="devices_sync">Sincronitzar</string>
+    <string name="devices_account">Compte</string>
+    <string name="devices_add_integration">Afegir integració</string>
+    <string name="devices_integrations">Integracions</string>
+    <string name="devices_press_sync">Prem el botó de sincronitzar per descobrir dispositius</string>
+    <string name="devices_alert_check_wifi">%1$s. Comprova que l\'endoll estigui connectat a la wifi.</string>
+    <string name="devices_delete_integration_title">Eliminar %1$s</string>
+    <plurals name="devices_delete_integration_text">
+        <item quantity="one">Es treurà de l\'app el seu %1$d dispositiu i totes les regles que el controlen. Els endolls no s\'esborren de %2$s, però l\'app ja no els encendrà ni apagarà.</item>
+        <item quantity="many">Es treuran de l\'app els seus %1$d dispositius i totes les regles que els controlen. Els endolls no s\'esborren de %2$s, però l\'app ja no els encendrà ni apagarà.</item>
+        <item quantity="other">Es treuran de l\'app els seus %1$d dispositius i totes les regles que els controlen. Els endolls no s\'esborren de %2$s, però l\'app ja no els encendrà ni apagarà.</item>
+    </plurals>
+    <string name="devices_delete">Eliminar</string>
+    <string name="devices_cancel">Cancel·lar</string>
+    <string name="devices_integration_active">Activa</string>
+    <string name="devices_integration_inactive">Inactiva</string>
+    <string name="devices_mode_manual">Manual</string>
+    <string name="devices_mode_automatic">Automàtic · %1$s</string>
+    <string name="devices_measures_power">%1$s · mesura el consum</string>
+    <string name="devices_empty_title">Cap dispositiu configurat</string>
+    <string name="devices_empty_text">Afegeix una integració per sincronitzar els teus dispositius</string>
+    <string name="devices_connection_error_title">No hi ha accés al servei</string>
+    <string name="devices_connection_error_text">No s\'ha pogut connectar amb el núvol de PVPCCheap. Comprova la teva connexió a internet.</string>
+    <string name="devices_retry">Tornar a intentar</string>
+
+    <!-- Devices view model -->
+    <string name="devices_no_integrations">No hi ha integracions configurades</string>
+    <string name="devices_sync_error">Error sincronitzant %1$s: %2$s</string>
+    <string name="devices_sync_done">Sincronitzats: %1$s (%2$s)</string>
+    <plurals name="devices_sync_count">
+        <item quantity="one">%d dispositiu</item>
+        <item quantity="many">%d dispositius</item>
+        <item quantity="other">%d dispositius</item>
+    </plurals>
+    <plurals name="devices_sync_new">
+        <item quantity="one">%d nou</item>
+        <item quantity="many">%d nous</item>
+        <item quantity="other">%d nous</item>
+    </plurals>
+
+    <!-- Savings -->
+    <string name="devices_savings_this_month">Aquest mes</string>
+    <string name="devices_savings_saved">Has estalviat %1$s</string>
+    <string name="devices_savings_overpaid">Has pagat %1$s de més</string>
+    <string name="devices_savings_cheaper">%1$s més barat que la mitjana</string>
+    <string name="devices_savings_dearer">%1$s més car que la mitjana</string>
+    <plurals name="devices_savings_hours_on">
+        <item quantity="one">%d h encesa</item>
+        <item quantity="many">%d h enceses</item>
+        <item quantity="other">%d h enceses</item>
+    </plurals>
+    <string name="devices_savings_below_average">%1$s, %2$s per sota del preu mitjà del dia</string>
+    <string name="devices_savings_above_average">%1$s, %2$s per sobre del preu mitjà del dia</string>
+    <string name="devices_savings_paid">%1$s · has pagat %2$s</string>
+    <string name="devices_savings_all_measured">Amb el consum que han mesurat els endolls.</string>
+    <string name="devices_savings_partly_measured">Amb el consum mesurat en %1$d de %2$d h; la resta, amb la potència indicada.</string>
+    <string name="devices_savings_set_power">Toca un dispositiu i indica\'n la potència per veure-ho en euros.</string>
+
+    <!-- Device power dialog -->
+    <string name="devices_power_title">Potència de %1$s</string>
+    <string name="devices_power_text">Quants watts fa servir l\'aparell quan està encès. Ho trobaràs a l\'etiqueta o al manual. Serveix per calcular quants euros t\'estalvies.</string>
+    <string name="devices_power_measured">Aquest endoll mesura el consum: l\'estalvi fa servir el que mesura. La potència que indiquis només s\'usarà les hores que no s\'hagi pogut mesurar.</string>
+    <string name="devices_power_label">Potència (W)</string>
+    <string name="devices_power_typical">Valors típics</string>
+    <string name="devices_save">Desar</string>
+    <string name="devices_appliance_water_heater">Termo elèctric</string>
+    <string name="devices_appliance_heater">Estufa o radiador</string>
+    <string name="devices_appliance_electric_car">Cotxe elèctric</string>
+    <string name="devices_appliance_scooter">Patinet o bicicleta</string>
+    <string name="devices_appliance_washing_machine">Rentadora</string>
+    <string name="devices_appliance_dishwasher">Rentaplats</string>
+    <string name="devices_appliance_air_conditioning">Aire condicionat</string>
+    <string name="devices_appliance_dehumidifier">Deshumidificador</string>
+
+    <!-- Add integration -->
+    <string name="devices_back">Enrere</string>
+    <string name="devices_select_provider">Selecciona el proveïdor</string>
+    <string name="devices_credentials_of">Credencials de %1$s</string>
+    <string name="devices_credentials_footer">Les credencials s\'utilitzen per connectar amb el servei del proveïdor i descobrir els teus dispositius. Si ja l\'havies afegit, només se n\'actualitzen les credencials: els dispositius i les regles es mantenen.</string>
+    <string name="devices_field_email">Correu electrònic</string>
+    <string name="devices_field_password">Contrasenya</string>
+    <string name="devices_field_ha_url">Adreça de Home Assistant</string>
+    <string name="devices_field_ha_token">Token d\'accés</string>
+    <string name="devices_help_meross">El correu i la contrasenya del teu compte de l\'app de Meross.</string>
+    <string name="devices_help_home_assistant">Serveix per a qualsevol endoll o llum que tinguis a Home Assistant (Shelly, Tuya, Zigbee...). L\'adreça ha de ser accessible des d\'Internet, per exemple la de Home Assistant Cloud. El token es crea a Home Assistant: el teu perfil → Seguretat → Tokens d\'accés de llarga durada → Crea un token.</string>
+
+    <!-- Repository errors -->
+    <string name="devices_error_load_alerts">No s\'han pogut carregar els avisos</string>
+    <string name="devices_error_save_power">No s\'ha pogut desar la potència</string>
+    <string name="devices_error_savings">No s\'ha pogut calcular l\'estalvi</string>
+    <string name="devices_error_load_integrations">No s\'han pogut carregar les integracions</string>
+    <string name="devices_error_ha_unreachable">No s\'ha pogut connectar amb Home Assistant. Comprova que l\'adreça és accessible des d\'Internet</string>
+    <string name="devices_error_provider_unreachable">No s\'ha pogut connectar amb el proveïdor. Torna-ho a provar més tard</string>
+    <string name="devices_error_ha_invalid_url">L\'adreça no és vàlida: ha de començar per https:// i ser accessible des d\'Internet</string>
+    <string name="devices_error_ha_token">Home Assistant no ha acceptat el token. Revisa\'l</string>
+    <string name="devices_error_add_integration">No s\'ha pogut afegir la integració. Revisa el correu i la contrasenya</string>
+    <string name="devices_error_delete_integration">No s\'ha pogut eliminar la integració</string>
+    <string name="devices_error_load_devices">No s\'han pogut carregar els dispositius</string>
+    <string name="devices_error_sync_devices">No s\'han pogut sincronitzar els dispositius</string>
+    <string name="devices_error_control">No s\'ha pogut controlar el dispositiu</string>
+    <string name="devices_error_device_state">No s\'ha pogut llegir l\'estat del dispositiu</string>
+    <string name="devices_error_device_usage">No s\'ha pogut llegir el consum del dispositiu</string>
+    <string name="devices_error_draft_premium">Escriure les regles amb paraules és una opció de pagament</string>
+    <string name="devices_error_draft_limit">Avui ja has demanat moltes propostes. Demà en podràs demanar més.</string>
+    <string name="devices_error_draft_no_reply">L\'assistent no ha respost. Torna-ho a provar.</string>
+    <string name="devices_error_draft_unavailable">Ara mateix no està disponible</string>
+    <string name="devices_error_draft">No s\'ha pogut proposar la regla</string>
+    <string name="devices_error_load_rules">No s\'han pogut carregar les regles</string>
+    <string name="devices_error_create_rule">No s\'ha pogut crear la regla</string>
+    <string name="devices_error_update_rule">No s\'ha pogut actualitzar la regla</string>
+    <string name="devices_error_delete_rule">No s\'ha pogut eliminar la regla</string>
+    <string name="devices_error_toggle_rule">No s\'ha pogut canviar la regla</string>
+    <string name="devices_error_load_schedule">No s\'ha pogut carregar l\'horari</string>
+    <string name="devices_error_rule_limit">El pla gratuït té 4 regles. Fes-te prèmium des del teu compte per tenir-ne més.</string>
+    <string name="devices_error_with_detail">%1$s: %2$s</string>
+
+    <!-- Alerts -->
+    <string name="devices_alert_title_on">No s\'ha pogut encendre %1$s</string>
+    <string name="devices_alert_title_off">No s\'ha pogut apagar %1$s</string>
+    <string name="devices_alert_detail">A les %1$s del %2$s · regla %3$s</string>
+    <string name="devices_alerts_channel_name">Avisos dels dispositius</string>
+    <string name="devices_alerts_channel_description">Quan un endoll no s\'ha pogut encendre o apagar</string>
+</resources>

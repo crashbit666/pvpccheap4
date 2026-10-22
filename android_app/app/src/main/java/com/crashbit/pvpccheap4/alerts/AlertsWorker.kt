@@ -20,6 +20,7 @@ import androidx.work.WorkerParameters
 import com.crashbit.pvpccheap4.MainActivity
 import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.data.local.TokenManager
+import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.repository.DeviceRepository
 import com.crashbit.pvpccheap4.data.repository.Result as DataResult
 import dagger.hilt.EntryPoint
@@ -27,6 +28,20 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.TimeUnit
+
+/** "No s'ha pogut apagar Enchufe caldera" */
+fun Alert.title(context: Context): String = context.getString(
+    if (action == "turn_on") R.string.devices_alert_title_on else R.string.devices_alert_title_off,
+    deviceName
+)
+
+/** "A les 01:00 del 23/10/2026 · regla patinet" */
+fun Alert.detail(context: Context): String = context.getString(
+    R.string.devices_alert_detail,
+    failedAt.substringAfter('T').take(5),
+    failedAt.take(10).split('-').reversed().joinToString("/"),
+    ruleName
+)
 
 /**
  * Every 15 minutes asks the server for device actions that failed after the
@@ -61,7 +76,7 @@ class AlertsWorker(
         if (canNotify(applicationContext)) {
             ensureChannel(applicationContext)
             fresh.forEach { alert ->
-                notify(applicationContext, alert.executionId, alert.title, alert.detail)
+                notify(applicationContext, alert.executionId, alert.title(applicationContext), alert.detail(applicationContext))
             }
         }
         tokenManager.setLastNotifiedAlert(fresh.maxOf { it.executionId })
@@ -93,10 +108,10 @@ class AlertsWorker(
         private fun ensureChannel(context: Context) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Avisos dels dispositius",
+                context.getString(R.string.devices_alerts_channel_name),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Quan un endoll no s'ha pogut encendre o apagar"
+                description = context.getString(R.string.devices_alerts_channel_description)
             }
             context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }

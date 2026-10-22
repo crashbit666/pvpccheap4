@@ -2,6 +2,8 @@ package com.crashbit.pvpccheap4.ui.screens.schedule
 
 import com.crashbit.pvpccheap4.R
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import com.crashbit.pvpccheap4.ui.formatDayTitle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,8 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 data class ScheduleItem(
     val startHour: Int,
@@ -72,7 +72,6 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val dateFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.forLanguageTag("ca"))
 
     // Refresh data when screen becomes visible
     LaunchedEffect(Unit) {
@@ -82,7 +81,7 @@ fun ScheduleScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Horari") },
+                title = { Text(stringResource(R.string.main_schedule_title)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 )
@@ -105,19 +104,19 @@ fun ScheduleScreen(
                 IconButton(onClick = { viewModel.previousDay() }) {
                     Icon(
                         painterResource(R.drawable.ic_chevron_left),
-                        contentDescription = "Dia anterior"
+                        contentDescription = stringResource(R.string.main_schedule_previous_day)
                     )
                 }
 
                 Text(
-                    text = uiState.selectedDate.format(dateFormatter),
+                    text = formatDayTitle(uiState.selectedDate),
                     style = MaterialTheme.typography.titleMedium
                 )
 
                 IconButton(onClick = { viewModel.nextDay() }) {
                     Icon(
                         painterResource(R.drawable.ic_chevron_right),
-                        contentDescription = "Dia següent"
+                        contentDescription = stringResource(R.string.main_schedule_next_day)
                     )
                 }
             }
@@ -237,14 +236,14 @@ fun ScheduleItemCard(item: ScheduleItem) {
 @Composable
 fun StatusBadge(status: ScheduleStatus) {
     val (text, backgroundColor, textColor) = when (status) {
-        ScheduleStatus.COMPLETED_OFF -> Triple("Apagat", Color(0xFF4CAF50).copy(alpha = 0.2f), Color(0xFF4CAF50))
-        ScheduleStatus.COMPLETED_ON -> Triple("Encès", Color(0xFF2196F3).copy(alpha = 0.2f), Color(0xFF2196F3))
-        ScheduleStatus.FAILED -> Triple("Fallat", Color(0xFFF44336).copy(alpha = 0.2f), Color(0xFFF44336))
-        ScheduleStatus.RETRYING -> Triple("Reintentant", Color(0xFFFF9800).copy(alpha = 0.2f), Color(0xFFFF9800))
-        ScheduleStatus.MISSED -> Triple("Perdut", Color(0xFF9E9E9E).copy(alpha = 0.2f), Color(0xFF757575))
-        ScheduleStatus.DONE -> Triple("Ja havia acabat", Color(0xFF4CAF50).copy(alpha = 0.1f), Color(0xFF4CAF50))
-        ScheduleStatus.PENDING -> Triple("Pendent", Color(0xFF9E9E9E).copy(alpha = 0.2f), Color(0xFF9E9E9E))
-        ScheduleStatus.EXECUTING -> Triple("Executant", Color(0xFF2196F3).copy(alpha = 0.1f), Color(0xFF2196F3))
+        ScheduleStatus.COMPLETED_OFF -> Triple(stringResource(R.string.main_status_off), Color(0xFF4CAF50).copy(alpha = 0.2f), Color(0xFF4CAF50))
+        ScheduleStatus.COMPLETED_ON -> Triple(stringResource(R.string.main_status_on), Color(0xFF2196F3).copy(alpha = 0.2f), Color(0xFF2196F3))
+        ScheduleStatus.FAILED -> Triple(stringResource(R.string.main_status_failed), Color(0xFFF44336).copy(alpha = 0.2f), Color(0xFFF44336))
+        ScheduleStatus.RETRYING -> Triple(stringResource(R.string.main_status_retrying), Color(0xFFFF9800).copy(alpha = 0.2f), Color(0xFFFF9800))
+        ScheduleStatus.MISSED -> Triple(stringResource(R.string.main_status_missed), Color(0xFF9E9E9E).copy(alpha = 0.2f), Color(0xFF757575))
+        ScheduleStatus.DONE -> Triple(stringResource(R.string.main_status_done), Color(0xFF4CAF50).copy(alpha = 0.1f), Color(0xFF4CAF50))
+        ScheduleStatus.PENDING -> Triple(stringResource(R.string.main_status_pending), Color(0xFF9E9E9E).copy(alpha = 0.2f), Color(0xFF9E9E9E))
+        ScheduleStatus.EXECUTING -> Triple(stringResource(R.string.main_status_executing), Color(0xFF2196F3).copy(alpha = 0.1f), Color(0xFF2196F3))
     }
 
     Box(
@@ -269,13 +268,13 @@ fun EmptyScheduleMessage(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Cap activitat programada",
+            text = stringResource(R.string.main_schedule_empty_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Les execucions programades dels teus dispositius apareixeran aquí",
+            text = stringResource(R.string.main_schedule_empty_body),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )

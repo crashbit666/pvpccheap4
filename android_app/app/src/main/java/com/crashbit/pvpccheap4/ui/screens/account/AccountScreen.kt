@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -77,6 +78,7 @@ import com.crashbit.pvpccheap4.data.model.Zone
 import com.crashbit.pvpccheap4.data.repository.AuthRepository
 import com.crashbit.pvpccheap4.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -96,6 +98,7 @@ data class AccountUiState(
 
 @HiltViewModel
 class AccountViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val authRepository: AuthRepository,
     private val billing: BillingManager
 ) : ViewModel() {
@@ -142,7 +145,7 @@ class AccountViewModel @Inject constructor(
                 is Result.Success -> _uiState.value.copy(
                     isWorking = false,
                     account = _uiState.value.account?.copy(zone = zone.id),
-                    message = "Ara fas servir els preus de ${zone.displayName}"
+                    message = context.getString(R.string.account_zone_changed, context.getString(zone.nameRes))
                 )
                 is Result.Error -> _uiState.value.copy(isWorking = false, message = result.message)
                 is Result.Loading -> _uiState.value
@@ -157,7 +160,7 @@ class AccountViewModel @Inject constructor(
                 is Result.Success -> _uiState.value.copy(
                     isWorking = false,
                     emailSaved = true,
-                    message = "T'hem enviat un correu per verificar-lo"
+                    message = context.getString(R.string.account_email_verification_sent)
                 )
                 is Result.Error -> _uiState.value.copy(isWorking = false, dialogError = result.message)
                 is Result.Loading -> _uiState.value
@@ -170,7 +173,7 @@ class AccountViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isWorking = true, dialogError = null)
             _uiState.value = when (val result = authRepository.changePassword(current, new)) {
-                is Result.Success -> AccountUiState(passwordChanged = true, message = "Contrasenya canviada")
+                is Result.Success -> AccountUiState(passwordChanged = true, message = context.getString(R.string.account_password_changed))
                 is Result.Error -> _uiState.value.copy(isWorking = false, dialogError = result.message)
                 is Result.Loading -> _uiState.value
             }
@@ -266,10 +269,10 @@ fun AccountScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Compte") },
+                title = { Text(stringResource(R.string.account_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Enrere")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.account_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -296,7 +299,7 @@ fun AccountScreen(
                 Column {
                     Text(userName ?: "", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Sessió iniciada",
+                        stringResource(R.string.account_signed_in),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -304,11 +307,11 @@ fun AccountScreen(
             }
 
             SettingsCard(
-                title = "Avisos",
+                title = stringResource(R.string.account_alerts_title),
                 text = if (notificationsAllowed)
-                    "T'avisarem si un endoll no s'ha pogut encendre o apagar després dels reintents."
+                    stringResource(R.string.account_alerts_on)
                 else
-                    "Les notificacions estan desactivades: no sabràs si un endoll es queda encès o apagat per error."
+                    stringResource(R.string.account_alerts_off)
             ) {
                 if (!notificationsAllowed) {
                     OutlinedButton(onClick = {
@@ -316,7 +319,7 @@ fun AccountScreen(
                     }) {
                         Icon(painterResource(R.drawable.ic_notifications), contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Activar les notificacions")
+                        Text(stringResource(R.string.account_enable_notifications))
                     }
                 }
             }
@@ -324,19 +327,19 @@ fun AccountScreen(
             uiState.account?.let { account ->
                 val email = account.email
                 SettingsCard(
-                    title = "Correu",
+                    title = stringResource(R.string.account_email_title),
                     text = when {
-                        email == null -> "Afegeix-hi el teu correu: és l'única manera de recuperar la contrasenya si l'oblides."
-                        account.emailVerified -> "$email · verificat. Si oblides la contrasenya, t'hi enviarem l'enllaç per canviar-la."
-                        else -> "$email · pendent de verificar. Obre l'enllaç que t'hem enviat (mira també el correu brossa)."
+                        email == null -> stringResource(R.string.account_email_missing)
+                        account.emailVerified -> stringResource(R.string.account_email_verified, email)
+                        else -> stringResource(R.string.account_email_pending, email)
                     }
                 ) {
                     OutlinedButton(onClick = { showChangeEmail = true }) {
                         Text(
                             when {
-                                email == null -> "Afegir el correu"
-                                account.emailVerified -> "Canviar el correu"
-                                else -> "Tornar a enviar o canviar"
+                                email == null -> stringResource(R.string.account_email_add)
+                                account.emailVerified -> stringResource(R.string.account_email_change)
+                                else -> stringResource(R.string.account_email_resend)
                             }
                         )
                     }
@@ -354,40 +357,39 @@ fun AccountScreen(
 
             uiState.account?.let { account ->
                 SettingsCard(
-                    title = "Zona",
-                    text = "${Zone.of(account.zone).displayName}. Els preus de Ceuta i Melilla són diferents en algunes hores; " +
-                        "les Balears tenen els mateixos que la Península."
+                    title = stringResource(R.string.account_zone_title),
+                    text = stringResource(R.string.account_zone_text, stringResource(Zone.of(account.zone).nameRes))
                 ) {
-                    OutlinedButton(onClick = { showZone = true }) { Text("Canviar la zona") }
+                    OutlinedButton(onClick = { showZone = true }) { Text(stringResource(R.string.account_zone_change)) }
                 }
             }
 
             SettingsCard(
-                title = "Seguretat",
-                text = "Canvia la contrasenya amb què entres a l'app. Es tancarà la sessió als altres mòbils."
+                title = stringResource(R.string.account_security_title),
+                text = stringResource(R.string.account_security_text)
             ) {
-                OutlinedButton(onClick = { showChangePassword = true }) { Text("Canviar la contrasenya") }
+                OutlinedButton(onClick = { showChangePassword = true }) { Text(stringResource(R.string.account_change_password)) }
             }
 
-            SettingsCard(title = "Sessió", text = "Les regles continuen funcionant encara que tanquis la sessió.") {
+            SettingsCard(title = stringResource(R.string.account_session_title), text = stringResource(R.string.account_session_text)) {
                 OutlinedButton(onClick = { showLogout = true }) {
                     Icon(painterResource(R.drawable.ic_logout), contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Tancar la sessió")
+                    Text(stringResource(R.string.account_logout))
                 }
             }
 
             val uriHandler = LocalUriHandler.current
             SettingsCard(
-                title = "Privacitat",
-                text = "Quines dades guardem, per a què i quins drets tens."
+                title = stringResource(R.string.account_privacy),
+                text = stringResource(R.string.account_privacy_text)
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { uriHandler.openUri(BuildConfig.BASE_URL + "privacitat") }) {
-                        Text("Privacitat")
+                        Text(stringResource(R.string.account_privacy))
                     }
                     OutlinedButton(onClick = { uriHandler.openUri(BuildConfig.BASE_URL + "condicions") }) {
-                        Text("Condicions")
+                        Text(stringResource(R.string.account_terms))
                     }
                 }
             }
@@ -395,12 +397,12 @@ fun AccountScreen(
             HorizontalDivider()
 
             SettingsCard(
-                title = "Esborrar el compte",
-                text = "Esborra el compte i tot el que hi ha: integracions, dispositius, regles i historial. No es pot desfer.",
+                title = stringResource(R.string.account_delete_title),
+                text = stringResource(R.string.account_delete_text),
                 danger = true
             ) {
                 OutlinedButton(onClick = { showDeleteAccount = true }) {
-                    Text("Esborrar el compte", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.account_delete_title), color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -409,16 +411,16 @@ fun AccountScreen(
     if (showLogout) {
         AlertDialog(
             onDismissRequest = { showLogout = false },
-            title = { Text("Tancar la sessió") },
-            text = { Text("Les regles continuaran encenent i apagant els endolls. Per tornar a entrar et caldrà la contrasenya.") },
+            title = { Text(stringResource(R.string.account_logout)) },
+            text = { Text(stringResource(R.string.account_logout_dialog_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     showLogout = false
                     AlertsWorker.cancel(context)
                     onLogout()
-                }) { Text("Tancar la sessió") }
+                }) { Text(stringResource(R.string.account_logout)) }
             },
-            dismissButton = { TextButton(onClick = { showLogout = false }) { Text("Cancel·lar") } }
+            dismissButton = { TextButton(onClick = { showLogout = false }) { Text(stringResource(R.string.account_cancel)) } }
         )
     }
 
@@ -438,7 +440,7 @@ fun AccountScreen(
         val current = Zone.of(uiState.account?.zone ?: "peninsula")
         AlertDialog(
             onDismissRequest = { showZone = false },
-            title = { Text("On ets?") },
+            title = { Text(stringResource(R.string.account_zone_dialog_title)) },
             text = {
                 Column(Modifier.selectableGroup()) {
                     Zone.entries.forEach { zone ->
@@ -458,18 +460,18 @@ fun AccountScreen(
                         ) {
                             RadioButton(selected = zone == current, onClick = null)
                             Spacer(Modifier.width(12.dp))
-                            Text(zone.displayName)
+                            Text(stringResource(zone.nameRes))
                         }
                     }
                     Text(
-                        "Les Canàries encara no hi són.",
+                        stringResource(R.string.account_zone_canaries),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             },
-            confirmButton = { TextButton(onClick = { showZone = false }) { Text("Tancar") } }
+            confirmButton = { TextButton(onClick = { showZone = false }) { Text(stringResource(R.string.account_close)) } }
         )
     }
 
@@ -506,25 +508,29 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 }
 
 /** "1 €/mes" from the store's price and the base plan */
-private fun Plan.label() = "$price/${if (basePlanId == BillingManager.YEARLY) "any" else "mes"}"
+@Composable
+private fun Plan.label() = stringResource(
+    if (basePlanId == BillingManager.YEARLY) R.string.account_plan_per_year else R.string.account_plan_per_month,
+    price
+)
 
 @Composable
 private fun PlanCard(account: Account, billing: BillingState, onBuy: (Plan) -> Unit, onRestore: () -> Unit) {
     // "2026-11-23 11:00:00" → "23/11/2026"
     val until = account.premiumUntil?.take(10)?.split('-')?.reversed()?.joinToString("/")
     SettingsCard(
-        title = if (account.isPremium) "Pla prèmium" else "Pla gratuït",
+        title = if (account.isPremium) stringResource(R.string.account_plan_premium) else stringResource(R.string.account_plan_free),
         text = when {
-            account.isPremium && until != null -> "Regles il·limitades i regles amb paraules. Es renova el $until; ho pots cancel·lar a Google Play."
-            account.isPremium -> "Regles il·limitades i regles amb paraules."
-            else -> "Fins a ${account.freeRules} regles. Amb el pla prèmium en tindràs tantes com vulguis i podràs escriure-les amb paraules."
+            account.isPremium && until != null -> stringResource(R.string.account_plan_premium_renews, until)
+            account.isPremium -> stringResource(R.string.account_plan_premium_text)
+            else -> stringResource(R.string.account_plan_free_text, account.freeRules)
         }
     ) {
         if (!account.isPremium) {
             when {
                 billing.plans == null -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                 billing.plans.isEmpty() -> Text(
-                    "Les compres encara no estan disponibles. Instal·la l'app des de Google Play.",
+                    stringResource(R.string.account_purchases_unavailable),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -535,7 +541,7 @@ private fun PlanCard(account: Account, billing: BillingState, onBuy: (Plan) -> U
                 }
             }
         }
-        TextButton(onClick = onRestore, enabled = !billing.isWorking) { Text("Restaurar les compres") }
+        TextButton(onClick = onRestore, enabled = !billing.isWorking) { Text(stringResource(R.string.account_restore_purchases)) }
     }
 }
 
@@ -595,16 +601,16 @@ private fun ChangePasswordDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Canviar la contrasenya") },
+        title = { Text(stringResource(R.string.account_change_password)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                PasswordField(current, { current = it }, "Contrasenya actual")
-                PasswordField(new, { new = it }, "Contrasenya nova", isError = tooShort)
-                PasswordField(repeat, { repeat = it }, "Repeteix la contrasenya nova", isError = mismatch)
+                PasswordField(current, { current = it }, stringResource(R.string.account_current_password))
+                PasswordField(new, { new = it }, stringResource(R.string.account_new_password), isError = tooShort)
+                PasswordField(repeat, { repeat = it }, stringResource(R.string.account_repeat_new_password), isError = mismatch)
                 val hint = when {
                     error != null -> error
-                    tooShort -> "Almenys 8 caràcters"
-                    mismatch -> "Les contrasenyes no coincideixen"
+                    tooShort -> stringResource(R.string.account_min_8_chars)
+                    mismatch -> stringResource(R.string.account_passwords_mismatch)
                     else -> null
                 }
                 hint?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -613,10 +619,10 @@ private fun ChangePasswordDialog(
         confirmButton = {
             TextButton(onClick = { onConfirm(current, new) }, enabled = valid && !isWorking) {
                 if (isWorking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                else Text("Canviar")
+                else Text(stringResource(R.string.account_change))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.account_cancel)) } }
     )
 }
 
@@ -632,29 +638,29 @@ private fun ChangeEmailDialog(
     var password by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Correu del compte") },
+        title = { Text(stringResource(R.string.account_email_dialog_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("T'hi enviarem un enllaç per verificar-lo. Escriu la contrasenya per confirmar el canvi.")
+                Text(stringResource(R.string.account_email_dialog_text))
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Correu electrònic") },
+                    label = { Text(stringResource(R.string.account_email)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     modifier = Modifier.fillMaxWidth()
                 )
-                PasswordField(password, { password = it }, "Contrasenya")
+                PasswordField(password, { password = it }, stringResource(R.string.account_password))
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(email, password) }, enabled = email.contains('@') && password.isNotEmpty() && !isWorking) {
                 if (isWorking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                else Text("Enviar")
+                else Text(stringResource(R.string.account_send))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.account_cancel)) } }
     )
 }
 
@@ -668,14 +674,11 @@ private fun DeleteAccountDialog(
     var password by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Esborrar el compte") },
+        title = { Text(stringResource(R.string.account_delete_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "S'esborraran per sempre les integracions, els dispositius, les regles i l'historial. " +
-                        "Els endolls que una regla tingui encesos ara s'apagaran. Escriu la contrasenya per confirmar-ho."
-                )
-                PasswordField(password, { password = it }, "Contrasenya")
+                Text(stringResource(R.string.account_delete_dialog_text))
+                PasswordField(password, { password = it }, stringResource(R.string.account_password))
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 Spacer(Modifier.height(4.dp))
             }
@@ -683,9 +686,9 @@ private fun DeleteAccountDialog(
         confirmButton = {
             TextButton(onClick = { onConfirm(password) }, enabled = password.isNotEmpty() && !isWorking) {
                 if (isWorking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                else Text("Esborrar", color = MaterialTheme.colorScheme.error)
+                else Text(stringResource(R.string.account_delete), color = MaterialTheme.colorScheme.error)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.account_cancel)) } }
     )
 }

@@ -1,7 +1,12 @@
 package com.crashbit.pvpccheap4.ui.screens.devices
 
 import com.crashbit.pvpccheap4.R
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.crashbit.pvpccheap4.alerts.detail
+import com.crashbit.pvpccheap4.alerts.title
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -122,7 +127,7 @@ fun DevicesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Dispositius") },
+                title = { Text(stringResource(R.string.devices_title)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 ),
@@ -138,12 +143,12 @@ fun DevicesScreen(
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Icon(painterResource(R.drawable.ic_refresh), contentDescription = "Sincronitzar")
+                                Icon(painterResource(R.drawable.ic_refresh), contentDescription = stringResource(R.string.devices_sync))
                             }
                         }
                     }
                     IconButton(onClick = onOpenAccount) {
-                        Icon(painterResource(R.drawable.ic_account_circle), contentDescription = "Compte")
+                        Icon(painterResource(R.drawable.ic_account_circle), contentDescription = stringResource(R.string.devices_account))
                     }
                 }
             )
@@ -153,7 +158,7 @@ fun DevicesScreen(
                 onClick = onAddIntegration,
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(painterResource(R.drawable.ic_add), contentDescription = "Afegir integració")
+                Icon(painterResource(R.drawable.ic_add), contentDescription = stringResource(R.string.devices_add_integration))
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -189,7 +194,7 @@ fun DevicesScreen(
                     if (uiState.integrations.isNotEmpty()) {
                         item {
                             Text(
-                                text = "Integracions",
+                                text = stringResource(R.string.devices_integrations),
                                 style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
@@ -206,7 +211,7 @@ fun DevicesScreen(
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "Dispositius",
+                                text = stringResource(R.string.devices_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
@@ -223,7 +228,7 @@ fun DevicesScreen(
                     } else if (uiState.devices.isEmpty() && uiState.integrations.isNotEmpty()) {
                         item {
                             Text(
-                                text = "Prem el botó de sincronitzar per descobrir dispositius",
+                                text = stringResource(R.string.devices_press_sync),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(vertical = 16.dp)
@@ -247,6 +252,7 @@ fun DevicesScreen(
 
 @Composable
 fun AlertCard(alert: Alert) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
@@ -260,12 +266,12 @@ fun AlertCard(alert: Alert) {
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(
-                    alert.title,
+                    alert.title(context),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
                 Text(
-                    alert.detail + ". Comprova que l'endoll estigui connectat a la wifi.",
+                    stringResource(R.string.devices_alert_check_wifi, alert.detail(context)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -287,12 +293,15 @@ fun IntegrationCard(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Eliminar $providerName") },
+            title = { Text(stringResource(R.string.devices_delete_integration_title, providerName)) },
             text = {
                 Text(
-                    "Es treuran de l'app els seus $deviceCount dispositius i totes les regles " +
-                        "que els controlen. Els endolls no s'esborren de $providerName, però l'app " +
-                        "ja no els encendrà ni apagarà."
+                    pluralStringResource(
+                        R.plurals.devices_delete_integration_text,
+                        deviceCount,
+                        deviceCount,
+                        providerName
+                    )
                 )
             },
             confirmButton = {
@@ -300,11 +309,11 @@ fun IntegrationCard(
                     confirmDelete = false
                     onDelete()
                 }) {
-                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.devices_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel·lar") }
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.devices_cancel)) }
             }
         )
     }
@@ -329,7 +338,10 @@ fun IntegrationCard(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = if (integration.isActive) "Activa" else "Inactiva",
+                    text = stringResource(
+                        if (integration.isActive) R.string.devices_integration_active
+                        else R.string.devices_integration_inactive
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (integration.isActive) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
                 )
@@ -337,12 +349,12 @@ fun IntegrationCard(
 
             Row {
                 TextButton(onClick = onSync) {
-                    Text("Sincronitzar")
+                    Text(stringResource(R.string.devices_sync))
                 }
                 IconButton(onClick = { confirmDelete = true }) {
                     Icon(
                         painterResource(R.drawable.ic_delete),
-                        contentDescription = "Eliminar",
+                        contentDescription = stringResource(R.string.devices_delete),
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
@@ -380,13 +392,14 @@ fun DeviceCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 // A rule switches it every hour, so a manual change only lasts until then
+                val mode = if (rules.isEmpty()) stringResource(R.string.devices_mode_manual)
+                else stringResource(R.string.devices_mode_automatic, rules.joinToString())
                 Text(
-                    text = (if (rules.isEmpty()) "Manual" else "Automàtic · ${rules.joinToString()}") +
-                        when {
-                            device.measuresPower -> " · mesura el consum"
-                            device.powerWatts != null -> " · ${device.powerWatts} W"
-                            else -> ""
-                        },
+                    text = when {
+                        device.measuresPower -> stringResource(R.string.devices_measures_power, mode)
+                        device.powerWatts != null -> "$mode · ${device.powerWatts} W"
+                        else -> mode
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (rules.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
                     else MaterialTheme.colorScheme.primary
@@ -414,13 +427,13 @@ fun EmptyDevicesMessage(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Cap dispositiu configurat",
+            text = stringResource(R.string.devices_empty_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Afegeix una integració per sincronitzar els teus dispositius",
+            text = stringResource(R.string.devices_empty_text),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
@@ -447,13 +460,13 @@ fun ConnectionErrorMessage(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "No hi ha accés al servei",
+            text = stringResource(R.string.devices_connection_error_title),
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "No s'ha pogut connectar amb el núvol de PVPCCheap. Comprova la teva connexió a internet.",
+            text = stringResource(R.string.devices_connection_error_text),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp)
@@ -465,7 +478,7 @@ fun ConnectionErrorMessage(
                 contentDescription = null,
                 modifier = Modifier.padding(end = 8.dp)
             )
-            Text("Tornar a intentar")
+            Text(stringResource(R.string.devices_retry))
         }
     }
 }

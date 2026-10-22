@@ -23,33 +23,34 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.Savings
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private val catalan = Locale.forLanguageTag("ca")
-
-private fun euros(value: Double) = String.format(catalan, "%.2f €", value)
+private fun euros(value: Double) = String.format(Locale.getDefault(), "%.2f €", value)
 
 private fun percent(ratio: Double) = "${(abs(ratio) * 100).roundToInt()} %"
 
-private fun kwh(value: Double) = String.format(catalan, "%.1f kWh", value)
+private fun kwh(value: Double) = String.format(Locale.getDefault(), "%.1f kWh", value)
 
 /** Typical power of common appliances, for users who don't know theirs */
 private val typicalPower = listOf(
-    "Termo elèctric" to 1500,
-    "Estufa o radiador" to 1500,
-    "Cotxe elèctric" to 2300,
-    "Patinet o bicicleta" to 100,
-    "Rentadora" to 500,
-    "Rentaplats" to 1000,
-    "Aire condicionat" to 1000,
-    "Deshumidificador" to 300
+    R.string.devices_appliance_water_heater to 1500,
+    R.string.devices_appliance_heater to 1500,
+    R.string.devices_appliance_electric_car to 2300,
+    R.string.devices_appliance_scooter to 100,
+    R.string.devices_appliance_washing_machine to 500,
+    R.string.devices_appliance_dishwasher to 1000,
+    R.string.devices_appliance_air_conditioning to 1000,
+    R.string.devices_appliance_dehumidifier to 300
 )
 
 /** This month: how much cheaper the rules ran than the average price. */
@@ -65,38 +66,47 @@ fun SavingsCard(savings: Savings) {
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                "Aquest mes",
+                stringResource(R.string.devices_savings_this_month),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
+            val headline = savings.savedEur?.let {
+                if (it >= 0) stringResource(R.string.devices_savings_saved, euros(it))
+                else stringResource(R.string.devices_savings_overpaid, euros(-it))
+            } ?: stringResource(
+                if (cheaper) R.string.devices_savings_cheaper else R.string.devices_savings_dearer,
+                percent(savings.savingRatio)
+            )
+            val hoursOn = pluralStringResource(R.plurals.devices_savings_hours_on, savings.hoursOn, savings.hoursOn)
+            val vsAverage = stringResource(
+                if (cheaper) R.string.devices_savings_below_average else R.string.devices_savings_above_average,
+                hoursOn,
+                percent(savings.savingRatio)
+            )
             Text(
-                text = savings.savedEur?.let {
-                    if (it >= 0) "Has estalviat ${euros(it)}" else "Has pagat ${euros(-it)} de més"
-                } ?: "${percent(savings.savingRatio)} ${if (cheaper) "més barat" else "més car"} que la mitjana",
+                text = headline,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Text(
-                text = buildString {
-                    append("${savings.hoursOn} h enceses, ")
-                    append("${percent(savings.savingRatio)} ${if (cheaper) "per sota" else "per sobre"} del preu mitjà del dia")
-                    savings.costEur?.let { append(" · has pagat ${euros(it)}") }
-                },
+                text = savings.costEur?.let {
+                    stringResource(R.string.devices_savings_paid, vsAverage, euros(it))
+                } ?: vsAverage,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             if (savings.measuredHours > 0) {
                 Text(
-                    if (savings.measuredHours == savings.hoursOn) "Amb el consum que han mesurat els endolls."
-                    else "Amb el consum mesurat en ${savings.measuredHours} de ${savings.hoursOn} h; la resta, amb la potència indicada.",
+                    if (savings.measuredHours == savings.hoursOn) stringResource(R.string.devices_savings_all_measured)
+                    else stringResource(R.string.devices_savings_partly_measured, savings.measuredHours, savings.hoursOn),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                 )
             }
             if (savings.devicesWithoutPower > 0) {
                 Text(
-                    "Toca un dispositiu i indica'n la potència per veure-ho en euros.",
+                    stringResource(R.string.devices_savings_set_power),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                 )
@@ -138,18 +148,16 @@ fun DevicePowerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Potència de ${device.name}") },
+        title = { Text(stringResource(R.string.devices_power_title, device.name)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Quants watts fa servir l'aparell quan està encès. Ho trobaràs a l'etiqueta o al manual. " +
-                        "Serveix per calcular quants euros t'estalvies.",
+                    stringResource(R.string.devices_power_text),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 if (device.measuresPower) {
                     Text(
-                        "Aquest endoll mesura el consum: l'estalvi fa servir el que mesura. " +
-                            "La potència que indiquis només s'usarà les hores que no s'hagi pogut mesurar.",
+                        stringResource(R.string.devices_power_measured),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -157,23 +165,23 @@ fun DevicePowerDialog(
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it.filter(Char::isDigit).take(6) },
-                    label = { Text("Potència (W)") },
+                    label = { Text(stringResource(R.string.devices_power_label)) },
                     singleLine = true,
                     isError = !valid,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text("Valors típics", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.devices_power_typical), style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     typicalPower.forEach { (name, w) ->
-                        SuggestionChip(onClick = { text = w.toString() }, label = { Text("$name · $w W") })
+                        SuggestionChip(onClick = { text = w.toString() }, label = { Text("${stringResource(name)} · $w W") })
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(watts ?: 0) }, enabled = valid) { Text("Desar") }
+            TextButton(onClick = { onSave(watts ?: 0) }, enabled = valid) { Text(stringResource(R.string.devices_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.devices_cancel)) } }
     )
 }

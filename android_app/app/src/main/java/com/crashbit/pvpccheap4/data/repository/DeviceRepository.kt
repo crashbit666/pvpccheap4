@@ -1,5 +1,7 @@
 package com.crashbit.pvpccheap4.data.repository
 
+import android.content.Context
+import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.model.AddIntegrationRequest
 import com.crashbit.pvpccheap4.data.model.Alert
@@ -16,12 +18,14 @@ import com.crashbit.pvpccheap4.data.model.UpdateDeviceRequest
 import com.crashbit.pvpccheap4.data.model.ScheduleResponse
 import com.crashbit.pvpccheap4.data.model.SyncDevicesRequest
 import com.crashbit.pvpccheap4.data.model.SyncDevicesResponse
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class DeviceRepository @Inject constructor(
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    @ApplicationContext private val context: Context
 ) {
     suspend fun getAlerts(since: String? = null): Result<List<Alert>> {
         return try {
@@ -29,7 +33,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'han pogut carregar els avisos", response.code())
+                Result.Error(context.getString(R.string.devices_error_load_alerts), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -43,7 +47,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut desar la potència", response.code())
+                Result.Error(context.getString(R.string.devices_error_save_power), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -56,7 +60,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut calcular l'estalvi", response.code())
+                Result.Error(context.getString(R.string.devices_error_savings), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -70,7 +74,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'han pogut carregar les integracions", response.code())
+                Result.Error(context.getString(R.string.devices_error_load_integrations), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -87,12 +91,12 @@ class DeviceRepository @Inject constructor(
                 val body = response.errorBody()?.string().orEmpty()
                 val message = when {
                     response.code() == 502 && provider == "home_assistant" ->
-                        "No s'ha pogut connectar amb Home Assistant. Comprova que l'adreça és accessible des d'Internet"
-                    response.code() == 502 -> "No s'ha pogut connectar amb el proveïdor. Torna-ho a provar més tard"
+                        context.getString(R.string.devices_error_ha_unreachable)
+                    response.code() == 502 -> context.getString(R.string.devices_error_provider_unreachable)
                     "Invalid Home Assistant URL" in body ->
-                        "L'adreça no és vàlida: ha de començar per https:// i ser accessible des d'Internet"
-                    provider == "home_assistant" -> "Home Assistant no ha acceptat el token. Revisa'l"
-                    else -> "No s'ha pogut afegir la integració. Revisa el correu i la contrasenya"
+                        context.getString(R.string.devices_error_ha_invalid_url)
+                    provider == "home_assistant" -> context.getString(R.string.devices_error_ha_token)
+                    else -> context.getString(R.string.devices_error_add_integration)
                 }
                 Result.Error(message, response.code())
             }
@@ -107,7 +111,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful) {
                 Result.Success(Unit)
             } else {
-                Result.Error("No s'ha pogut eliminar la integració", response.code())
+                Result.Error(context.getString(R.string.devices_error_delete_integration), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -125,7 +129,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'han pogut carregar els dispositius", response.code())
+                Result.Error(context.getString(R.string.devices_error_load_devices), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -139,7 +143,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'han pogut sincronitzar els dispositius", response.code())
+                Result.Error(context.getString(R.string.devices_error_sync_devices), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -153,7 +157,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut controlar el dispositiu", response.code())
+                Result.Error(context.getString(R.string.devices_error_control), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -174,7 +178,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut llegir l'estat del dispositiu", response.code())
+                Result.Error(context.getString(R.string.devices_error_device_state), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -187,7 +191,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut llegir el consum del dispositiu", response.code())
+                Result.Error(context.getString(R.string.devices_error_device_usage), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -202,11 +206,11 @@ class DeviceRepository @Inject constructor(
             } else {
                 Result.Error(
                     when (response.code()) {
-                        402 -> "Escriure les regles amb paraules és una opció de pagament"
-                        429 -> "Avui ja has demanat moltes propostes. Demà en podràs demanar més."
-                        502 -> "L'assistent no ha respost. Torna-ho a provar."
-                        503 -> "Ara mateix no està disponible"
-                        else -> "No s'ha pogut proposar la regla"
+                        402 -> context.getString(R.string.devices_error_draft_premium)
+                        429 -> context.getString(R.string.devices_error_draft_limit)
+                        502 -> context.getString(R.string.devices_error_draft_no_reply)
+                        503 -> context.getString(R.string.devices_error_draft_unavailable)
+                        else -> context.getString(R.string.devices_error_draft)
                     },
                     response.code()
                 )
@@ -223,7 +227,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'han pogut carregar les regles", response.code())
+                Result.Error(context.getString(R.string.devices_error_load_rules), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -236,7 +240,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error(ruleErrorMessage(response, "No s'ha pogut crear la regla"), response.code())
+                Result.Error(ruleErrorMessage(response, context.getString(R.string.devices_error_create_rule)), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -249,7 +253,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error(ruleErrorMessage(response, "No s'ha pogut actualitzar la regla"), response.code())
+                Result.Error(ruleErrorMessage(response, context.getString(R.string.devices_error_update_rule)), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -262,7 +266,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful) {
                 Result.Success(Unit)
             } else {
-                Result.Error("No s'ha pogut eliminar la regla", response.code())
+                Result.Error(context.getString(R.string.devices_error_delete_rule), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -275,7 +279,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut canviar la regla", response.code())
+                Result.Error(context.getString(R.string.devices_error_toggle_rule), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -289,7 +293,7 @@ class DeviceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'ha pogut carregar l'horari", response.code())
+                Result.Error(context.getString(R.string.devices_error_load_schedule), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -299,9 +303,9 @@ class DeviceRepository @Inject constructor(
     /** On 400 the backend explains what is wrong with the rule; otherwise use a generic message. */
     private fun ruleErrorMessage(response: retrofit2.Response<*>, fallback: String): String {
         if (response.code() == 402) {
-            return "El pla gratuït té 4 regles. Fes-te prèmium des del teu compte per tenir-ne més."
+            return context.getString(R.string.devices_error_rule_limit)
         }
         val detail = if (response.code() == 400) response.errorBody()?.string()?.takeIf { it.isNotBlank() } else null
-        return detail?.let { "$fallback: $it" } ?: fallback
+        return detail?.let { context.getString(R.string.devices_error_with_detail, fallback, it) } ?: fallback
     }
 }

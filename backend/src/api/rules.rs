@@ -1,5 +1,6 @@
 use crate::{
     db::DbPool,
+    lang::Lang,
     integrations::ProviderRegistry,
     models::{AutomationRule, NewAutomationRule, RuleExecution},
     schema::{automation_rules, devices, rule_executions, user_integrations},
@@ -12,7 +13,7 @@ use crate::{
     },
 };
 use std::sync::Arc;
-use actix_web::{delete, get, post, put, web, HttpResponse, Responder};
+use actix_web::{delete, get, post, put, web, HttpRequest, HttpResponse, Responder};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -446,8 +447,16 @@ pub struct DraftRuleRequest {
 }
 
 /// Asked when the model's rule does not pass the checks
-const DRAFT_NOT_VALID: &str = "No n'he sabut fer una regla vàlida. Prova de dir-ho d'una altra manera, \
-     per exemple: «carrega el patinet 4 hores abans de les 8».";
+fn draft_not_valid(lang: Lang) -> &'static str {
+    lang.pick(
+        "No n'he sabut fer una regla vàlida. Prova de dir-ho d'una altra manera, \
+         per exemple: «carrega el patinet 4 hores abans de les 8».",
+        "No he sabido hacer una regla válida. Prueba a decirlo de otra manera, \
+         por ejemplo: «carga el patinete 4 horas antes de las 8».",
+        "I couldn't make a valid rule from that. Try saying it another way, \
+         for example: \"charge the scooter for 4 hours before 8 am\".",
+    )
+}
 
 /// Checks the model's rule as if the user had typed it, and that it uses
 /// one of their devices
@@ -476,6 +485,7 @@ fn check_draft(draft: &Draft, devices: &[DeviceInfo]) -> Result<(), String> {
 /// Nothing is saved. Paid feature.
 #[post("/draft")]
 pub async fn draft_rule(
+    req: HttpRequest,
     pool: web::Data<DbPool>,
     limit: web::Data<DailyLimit>,
     claims: Claims,
@@ -520,7 +530,8 @@ pub async fn draft_rule(
         return HttpResponse::TooManyRequests().body("Daily limit reached");
     }
 
-    let draft = match rule_assistant::draft_rule(text, &devices).await {
+    let lang = Lang::of(&req);
+    let draft = match rule_assistant::draft_rule(text, &devices, lang).await {
         Ok(draft) => draft,
         Err(AssistantError::NotConfigured) => {
             return HttpResponse::ServiceUnavailable().body("Rules written in plain words are not available")
@@ -535,7 +546,7 @@ pub async fn draft_rule(
     }
     if let Err(e) = check_draft(&draft, &devices) {
         log::info!("Rule draft for user {} not valid: {}", user_id, e);
-        return HttpResponse::Ok().json(Draft { question: Some(DRAFT_NOT_VALID.to_string()), ..Default::default() });
+        return HttpResponse::Ok().json(Draft { question: Some(draft_not_valid(lang).to_string()), ..Default::default() });
     }
     HttpResponse::Ok().json(draft)
 }

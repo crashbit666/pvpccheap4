@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Zones -->
+    <string name="account_zone_peninsula">Mainland Spain</string>
+    <string name="account_zone_balears">Balearic Islands</string>
+    <string name="account_zone_ceuta">Ceuta</string>
+    <string name="account_zone_melilla">Melilla</string>
+
+    <!-- Common -->
+    <string name="account_cancel">Cancel</string>
+    <string name="account_close">Close</string>
+    <string name="account_send">Send</string>
+    <string name="account_back">Back</string>
+    <string name="account_username">Username</string>
+    <string name="account_password">Password</string>
+    <string name="account_email">Email</string>
+    <string name="account_privacy">Privacy</string>
+    <string name="account_terms">Terms</string>
+    <string name="account_passwords_mismatch">The passwords don\'t match</string>
+
+    <!-- Login -->
+    <string name="account_login_subtitle">Automate your devices</string>
+    <string name="account_login">Sign in</string>
+    <string name="account_forgot_password">Forgot your password?</string>
+    <string name="account_no_account">No account? Sign up</string>
+    <string name="account_forgot_title">Reset your password</string>
+    <string name="account_forgot_sent">If there\'s an account with this verified email, we\'ve sent it a link to set a new password. It expires in one hour. Check your spam folder too.</string>
+    <string name="account_forgot_text">Enter your account\'s email and we\'ll send you a link to set a new password.</string>
+    <string name="account_ok">OK</string>
+
+    <!-- Register -->
+    <string name="account_register_title">Create account</string>
+    <string name="account_register_subtitle">Sign up to get started</string>
+    <string name="account_register_email_hint">To recover your password if you forget it</string>
+    <string name="account_confirm_password">Confirm password</string>
+    <string name="account_register">Sign up</string>
+    <string name="account_register_terms_notice">By creating an account you accept the terms of use and the privacy policy.</string>
+    <string name="account_have_account">Already have an account? Sign in</string>
+
+    <!-- Account screen -->
+    <string name="account_title">Account</string>
+    <string name="account_signed_in">Signed in</string>
+    <string name="account_zone_changed">You\'re now using the prices for %1$s</string>
+    <string name="account_email_verification_sent">We\'ve sent you an email to verify it</string>
+    <string name="account_password_changed">Password changed</string>
+    <string name="account_alerts_title">Alerts</string>
+    <string name="account_alerts_on">We\'ll let you know if a plug couldn\'t be turned on or off after retrying.</string>
+    <string name="account_alerts_off">Notifications are off: you won\'t know if a plug is left on or off by mistake.</string>
+    <string name="account_enable_notifications">Turn on notifications</string>
+    <string name="account_email_title">Email</string>
+    <string name="account_email_missing">Add your email: it\'s the only way to recover your password if you forget it.</string>
+    <string name="account_email_verified">%1$s · verified. If you forget your password, we\'ll send the link to change it there.</string>
+    <string name="account_email_pending">%1$s · not verified yet. Open the link we sent you (check your spam folder too).</string>
+    <string name="account_email_add">Add email</string>
+    <string name="account_email_change">Change email</string>
+    <string name="account_email_resend">Resend or change</string>
+    <string name="account_zone_title">Zone</string>
+    <string name="account_zone_text">%1$s. Prices in Ceuta and Melilla differ at some hours; the Balearic Islands have the same as the mainland.</string>
+    <string name="account_zone_change">Change zone</string>
+    <string name="account_security_title">Security</string>
+    <string name="account_security_text">Change the password you use to sign in to the app. You\'ll be signed out on your other phones.</string>
+    <string name="account_change_password">Change password</string>
+    <string name="account_session_title">Session</string>
+    <string name="account_session_text">Your rules keep working even if you sign out.</string>
+    <string name="account_logout">Sign out</string>
+    <string name="account_privacy_text">What data we store, why, and what your rights are.</string>
+    <string name="account_delete_title">Delete account</string>
+    <string name="account_delete_text">Deletes the account and everything in it: integrations, devices, rules and history. This can\'t be undone.</string>
+    <string name="account_logout_dialog_text">Your rules will keep turning the plugs on and off. You\'ll need your password to sign in again.</string>
+    <string name="account_zone_dialog_title">Where are you?</string>
+    <string name="account_zone_canaries">The Canary Islands aren\'t available yet.</string>
+
+    <!-- Plan -->
+    <string name="account_plan_per_month">%1$s/month</string>
+    <string name="account_plan_per_year">%1$s/year</string>
+    <string name="account_plan_premium">Premium plan</string>
+    <string name="account_plan_free">Free plan</string>
+    <string name="account_plan_premium_renews">Unlimited rules and rules in plain words. Renews on %1$s; you can cancel it on Google Play.</string>
+    <string name="account_plan_premium_text">Unlimited rules and rules in plain words.</string>
+    <string name="account_plan_free_text">Up to %1$d rules. With the premium plan you can have as many as you want and write them in plain words.</string>
+    <string name="account_purchases_unavailable">Purchases aren\'t available yet. Install the app from Google Play.</string>
+    <string name="account_restore_purchases">Restore purchases</string>
+
+    <!-- Dialogs -->
+    <string name="account_current_password">Current password</string>
+    <string name="account_new_password">New password</string>
+    <string name="account_repeat_new_password">Repeat the new password</string>
+    <string name="account_min_8_chars">At least 8 characters</string>
+    <string name="account_change">Change</string>
+    <string name="account_email_dialog_title">Account email</string>
+    <string name="account_email_dialog_text">We\'ll send a link there to verify it. Enter your password to confirm the change.</string>
+    <string name="account_delete_dialog_text">Your integrations, devices, rules and history will be deleted for good. Any plugs a rule has on right now will be turned off. Enter your password to confirm.</string>
+    <string name="account_delete">Delete</string>
+
+    <!-- Errors from the server -->
+    <string name="account_error_connection">Can\'t reach the PVPC Cheap cloud service</string>
+    <string name="account_error_network">Network error</string>
+    <string name="account_error_login">Couldn\'t sign in</string>
+    <string name="account_error_bad_credentials">Wrong username or password</string>
+    <string name="account_error_login_code">Couldn\'t sign in (error %1$d)</string>
+    <string name="account_error_email_taken">This email already has an account</string>
+    <string name="account_error_username_taken">This username already exists</string>
+    <string name="account_error_email_invalid">The email isn\'t valid</string>
+    <string name="account_error_password_short">The password must be at least 8 characters</string>
+    <string name="account_error_register_code">Couldn\'t create the account (error %1$d)</string>
+    <string name="account_error_read_account">Couldn\'t load the account</string>
+    <string name="account_error_wrong_password">The password is incorrect</string>
+    <string name="account_error_email_other_account">This email already belongs to another account</string>
+    <string name="account_error_save_email">Couldn\'t save the email</string>
+    <string name="account_error_change_zone">Couldn\'t change the zone</string>
+    <string name="account_error_mail_unavailable">Emails can\'t be sent right now</string>
+    <string name="account_error_send_mail">Couldn\'t send the email</string>
+    <string name="account_error_wrong_current_password">The current password is incorrect</string>
+    <string name="account_error_new_password_short">The new password must be at least 8 characters</string>
+    <string name="account_error_change_password">Couldn\'t change the password</string>
+    <string name="account_error_delete_account">Couldn\'t delete the account</string>
+    <string name="account_error_get_user">Couldn\'t get the user</string>
+
+    <!-- Billing -->
+    <string name="account_billing_failed">Couldn\'t complete the purchase</string>
+    <string name="account_billing_unavailable">Google Play isn\'t available</string>
+    <string name="account_billing_no_purchases">There are no purchases on this Google account</string>
+    <string name="account_billing_pending">The payment is pending. It will be activated once it\'s complete.</string>
+    <string name="account_billing_success">You\'re premium now. Thank you!</string>
+    <string name="account_billing_activation_failed">The payment went through, but it couldn\'t be activated. Try again with \"Restore purchases\".</string>
+</resources>

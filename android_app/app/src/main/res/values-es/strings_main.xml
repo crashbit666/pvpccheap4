@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="main_nav_devices">Dispositivos</string>
+    <string name="main_nav_rules">Reglas</string>
+    <string name="main_nav_schedule">Horario</string>
+    <string name="main_nav_prices">Precios</string>
+    <string name="main_prices_title">Precios</string>
+    <string name="main_prices_tab_today">Hoy</string>
+    <string name="main_prices_tab_tomorrow">Mañana</string>
+    <string name="main_prices_current">Precio actual</string>
+    <string name="main_prices_cheap">Barato</string>
+    <string name="main_prices_tomorrow_unavailable">Precios de mañana no disponibles</string>
+    <string name="main_prices_none">No hay precios disponibles</string>
+    <string name="main_prices_tomorrow_published">Los precios de mañana se publican después de las 20:30</string>
+    <string name="main_prices_auto_load">Los precios se cargarán automáticamente</string>
+    <string name="main_schedule_title">Horario</string>
+    <string name="main_schedule_previous_day">Día anterior</string>
+    <string name="main_schedule_next_day">Día siguiente</string>
+    <string name="main_status_off">Apagado</string>
+    <string name="main_status_on">Encendido</string>
+    <string name="main_status_failed">Fallido</string>
+    <string name="main_status_retrying">Reintentando</string>
+    <string name="main_status_missed">Perdido</string>
+    <string name="main_status_done">Ya había terminado</string>
+    <string name="main_status_pending">Pendiente</string>
+    <string name="main_status_executing">Ejecutando</string>
+    <string name="main_schedule_empty_title">Ninguna actividad programada</string>
+    <string name="main_schedule_empty_body">Las ejecuciones programadas de tus dispositivos aparecerán aquí</string>
+    <string name="main_error_prices">No se han podido cargar los precios</string>
+    <string name="main_error_prices_tomorrow">No se han podido cargar los precios de mañana</string>
+    <string name="main_error_cheapest_hours">No se han podido cargar las horas más baratas</string>
+</resources>

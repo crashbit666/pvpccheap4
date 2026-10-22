@@ -3,6 +3,7 @@ package com.crashbit.pvpccheap4.ui.screens.rules
 import com.crashbit.pvpccheap4.ui.formatPrice
 import com.crashbit.pvpccheap4.R
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,7 +70,7 @@ fun RulesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Regles") },
+                title = { Text(stringResource(R.string.rules_title)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 )
@@ -80,7 +81,7 @@ fun RulesScreen(
                 onClick = onAddRule,
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(painterResource(R.drawable.ic_add), contentDescription = "Afegir regla")
+                Icon(painterResource(R.drawable.ic_add), contentDescription = stringResource(R.string.rules_add))
             }
         }
     ) { padding ->
@@ -138,8 +139,8 @@ fun RuleCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Eliminar regla") },
-            text = { Text("Segur que vols eliminar la regla \"${rule.name}\"?") },
+            title = { Text(stringResource(R.string.rules_delete_title)) },
+            text = { Text(stringResource(R.string.rules_delete_confirm, rule.name)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -147,12 +148,12 @@ fun RuleCard(
                         onDelete()
                     }
                 ) {
-                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.rules_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel·lar")
+                    Text(stringResource(R.string.rules_cancel))
                 }
             }
         )
@@ -206,7 +207,7 @@ fun RuleCard(
             IconButton(onClick = { showDeleteDialog = true }) {
                 Icon(
                     painterResource(R.drawable.ic_delete),
-                    contentDescription = "Eliminar regla",
+                    contentDescription = stringResource(R.string.rules_delete_title),
                     tint = MaterialTheme.colorScheme.error
                 )
             }
@@ -230,32 +231,34 @@ fun EmptyRulesMessage(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Cap regla configurada",
+            text = stringResource(R.string.rules_empty_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Crea regles per automatitzar els teus dispositius segons el preu de la llum",
+            text = stringResource(R.string.rules_empty_text),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
     }
 }
 
+@Composable
 private fun getRuleConfigSummary(rule: Rule): String? {
     val config = rule.config
     val once = when {
         config.once != true -> null
         // "2026-10-23" → "només el 23/10"; disabled once its window is over
         rule.isEnabled && config.onceDate != null ->
-            "només el ${config.onceDate.drop(8)}/${config.onceDate.drop(5).take(2)}"
-        else -> "un sol cop"
+            stringResource(R.string.rules_card_once_date, config.onceDate.drop(8), config.onceDate.drop(5).take(2))
+        else -> stringResource(R.string.rules_card_once)
     }
-    val stop = "s'apaga quan acaba".takeIf { config.stopWhenDone == true }
+    val stop = if (config.stopWhenDone == true) stringResource(R.string.rules_card_stop) else null
     return listOfNotNull(getRuleScheduleSummary(rule), once, stop).joinToString(" · ").ifEmpty { null }
 }
 
+@Composable
 private fun getRuleScheduleSummary(rule: Rule): String? {
     val config = rule.config
     val windows = windowsFromConfig(config)
@@ -263,26 +266,27 @@ private fun getRuleScheduleSummary(rule: Rule): String? {
     return when (rule.ruleType) {
         "cheapest_hours" -> when {
             config.goal == "deadline" && windows.size == 1 -> config.cheapestHours?.let {
-                "$it h abans de les ${hh(windows[0].endHour)} (des de les ${hh(windows[0].startHour)})"
+                stringResource(R.string.rules_card_deadline, it, hh(windows[0].endHour), hh(windows[0].startHour))
             }
-            windows.isEmpty() -> config.cheapestHours?.let { "$it h més barates del dia" }
+            windows.isEmpty() -> config.cheapestHours?.let { stringResource(R.string.rules_card_cheapest_day, it) }
             config.distribution == "per_window" && windows.size > 1 ->
-                windows.joinToString(" · ") { "${it.hours} h a ${it.label}" }
-            else -> config.cheapestHours?.let { "$it h més barates · $labels" }
+                windows.map { stringResource(R.string.rules_card_window_hours, it.hours, it.label) }.joinToString(" · ")
+            else -> config.cheapestHours?.let { stringResource(R.string.rules_card_cheapest_windows, it, labels) }
         }
-        "price_threshold" -> config.priceThreshold?.let { "Preu ≤ ${formatPrice(it)}" }
-        "time_schedule" -> labels.takeIf { it.isNotEmpty() }?.let { "Cada dia $it" }
+        "price_threshold" -> config.priceThreshold?.let { stringResource(R.string.rules_card_price, formatPrice(it)) }
+        "time_schedule" -> labels.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.rules_card_schedule, it) }
         else -> null
     }
 }
 
+@Composable
 private fun getRuleTypeDescription(rule: Rule): String {
-    if (rule.config.goal == "deadline") return "Llest abans d'una hora"
+    if (rule.config.goal == "deadline") return stringResource(RuleType.DEADLINE.displayName)
     return when (val ruleType = rule.ruleType) {
-        "cheapest_hours" -> "Hores més barates"
-        "price_threshold" -> "Llindar de preu"
-        "time_schedule" -> "Franja horària"
-        "manual" -> "Manual"
+        "cheapest_hours" -> stringResource(RuleType.CHEAPEST_HOURS.displayName)
+        "price_threshold" -> stringResource(RuleType.PRICE_THRESHOLD.displayName)
+        "time_schedule" -> stringResource(RuleType.TIME_SCHEDULE.displayName)
+        "manual" -> stringResource(RuleType.MANUAL.displayName)
         else -> ruleType
     }
 }

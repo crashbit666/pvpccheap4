@@ -1,7 +1,10 @@
 package com.crashbit.pvpccheap4.data.repository
 
+import android.content.Context
+import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.model.PriceData
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
@@ -9,7 +12,8 @@ import javax.inject.Singleton
 
 @Singleton
 class PriceRepository @Inject constructor(
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    @ApplicationContext private val context: Context
 ) {
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
@@ -19,7 +23,7 @@ class PriceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'han pogut carregar els preus", response.code())
+                Result.Error(context.getString(R.string.main_error_prices), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -33,7 +37,7 @@ class PriceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'han pogut carregar els preus de demà", response.code())
+                Result.Error(context.getString(R.string.main_error_prices_tomorrow), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)
@@ -46,7 +50,7 @@ class PriceRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 Result.Success(response.body()!!)
             } else {
-                Result.Error("No s'han pogut carregar les hores més barates", response.code())
+                Result.Error(context.getString(R.string.main_error_cheapest_hours), response.code())
             }
         } catch (e: Exception) {
             Result.fromException(e)

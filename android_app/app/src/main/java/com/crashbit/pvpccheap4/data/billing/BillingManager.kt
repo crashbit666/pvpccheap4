@@ -16,6 +16,7 @@ import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.acknowledgePurchase
 import com.android.billingclient.api.queryProductDetails
 import com.android.billingclient.api.queryPurchasesAsync
+import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.model.GooglePurchaseRequest
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -49,7 +50,7 @@ data class BillingState(
  */
 @Singleton
 class BillingManager @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     private val apiService: ApiService
 ) : PurchasesUpdatedListener {
 
@@ -133,7 +134,7 @@ class BillingManager @Inject constructor(
         when (result.responseCode) {
             BillingClient.BillingResponseCode.OK -> scope.launch { purchases.orEmpty().forEach { send(it) } }
             BillingClient.BillingResponseCode.USER_CANCELED -> {}
-            else -> _state.value = _state.value.copy(message = "No s'ha pogut completar la compra")
+            else -> _state.value = _state.value.copy(message = context.getString(R.string.account_billing_failed))
         }
     }
 
@@ -141,7 +142,7 @@ class BillingManager @Inject constructor(
     fun restore() {
         scope.launch {
             if (!connect()) {
-                _state.value = _state.value.copy(message = "Google Play no està disponible")
+                _state.value = _state.value.copy(message = context.getString(R.string.account_billing_unavailable))
                 return@launch
             }
             val result = client.queryPurchasesAsync(
@@ -149,7 +150,7 @@ class BillingManager @Inject constructor(
             )
             val purchases = result.purchasesList.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
             if (purchases.isEmpty()) {
-                _state.value = _state.value.copy(message = "No hi ha cap compra en aquest compte de Google")
+                _state.value = _state.value.copy(message = context.getString(R.string.account_billing_no_purchases))
             }
             purchases.forEach { send(it) }
         }
@@ -158,7 +159,7 @@ class BillingManager @Inject constructor(
     private suspend fun send(purchase: Purchase) {
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
             if (purchase.purchaseState == Purchase.PurchaseState.PENDING) {
-                _state.value = _state.value.copy(message = "El pagament està pendent. S'activarà quan es completi.")
+                _state.value = _state.value.copy(message = context.getString(R.string.account_billing_pending))
             }
             return
         }
@@ -176,7 +177,8 @@ class BillingManager @Inject constructor(
         _state.value = _state.value.copy(
             isWorking = false,
             purchased = ok,
-            message = if (ok) "Ja ets prèmium. Gràcies!" else "S'ha pagat, però no s'ha pogut activar. Torna-ho a provar amb «Restaurar les compres»."
+            message = if (ok) context.getString(R.string.account_billing_success)
+            else context.getString(R.string.account_billing_activation_failed)
         )
     }
 
