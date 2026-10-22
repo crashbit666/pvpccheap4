@@ -208,13 +208,14 @@ impl ScheduleComputationService {
             .count();
         let is_free = |h: &NaiveDateTime| !handled_hours.contains(h);
         let current_hour = crate::time::current_hour();
+        let zone = crate::zones::of_user(conn, rule.user_id);
 
         let picks: Vec<NaiveDateTime> = match rule.rule_type.as_str() {
             "cheapest_hours" => {
                 if let Some(&(start, end)) = group
                     .windows
                     .iter()
-                    .find(|(start, end)| !self.prices_complete(*start, *end))
+                    .find(|(start, end)| !self.prices_complete(*start, *end, &zone))
                 {
                     // Picking from a partial window would choose expensive hours
                     // (e.g. only the evening of an overnight window)
@@ -228,7 +229,7 @@ impl ScheduleComputationService {
                 let mut candidates: Vec<Price> = Vec::new();
                 for &(start, end) in &group.windows {
                     candidates.extend(
-                        load_prices(conn, start.max(current_hour), end)?
+                        load_prices(conn, start.max(current_hour), end, &zone)?
                             .into_iter()
                             .filter(|p| is_free(&p.timestamp)),
                     );
@@ -253,7 +254,7 @@ impl ScheduleComputationService {
                 let mut hours = Vec::new();
                 for &(start, end) in &group.windows {
                     hours.extend(
-                        load_prices(conn, start.max(current_hour), end)?
+                        load_prices(conn, start.max(current_hour), end, &zone)?
                             .into_iter()
                             .filter(|p| p.price <= threshold && is_free(&p.timestamp))
                             .map(|p| p.timestamp),
@@ -301,12 +302,12 @@ impl ScheduleComputationService {
     }
 
     /// True when every day touched by [start, end) has its full set of prices.
-    fn prices_complete(&self, start: NaiveDateTime, end: NaiveDateTime) -> bool {
+    fn prices_complete(&self, start: NaiveDateTime, end: NaiveDateTime, zone: &str) -> bool {
         let price_service = PriceService::new(self.pool.clone());
         let last_day = (end - Duration::seconds(1)).date();
         let mut day = start.date();
         while day <= last_day {
-            if !price_service.has_prices_for_date(day).unwrap_or(false) {
+            if !price_service.has_zone_prices_for_date(day, zone).unwrap_or(false) {
                 return false;
             }
             day += Duration::days(1);
@@ -370,13 +371,15 @@ fn cheapest_hours_needed(rule: &AutomationRule) -> usize {
         .clamp(0, 24) as usize
 }
 
-/// Prices in [start, end), in time order.
+/// Prices of the zone in [start, end), in time order.
 fn load_prices(
     conn: &mut PgConnection,
     start: NaiveDateTime,
     end: NaiveDateTime,
+    zone: &str,
 ) -> Result<Vec<Price>, String> {
     prices::table
+        .filter(prices::zone.eq(zone))
         .filter(prices::timestamp.ge(start))
         .filter(prices::timestamp.lt(end))
         .order(prices::timestamp.asc())

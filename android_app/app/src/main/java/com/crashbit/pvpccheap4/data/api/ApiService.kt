@@ -5,6 +5,7 @@ import com.crashbit.pvpccheap4.data.model.AddIntegrationRequest
 import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.ChangeEmailRequest
 import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
+import com.crashbit.pvpccheap4.data.model.ChangeZoneRequest
 import com.crashbit.pvpccheap4.data.model.ForgotPasswordRequest
 import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
 import com.crashbit.pvpccheap4.data.model.AuthResponse
@@ -114,6 +115,10 @@ interface ApiService {
     /** Sets the account's email and sends the link that verifies it */
     @PUT("api/auth/email")
     suspend fun changeEmail(@Body request: ChangeEmailRequest): Response<Unit>
+
+    /** Whose prices the rules follow; the rules are rescheduled */
+    @PUT("api/auth/zone")
+    suspend fun changeZone(@Body request: ChangeZoneRequest): Response<Unit>
 
     /** Emails a link to set a new password (same answer whether the account exists or not) */
     @POST("api/auth/forgot-password")

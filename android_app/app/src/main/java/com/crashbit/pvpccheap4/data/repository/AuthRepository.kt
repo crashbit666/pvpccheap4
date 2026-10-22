@@ -6,6 +6,7 @@ import com.crashbit.pvpccheap4.data.model.Account
 import com.crashbit.pvpccheap4.data.model.AuthResponse
 import com.crashbit.pvpccheap4.data.model.ChangeEmailRequest
 import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
+import com.crashbit.pvpccheap4.data.model.ChangeZoneRequest
 import com.crashbit.pvpccheap4.data.model.ForgotPasswordRequest
 import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
 import com.crashbit.pvpccheap4.data.model.LoginRequest
@@ -130,6 +131,16 @@ class AuthRepository @Inject constructor(
                 response.code() == 400 -> Result.Error("El correu no és vàlid", 400)
                 else -> Result.Error("No s'ha pogut desar el correu", response.code())
             }
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    suspend fun changeZone(zone: String): Result<Unit> {
+        return try {
+            val response = apiService.changeZone(ChangeZoneRequest(zone))
+            if (response.isSuccessful) Result.Success(Unit)
+            else Result.Error("No s'ha pogut canviar la zona", response.code())
         } catch (e: Exception) {
             Result.fromException(e)
         }

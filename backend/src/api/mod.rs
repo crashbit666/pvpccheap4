@@ -28,6 +28,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(auth::login)
             .service(auth::me)
             .service(auth::change_email)
+            .service(auth::change_zone)
             .service(auth::forgot_password)
             .service(auth::change_password)
             .service(auth::delete_account),

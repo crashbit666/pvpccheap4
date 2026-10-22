@@ -13,12 +13,36 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize)]
 pub struct DateQuery {
     pub date: Option<String>, // Format: YYYY-MM-DD
+    /// crate::zones code; the Peninsula when missing
+    pub zone: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct CheapestHoursQuery {
     pub date: Option<String>,
     pub count: Option<usize>,
+    pub zone: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ZoneQuery {
+    pub zone: Option<String>,
+}
+
+/// The zone asked for; without one, the logged-in user's zone, or the
+/// Peninsula. An error answer when it is not one we serve.
+fn zone_param(pool: &DbPool, claims: Option<Claims>, zone: &Option<String>) -> Result<String, HttpResponse> {
+    match zone.as_deref() {
+        Some(z) if crate::zones::is_valid(z) => Ok(z.to_string()),
+        Some(_) => Err(HttpResponse::BadRequest().body("Unknown zone")),
+        None => Ok(claims
+            .and_then(|c| c.sub.parse::<i32>().ok())
+            .and_then(|user_id| {
+                let mut conn = pool.get().ok()?;
+                Some(crate::zones::of_user(&mut conn, user_id))
+            })
+            .unwrap_or_else(|| crate::zones::DEFAULT.to_string())),
+    }
 }
 
 #[derive(Serialize)]
@@ -52,7 +76,7 @@ pub struct SyncResponse {
 
 /// Get prices for a specific date (defaults to today)
 #[get("")]
-pub async fn get_prices(pool: web::Data<DbPool>, query: web::Query<DateQuery>) -> impl Responder {
+pub async fn get_prices(pool: web::Data<DbPool>, claims: Option<Claims>, query: web::Query<DateQuery>) -> impl Responder {
     let service = PriceService::new(pool.get_ref().clone());
 
     let date = match &query.date {
@@ -63,7 +87,11 @@ pub async fn get_prices(pool: web::Data<DbPool>, query: web::Query<DateQuery>) -
         None => crate::time::today(),
     };
 
-    match service.get_prices_for_date(date) {
+    let zone = match zone_param(&pool, claims, &query.zone) {
+        Ok(z) => z,
+        Err(response) => return response,
+    };
+    match service.get_prices_for_date(date, &zone) {
         Ok(prices) => {
             let response: Vec<PriceResponse> = prices
                 .into_iter()
@@ -82,10 +110,14 @@ pub async fn get_prices(pool: web::Data<DbPool>, query: web::Query<DateQuery>) -
 
 /// Get current hour's price
 #[get("/current")]
-pub async fn get_current_price(pool: web::Data<DbPool>) -> impl Responder {
+pub async fn get_current_price(pool: web::Data<DbPool>, claims: Option<Claims>, query: web::Query<ZoneQuery>) -> impl Responder {
     let service = PriceService::new(pool.get_ref().clone());
+    let zone = match zone_param(&pool, claims, &query.zone) {
+        Ok(z) => z,
+        Err(response) => return response,
+    };
 
-    match service.get_current_price() {
+    match service.get_current_price(&zone) {
         Ok(Some(price)) => {
             let response = PriceResponse {
                 timestamp: price.timestamp.to_string(),
@@ -105,7 +137,7 @@ pub async fn get_current_price(pool: web::Data<DbPool>) -> impl Responder {
 
 /// Get summary statistics for a date
 #[get("/summary")]
-pub async fn get_price_summary(pool: web::Data<DbPool>, query: web::Query<DateQuery>) -> impl Responder {
+pub async fn get_price_summary(pool: web::Data<DbPool>, claims: Option<Claims>, query: web::Query<DateQuery>) -> impl Responder {
     let service = PriceService::new(pool.get_ref().clone());
 
     let date = match &query.date {
@@ -116,7 +148,11 @@ pub async fn get_price_summary(pool: web::Data<DbPool>, query: web::Query<DateQu
         None => crate::time::today(),
     };
 
-    match service.get_prices_for_date(date) {
+    let zone = match zone_param(&pool, claims, &query.zone) {
+        Ok(z) => z,
+        Err(response) => return response,
+    };
+    match service.get_prices_for_date(date, &zone) {
         Ok(prices) if !prices.is_empty() => {
             let min_price = prices.iter().map(|p| p.price).fold(f64::INFINITY, f64::min);
             let max_price = prices.iter().map(|p| p.price).fold(f64::NEG_INFINITY, f64::max);
@@ -147,6 +183,7 @@ pub async fn get_price_summary(pool: web::Data<DbPool>, query: web::Query<DateQu
 #[get("/cheapest")]
 pub async fn get_cheapest_hours(
     pool: web::Data<DbPool>,
+    claims: Option<Claims>,
     query: web::Query<CheapestHoursQuery>,
 ) -> impl Responder {
     let service = PriceService::new(pool.get_ref().clone());
@@ -161,7 +198,11 @@ pub async fn get_cheapest_hours(
 
     let count = query.count.unwrap_or(6).min(24);
 
-    match service.get_cheapest_hours(date, count) {
+    let zone = match zone_param(&pool, claims, &query.zone) {
+        Ok(z) => z,
+        Err(response) => return response,
+    };
+    match service.get_cheapest_hours(date, count, &zone) {
         Ok(prices) => {
             let response: Vec<PriceResponse> = prices
                 .into_iter()
@@ -182,6 +223,7 @@ pub async fn get_cheapest_hours(
 #[get("/expensive")]
 pub async fn get_expensive_hours(
     pool: web::Data<DbPool>,
+    claims: Option<Claims>,
     query: web::Query<CheapestHoursQuery>,
 ) -> impl Responder {
     let service = PriceService::new(pool.get_ref().clone());
@@ -196,7 +238,11 @@ pub async fn get_expensive_hours(
 
     let count = query.count.unwrap_or(6).min(24);
 
-    match service.get_most_expensive_hours(date, count) {
+    let zone = match zone_param(&pool, claims, &query.zone) {
+        Ok(z) => z,
+        Err(response) => return response,
+    };
+    match service.get_most_expensive_hours(date, count, &zone) {
         Ok(prices) => {
             let response: Vec<PriceResponse> = prices
                 .into_iter()

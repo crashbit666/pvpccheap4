@@ -18,6 +18,7 @@ pub struct User {
     pub is_premium: bool,
     pub email: Option<String>,
     pub email_verified: bool,
+    pub zone: String,
 }
 
 #[derive(Queryable, Selectable, Insertable, Serialize, Deserialize, Debug, Clone)]
@@ -26,6 +27,7 @@ pub struct Price {
     pub timestamp: NaiveDateTime,
     pub price: f64,
     pub source: String,
+    pub zone: String,
 }
 
 // ============================================================================

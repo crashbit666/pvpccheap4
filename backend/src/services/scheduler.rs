@@ -32,6 +32,7 @@ mod tests {
             timestamp,
             price,
             source: "test".to_string(),
+            zone: "peninsula".to_string(),
         }
     }
 

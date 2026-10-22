@@ -33,8 +33,24 @@ data class Account(
     val aiRulesAvailable: Boolean = false,
     val email: String? = null,
     @SerializedName("email_verified")
-    val emailVerified: Boolean = false
+    val emailVerified: Boolean = false,
+    /** Whose prices the rules follow */
+    val zone: String = "peninsula"
 )
+
+data class ChangeZoneRequest(val zone: String)
+
+/** Price zones of the PVPC (Canàries is not served yet) */
+enum class Zone(val id: String, val displayName: String) {
+    PENINSULA("peninsula", "Península"),
+    BALEARS("balears", "Illes Balears"),
+    CEUTA("ceuta", "Ceuta"),
+    MELILLA("melilla", "Melilla");
+
+    companion object {
+        fun of(id: String) = entries.find { it.id == id } ?: PENINSULA
+    }
+}
 
 // Price models
 data class PriceData(

@@ -104,7 +104,8 @@ pub async fn get_schedule(
 
     // Get prices for the date for price info
     let price_service = PriceService::new(pool.get_ref().clone());
-    let prices = price_service.get_prices_for_date(date).unwrap_or_default();
+    let zone = crate::zones::of_user(&mut conn, user_id);
+    let prices = price_service.get_prices_for_date(date, &zone).unwrap_or_default();
 
     let scheduled_hours: Vec<ScheduledHour> = executions
         .into_iter()

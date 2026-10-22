@@ -8,6 +8,7 @@ mod models;
 mod schema;
 mod services;
 mod time;
+mod zones;
 
 use integrations::ProviderRegistry;
 

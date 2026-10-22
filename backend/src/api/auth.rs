@@ -2,9 +2,9 @@ use crate::{
     db::DbPool,
     integrations::ProviderRegistry,
     models::User,
-    schema::{devices, user_integrations, users},
+    schema::{automation_rules, devices, user_integrations, users},
     services::auth::{self, Claims},
-    services::{mailer, user_tokens},
+    services::{mailer, schedule_computation::ScheduleComputationService, user_tokens},
 };
 use actix_web::{HttpResponse, Responder, delete, get, post, put, web};
 use diesel::prelude::*;
@@ -171,6 +171,7 @@ pub async fn me(pool: web::Data<DbPool>, claims: Claims) -> impl Responder {
             "is_premium": user.is_premium,
             "email": user.email,
             "email_verified": user.email_verified,
+            "zone": user.zone,
             // Rules written in plain words: paid, and the server needs an API key
             "ai_rules_available": crate::services::rule_assistant::is_configured(),
         })),
@@ -219,6 +220,46 @@ pub async fn change_email(pool: web::Data<DbPool>, claims: Claims, item: web::Js
     };
     let sent = send_verification(&pool, user.id, email).await;
     HttpResponse::Ok().json(serde_json::json!({"email": email, "email_verified": false, "sent": sent}))
+}
+
+#[derive(Deserialize)]
+pub struct ChangeZoneRequest {
+    pub zone: String,
+}
+
+/// The zone whose prices the rules follow; the rules are rescheduled with them
+#[put("/zone")]
+pub async fn change_zone(pool: web::Data<DbPool>, claims: Claims, item: web::Json<ChangeZoneRequest>) -> impl Responder {
+    if !crate::zones::is_valid(&item.zone) {
+        return HttpResponse::BadRequest().body("Unknown zone");
+    }
+    let Ok(user_id) = claims.sub.parse::<i32>() else {
+        return HttpResponse::BadRequest().body("Invalid user ID");
+    };
+    let rule_ids: Vec<i32> = {
+        let Ok(mut conn) = pool.get() else {
+            return HttpResponse::InternalServerError().body("Database connection error");
+        };
+        if diesel::update(users::table.find(user_id))
+            .set(users::zone.eq(&item.zone))
+            .execute(&mut conn)
+            .is_err()
+        {
+            return HttpResponse::InternalServerError().body("Error saving zone");
+        }
+        automation_rules::table
+            .filter(automation_rules::user_id.eq(user_id))
+            .select(automation_rules::id)
+            .load(&mut conn)
+            .unwrap_or_default()
+    };
+    let schedules = ScheduleComputationService::new(pool.get_ref().clone());
+    for rule_id in rule_ids {
+        if let Err(e) = schedules.refresh_rule(rule_id) {
+            log::warn!("Failed to reschedule rule {} after a zone change: {}", rule_id, e);
+        }
+    }
+    HttpResponse::Ok().json(serde_json::json!({"zone": item.zone}))
 }
 
 #[derive(Deserialize)]

@@ -25,10 +25,11 @@ diesel::table! {
 }
 
 diesel::table! {
-    prices (timestamp) {
+    prices (zone, timestamp) {
         timestamp -> Timestamp,
         price -> Float8,
         source -> Text,
+        zone -> Text,
     }
 }
 
@@ -67,6 +68,7 @@ diesel::table! {
         is_premium -> Bool,
         email -> Nullable<Text>,
         email_verified -> Bool,
+        zone -> Text,
     }
 }
 

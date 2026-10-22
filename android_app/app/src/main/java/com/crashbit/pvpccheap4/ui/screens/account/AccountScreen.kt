@@ -19,6 +19,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.RadioButton
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +66,7 @@ import com.crashbit.pvpccheap4.BuildConfig
 import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.alerts.AlertsWorker
 import com.crashbit.pvpccheap4.data.model.Account
+import com.crashbit.pvpccheap4.data.model.Zone
 import com.crashbit.pvpccheap4.data.repository.AuthRepository
 import com.crashbit.pvpccheap4.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -102,6 +107,21 @@ class AccountViewModel @Inject constructor(
             val result = authRepository.getAccount()
             if (result is Result.Success) {
                 _uiState.value = _uiState.value.copy(account = result.data)
+            }
+        }
+    }
+
+    fun changeZone(zone: Zone) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isWorking = true)
+            _uiState.value = when (val result = authRepository.changeZone(zone.id)) {
+                is Result.Success -> _uiState.value.copy(
+                    isWorking = false,
+                    account = _uiState.value.account?.copy(zone = zone.id),
+                    message = "Ara fas servir els preus de ${zone.displayName}"
+                )
+                is Result.Error -> _uiState.value.copy(isWorking = false, message = result.message)
+                is Result.Loading -> _uiState.value
             }
         }
     }
@@ -167,6 +187,7 @@ fun AccountScreen(
 
     var showChangePassword by remember { mutableStateOf(false) }
     var showChangeEmail by remember { mutableStateOf(false) }
+    var showZone by remember { mutableStateOf(false) }
     var showDeleteAccount by remember { mutableStateOf(false) }
     var showLogout by remember { mutableStateOf(false) }
 
@@ -291,6 +312,16 @@ fun AccountScreen(
                 }
             }
 
+            uiState.account?.let { account ->
+                SettingsCard(
+                    title = "Zona",
+                    text = "${Zone.of(account.zone).displayName}. Els preus de Ceuta i Melilla són diferents en algunes hores; " +
+                        "les Balears tenen els mateixos que la Península."
+                ) {
+                    OutlinedButton(onClick = { showZone = true }) { Text("Canviar la zona") }
+                }
+            }
+
             SettingsCard(
                 title = "Seguretat",
                 text = "Canvia la contrasenya amb què entres a l'app. Es tancarà la sessió als altres mòbils."
@@ -360,6 +391,45 @@ fun AccountScreen(
                 viewModel.clearDialogError()
             },
             onConfirm = viewModel::changePassword
+        )
+    }
+
+    if (showZone) {
+        val current = Zone.of(uiState.account?.zone ?: "peninsula")
+        AlertDialog(
+            onDismissRequest = { showZone = false },
+            title = { Text("On ets?") },
+            text = {
+                Column(Modifier.selectableGroup()) {
+                    Zone.entries.forEach { zone ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = zone == current,
+                                    onClick = {
+                                        showZone = false
+                                        if (zone != current) viewModel.changeZone(zone)
+                                    },
+                                    role = Role.RadioButton
+                                )
+                                .padding(vertical = 10.dp)
+                        ) {
+                            RadioButton(selected = zone == current, onClick = null)
+                            Spacer(Modifier.width(12.dp))
+                            Text(zone.displayName)
+                        }
+                    }
+                    Text(
+                        "Les Canàries encara no hi són.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { showZone = false }) { Text("Tancar") } }
         )
     }
 

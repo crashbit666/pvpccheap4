@@ -14,3 +14,4 @@ pub mod models;
 pub mod schema;
 pub mod services;
 pub mod time;
+pub mod zones;

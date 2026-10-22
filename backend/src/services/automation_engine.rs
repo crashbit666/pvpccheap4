@@ -53,9 +53,6 @@ impl AutomationEngine {
         let mut results = Vec::new();
         let now = crate::time::now_naive();
 
-        // Get current price
-        let current_price = self.get_current_price(&now);
-
         // Get all enabled rules
         let rules = match self.get_enabled_rules() {
             Ok(r) => r,
@@ -69,6 +66,7 @@ impl AutomationEngine {
 
         for rule in rules {
             // Evaluate the rule
+            let current_price = self.get_current_price(&now, rule.user_id);
             let evaluation = self.evaluate_rule(&rule, &now, current_price);
 
             if evaluation.should_trigger {
@@ -104,12 +102,13 @@ impl AutomationEngine {
             .map_err(|e| format!("Failed to load rules: {}", e))
     }
 
-    /// Get the current electricity price
-    fn get_current_price(&self, now: &NaiveDateTime) -> Option<f64> {
+    /// The current electricity price in the user's zone
+    fn get_current_price(&self, now: &NaiveDateTime, user_id: i32) -> Option<f64> {
         let mut conn = match self.pool.get() {
             Ok(c) => c,
             Err(_) => return None,
         };
+        let zone = crate::zones::of_user(&mut conn, user_id);
 
         // Get price for current hour
         let hour_start = now
@@ -118,6 +117,7 @@ impl AutomationEngine {
             .unwrap_or(*now);
 
         prices::table
+            .filter(prices::zone.eq(zone))
             .filter(prices::timestamp.eq(hour_start))
             .select(prices::price)
             .first::<f64>(&mut conn)
@@ -264,6 +264,7 @@ impl AutomationEngine {
 
         // Get prices within the window and find cheapest hours
         let cheapest_hours = self.find_cheapest_hours_in_window(
+            rule.user_id,
             now,
             window_start,
             window_end,
@@ -289,6 +290,7 @@ impl AutomationEngine {
     /// Find the cheapest hours within a time window
     fn find_cheapest_hours_in_window(
         &self,
+        user_id: i32,
         now: &NaiveDateTime,
         window_start: NaiveTime,
         window_end: NaiveTime,
@@ -311,7 +313,9 @@ impl AutomationEngine {
         };
 
         // Get prices in the window
+        let zone = crate::zones::of_user(&mut conn, user_id);
         let prices: Vec<Price> = prices::table
+            .filter(prices::zone.eq(zone))
             .filter(prices::timestamp.ge(start_dt))
             .filter(prices::timestamp.lt(end_dt))
             .order(prices::price.asc())
@@ -768,7 +772,7 @@ impl AutomationEngine {
                     rule.id, current_hour_start, rule.device_id
                 );
 
-                let current_price = self.get_current_price(&now);
+                let current_price = self.get_current_price(&now, rule.user_id);
                 let evaluation = RuleEvaluation {
                     rule_id: rule.id,
                     should_trigger: true,
@@ -792,7 +796,7 @@ impl AutomationEngine {
         scheduled: &ScheduledExecution,
         rule: &AutomationRule,
     ) -> ExecutionResult {
-        let current_price = self.get_current_price(&crate::time::now_naive());
+        let current_price = self.get_current_price(&crate::time::now_naive(), rule.user_id);
         let action = RuleAction::from_str(&scheduled.expected_action).unwrap_or(RuleAction::TurnOn);
 
         let evaluation = RuleEvaluation {
@@ -1027,7 +1031,7 @@ impl AutomationEngine {
             action: RuleAction::TurnOff,
             reason: "Rule disabled or deleted - turn off".to_string(),
         };
-        let current_price = self.get_current_price(&crate::time::now_naive());
+        let current_price = self.get_current_price(&crate::time::now_naive(), rule.user_id);
         let result = self.execute_rule(&rule, &evaluation, current_price).await;
         self.log_execution(&result, &evaluation);
         Some(result)
@@ -1089,7 +1093,7 @@ impl AutomationEngine {
                 action: RuleAction::TurnOff,
                 reason: format!("Retry of failed auto turn off ({}/{})", tries + 1, MAX_ATTEMPTS),
             };
-            let current_price = self.get_current_price(&crate::time::now_naive());
+            let current_price = self.get_current_price(&crate::time::now_naive(), rule.user_id);
             let result = self.execute_rule(&rule, &evaluation, current_price).await;
             self.log_execution(&result, &evaluation);
             results.push(result);

@@ -24,14 +24,12 @@ struct EsiosValue {
     geo_id: Option<i32>,
 }
 
-/// ESIOS geo_id for the Iberian Peninsula. Indicator 1001 also returns
-/// Canarias, Baleares, Ceuta and Melilla with the same timestamps.
-const GEO_ID_PENINSULA: i32 = 8741;
-
 #[derive(Debug, Clone)]
 pub struct PriceData {
     pub timestamp: NaiveDateTime,
     pub price: f64,
+    /// crate::zones code
+    pub zone: String,
 }
 
 /// Error types for price fetching operations
@@ -112,12 +110,13 @@ impl PriceService {
                 timestamp: price_data.timestamp,
                 price: price_data.price,
                 source: "esios".to_string(),
+                zone: price_data.zone.clone(),
             };
 
             // Upsert: insert or update on conflict
             let result = diesel::insert_into(prices::table)
                 .values(&new_price)
-                .on_conflict(prices::timestamp)
+                .on_conflict((prices::zone, prices::timestamp))
                 .do_update()
                 .set((
                     prices::price.eq(&new_price.price),
@@ -138,7 +137,7 @@ impl PriceService {
     }
 
     /// Get prices for a specific date from the database
-    pub fn get_prices_for_date(&self, date: NaiveDate) -> Result<Vec<Price>, PriceFetchError> {
+    pub fn get_prices_for_date(&self, date: NaiveDate, zone: &str) -> Result<Vec<Price>, PriceFetchError> {
         let mut conn = self.pool.get()
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
 
@@ -146,6 +145,7 @@ impl PriceService {
         let end = date.and_hms_opt(23, 59, 59).unwrap();
 
         prices::table
+            .filter(prices::zone.eq(zone))
             .filter(prices::timestamp.ge(start))
             .filter(prices::timestamp.le(end))
             .order(prices::timestamp.asc())
@@ -154,7 +154,7 @@ impl PriceService {
     }
 
     /// Get current hour's price
-    pub fn get_current_price(&self) -> Result<Option<Price>, PriceFetchError> {
+    pub fn get_current_price(&self, zone: &str) -> Result<Option<Price>, PriceFetchError> {
         let mut conn = self.pool.get()
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
 
@@ -162,6 +162,7 @@ impl PriceService {
         let hour_start = now.date().and_hms_opt(now.hour(), 0, 0).unwrap();
 
         prices::table
+            .filter(prices::zone.eq(zone))
             .filter(prices::timestamp.eq(hour_start))
             .first::<Price>(&mut conn)
             .optional()
@@ -169,7 +170,7 @@ impl PriceService {
     }
 
     /// Get the cheapest N hours for a date
-    pub fn get_cheapest_hours(&self, date: NaiveDate, n: usize) -> Result<Vec<Price>, PriceFetchError> {
+    pub fn get_cheapest_hours(&self, date: NaiveDate, n: usize, zone: &str) -> Result<Vec<Price>, PriceFetchError> {
         let mut conn = self.pool.get()
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
 
@@ -177,6 +178,7 @@ impl PriceService {
         let end = date.and_hms_opt(23, 59, 59).unwrap();
 
         prices::table
+            .filter(prices::zone.eq(zone))
             .filter(prices::timestamp.ge(start))
             .filter(prices::timestamp.le(end))
             .order(prices::price.asc())
@@ -186,7 +188,7 @@ impl PriceService {
     }
 
     /// Get the most expensive N hours for a date
-    pub fn get_most_expensive_hours(&self, date: NaiveDate, n: usize) -> Result<Vec<Price>, PriceFetchError> {
+    pub fn get_most_expensive_hours(&self, date: NaiveDate, n: usize, zone: &str) -> Result<Vec<Price>, PriceFetchError> {
         let mut conn = self.pool.get()
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
 
@@ -194,6 +196,7 @@ impl PriceService {
         let end = date.and_hms_opt(23, 59, 59).unwrap();
 
         prices::table
+            .filter(prices::zone.eq(zone))
             .filter(prices::timestamp.ge(start))
             .filter(prices::timestamp.le(end))
             .order(prices::price.desc())
@@ -202,7 +205,23 @@ impl PriceService {
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))
     }
 
-    /// Check if we have prices for a specific date
+    /// Whether the zone has all the prices of the date
+    pub fn has_zone_prices_for_date(&self, date: NaiveDate, zone: &str) -> Result<bool, PriceFetchError> {
+        let mut conn = self.pool.get()
+            .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
+        let start = date.and_hms_opt(0, 0, 0).unwrap();
+        let end = date.and_hms_opt(23, 59, 59).unwrap();
+        let count: i64 = prices::table
+            .filter(prices::zone.eq(zone))
+            .filter(prices::timestamp.ge(start))
+            .filter(prices::timestamp.le(end))
+            .count()
+            .get_result(&mut conn)
+            .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
+        Ok(count >= expected_price_rows(date))
+    }
+
+    /// Check if we have prices for a specific date, in every zone
     pub fn has_prices_for_date(&self, date: NaiveDate) -> Result<bool, PriceFetchError> {
         let mut conn = self.pool.get()
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
@@ -217,16 +236,17 @@ impl PriceService {
             .get_result(&mut conn)
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
 
-        Ok(count >= expected_price_rows(date))
+        Ok(count >= expected_price_rows(date) * crate::zones::ZONES.len() as i64)
     }
 }
 
 /// Fetch PVPC prices from ESIOS API
 pub async fn fetch_pvpc_prices(date: NaiveDate, token: &str) -> Result<Vec<PriceData>, PriceFetchError> {
     // URL for PVPC 2.0TD (Indicator 1001)
+    let geo_ids: String = crate::zones::geo_ids().map(|id| format!("&geo_ids[]={}", id)).collect();
     let url = format!(
-        "https://api.esios.ree.es/indicators/1001?start_date={}T00:00&end_date={}T23:59&geo_ids[]={}",
-        date, date, GEO_ID_PENINSULA
+        "https://api.esios.ree.es/indicators/1001?start_date={}T00:00&end_date={}T23:59{}",
+        date, date, geo_ids
     );
 
     let client = reqwest::Client::new();
@@ -256,15 +276,21 @@ pub async fn fetch_pvpc_prices(date: NaiveDate, token: &str) -> Result<Vec<Price
 
 /// Convert raw ESIOS values into one price per local hour.
 ///
-/// Keeps only the Peninsula (in case the geo filter is ignored) and merges the
-/// repeated 02:00 of the 25-hour DST day, which would otherwise collide on the
-/// `prices.timestamp` primary key and silently overwrite each other.
+/// Keeps the zones we serve (a value without geo_id is the Peninsula) and
+/// merges the repeated 02:00 of the 25-hour DST day, which would otherwise
+/// collide on the primary key and silently overwrite each other.
 fn parse_esios_values(values: Vec<EsiosValue>) -> Vec<PriceData> {
     let parsed: Vec<PriceData> = values
         .into_iter()
-        .filter(|v| v.geo_id.is_none_or(|id| id == GEO_ID_PENINSULA))
-        .filter_map(|v| match parse_esios_value(v.value, &v.datetime) {
-            Ok(p) => Some(p),
+        .filter_map(|v| {
+            let zone = match v.geo_id {
+                None => crate::zones::DEFAULT,
+                Some(id) => crate::zones::from_geo_id(id)?,
+            };
+            Some((zone, v))
+        })
+        .filter_map(|(zone, v)| match parse_esios_value(v.value, &v.datetime) {
+            Ok(p) => Some(PriceData { zone: zone.to_string(), ..p }),
             Err(e) => {
                 error!("{} ('{}')", e, v.datetime);
                 None
@@ -279,7 +305,7 @@ fn parse_esios_values(values: Vec<EsiosValue>) -> Vec<PriceData> {
 fn merge_duplicate_hours(prices: Vec<PriceData>) -> Vec<PriceData> {
     let mut merged: Vec<(PriceData, u32)> = Vec::with_capacity(prices.len());
     for p in prices {
-        match merged.iter_mut().find(|(m, _)| m.timestamp == p.timestamp) {
+        match merged.iter_mut().find(|(m, _)| m.timestamp == p.timestamp && m.zone == p.zone) {
             Some((m, n)) => {
                 warn!("Duplicate price for {} (DST change), averaging", p.timestamp);
                 m.price = (m.price * *n as f64 + p.price) / (*n + 1) as f64;
@@ -314,6 +340,7 @@ pub fn parse_esios_value(value: f64, datetime: &str) -> Result<PriceData, String
         // Madrid wall time, whatever offset ESIOS uses
         timestamp: dt.with_timezone(&Madrid).naive_local(),
         price: value / 1000.0, // Convert €/MWh to €/kWh
+        zone: crate::zones::DEFAULT.to_string(),
     })
 }
 
@@ -399,17 +426,20 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_esios_values_keeps_only_peninsula() {
+    fn test_parse_esios_values_one_price_per_zone() {
         let values = vec![
             esios(100.0, "2026-01-15T10:00:00.000+01:00", Some(8741)),
-            esios(200.0, "2026-01-15T10:00:00.000+01:00", Some(8742)),
+            esios(200.0, "2026-01-15T10:00:00.000+01:00", Some(8742)), // Canarias: not served
             esios(300.0, "2026-01-15T10:00:00.000+01:00", Some(8745)),
         ];
 
         let prices = parse_esios_values(values);
 
-        assert_eq!(prices.len(), 1);
+        assert_eq!(prices.len(), 2);
+        assert_eq!(prices[0].zone, "peninsula");
         assert!((prices[0].price - 0.1).abs() < 0.0001);
+        assert_eq!(prices[1].zone, "melilla");
+        assert!((prices[1].price - 0.3).abs() < 0.0001);
     }
 
     #[test]
@@ -458,6 +488,7 @@ mod tests {
         let price_data = PriceData {
             timestamp,
             price: 0.15,
+            zone: "peninsula".to_string(),
         };
 
         assert_eq!(price_data.timestamp.year(), 2024);

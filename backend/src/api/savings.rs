@@ -101,7 +101,9 @@ pub async fn get_savings(
         Err(_) => return HttpResponse::InternalServerError().body("Error loading executions"),
     };
 
+    let zone = crate::zones::of_user(&mut conn, user_id);
     let day_prices: Vec<(NaiveDateTime, f64)> = match prices::table
+        .filter(prices::zone.eq(zone))
         .filter(prices::timestamp.ge(start))
         .filter(prices::timestamp.lt(end))
         .select((prices::timestamp, prices::price))
