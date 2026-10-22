@@ -51,8 +51,11 @@ fet i afegeix la data.
 - [x] **Objectius en lloc d'hores**: regla «Llest abans d'una hora» (N hores
       més barates entre l'hora d'inici i l'hora límit). *Fet 21/10/2026.*
 - [ ] Objectius d'un sol cop (només per aquesta nit), sense regla diària.
-- [ ] **Regles en llenguatge natural amb IA**: el text es converteix en la
-      configuració JSON de la regla i la valida `validate_rule_config`.
+- [x] **Regles en llenguatge natural amb IA** (opció de pagament): «Escriu-la
+      amb paraules» al formulari; l'API de Claude proposa la regla
+      (`POST /api/rules/draft`), es valida com una de feta a mà i omple el
+      formulari, sense desar res. 30 propostes al dia. *Fet 22/10/2026.*
+      Cal posar `ANTHROPIC_API_KEY` al `servidor/.env` per activar-la.
 - [ ] Temps i temperatura per a la calefacció (previsió, termòstat).
 - [ ] No passar de la potència contractada en tenir diversos aparells encesos.
 - [ ] Plaques solars: aprofitar l'excedent abans que la xarxa.
@@ -84,15 +87,18 @@ fet i afegeix la data.
 - [ ] **Calcular al núvol, executar a prop dels endolls**: el servidor envia
       la programació del dia a Home Assistant, a un hub o a l'endoll (Shelly
       admet horaris propis). Si el servidor cau, els endolls continuen.
-- [ ] Mentre s'executi al núvol: una connexió MQTT persistent per compte de
-      Meross (ara se n'obre una per dispositiu i hora).
+- [x] Una connexió MQTT persistent per compte de Meross, compartida per totes
+      les tasques del cron i pel backend; es tanca després de 70 min sense ús.
+      *Fet 22/10/2026.*
 - [ ] Cua de treballs amb diversos treballadors. La base hi és: cada execució
       es reserva (`executing`) abans de fer-la.
 - [x] Preus descarregats un sol cop per a tots els clients.
 
 ## 5. Negoci
 
-- [ ] Freemium: gratis preus + 1 regla; subscripció de 2–3 €/mes per a regles
+- [ ] Freemium: ja hi ha `users.is_premium` (ara s'activa a mà a la base de
+      dades) i les regles amb paraules en depenen. Falta el cobrament (Google
+      Play Billing). Gratis preus + 1 regla; subscripció de 2–3 €/mes per a regles
       il·limitades, estalvi mesurat, IA i avisos.
 - [ ] Socis: comercialitzadores amb tarifa indexada, instal·ladors solars,
       pack amb endoll preconfigurat.
