@@ -20,8 +20,11 @@ fet i afegeix la data.
       verificat amb un enllaç; «Has oblidat la contrasenya?» envia un enllaç
       (1 h, un sol ús) a `/restablir-contrasenya`, que tanca totes les
       sessions. Correus amb Brevo. *Fet 22/10/2026.*
-- [ ] Activar els correus: verificar el domini a Brevo i posar
-      `BREVO_API_KEY` i `MAIL_FROM` al `servidor/.env`.
+- [x] Correus activats: domini `crashbit.cat` a Brevo, remitent
+      `no-reply@crashbit.cat`, clau d'API restringida a correu transaccional.
+      *Fet 22/10/2026.*
+- [ ] La clau d'API de Brevo caduca si passa 90 dies sense fer-se servir:
+      vigilar-ho o fer-la servir periòdicament.
 - [ ] Monitoratge del servidor amb alertes (parlar-ne amb qui gestiona el VPS
       compartit, per si ja n'hi ha).
 - [x] Política de privacitat, condicions i pàgina d'esborrar el compte
