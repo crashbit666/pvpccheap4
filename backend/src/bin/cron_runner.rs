@@ -55,7 +55,7 @@ async fn main() {
     sync_prices_startup(pool.clone()).await;
 
     // Create scheduler
-    let sched = JobScheduler::new().await.expect("Failed to create scheduler");
+    let mut sched = JobScheduler::new().await.expect("Failed to create scheduler");
 
     // Schedule sync-prices at 20:30 every day (Madrid timezone)
     // Cron: "0 30 20 * * *" = second 0, minute 30, hour 20, every day
@@ -156,9 +156,17 @@ async fn main() {
     log::info!("  - subscriptions: daily at 03:20, and ending ones every 5 minutes");
     tokio::spawn(check_mail_key());
 
-    // Keep the process running
-    loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+    // Run until podman stops the container (SIGTERM) or Ctrl+C, instead of
+    // being killed after the stop timeout
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("Failed to listen for SIGTERM");
+    tokio::select! {
+        _ = terminate.recv() => {}
+        _ = tokio::signal::ctrl_c() => {}
+    }
+    log::info!("Stopping the cron scheduler");
+    if let Err(e) = sched.shutdown().await {
+        log::warn!("Scheduler did not stop cleanly: {}", e);
     }
 }
 
