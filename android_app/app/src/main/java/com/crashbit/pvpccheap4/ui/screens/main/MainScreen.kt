@@ -1,8 +1,8 @@
 package com.crashbit.pvpccheap4.ui.screens.main
 
-import com.crashbit.pvpccheap4.R
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.padding
@@ -11,23 +11,24 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.NavType
-import androidx.navigation.compose.composable
-import androidx.navigation.navArgument
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavBackStack
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
+import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.alerts.AlertsWorker
 import com.crashbit.pvpccheap4.ui.screens.account.AccountScreen
 import com.crashbit.pvpccheap4.ui.screens.devices.AddIntegrationScreen
@@ -36,36 +37,47 @@ import com.crashbit.pvpccheap4.ui.screens.prices.PricesScreen
 import com.crashbit.pvpccheap4.ui.screens.rules.AddRuleScreen
 import com.crashbit.pvpccheap4.ui.screens.rules.RulesScreen
 import com.crashbit.pvpccheap4.ui.screens.schedule.ScheduleScreen
+import kotlinx.serialization.Serializable
+
+/** The screens inside the app, once logged in */
+@Serializable data object DevicesKey : NavKey
+@Serializable data object RulesKey : NavKey
+@Serializable data object ScheduleKey : NavKey
+@Serializable data object PricesKey : NavKey
+@Serializable data object AccountKey : NavKey
+@Serializable data object AddIntegrationKey : NavKey
+@Serializable data object AddRuleKey : NavKey
+@Serializable data class EditRuleKey(val ruleId: Int) : NavKey
 
 sealed class BottomNavItem(
-    val route: String,
+    val key: NavKey,
     @param:StringRes val titleRes: Int,
     @param:DrawableRes val selectedIcon: Int,
     @param:DrawableRes val unselectedIcon: Int
 ) {
     data object Devices : BottomNavItem(
-        route = "devices",
+        key = DevicesKey,
         titleRes = R.string.main_nav_devices,
         selectedIcon = R.drawable.ic_home_fill,
         unselectedIcon = R.drawable.ic_home
     )
 
     data object Rules : BottomNavItem(
-        route = "rules",
+        key = RulesKey,
         titleRes = R.string.main_nav_rules,
         selectedIcon = R.drawable.ic_rule_fill,
         unselectedIcon = R.drawable.ic_rule
     )
 
     data object Schedule : BottomNavItem(
-        route = "schedule",
+        key = ScheduleKey,
         titleRes = R.string.main_nav_schedule,
         selectedIcon = R.drawable.ic_calendar_month_fill,
         unselectedIcon = R.drawable.ic_calendar_month
     )
 
     data object Prices : BottomNavItem(
-        route = "prices",
+        key = PricesKey,
         titleRes = R.string.main_nav_prices,
         selectedIcon = R.drawable.ic_euro_fill,
         unselectedIcon = R.drawable.ic_euro
@@ -76,13 +88,16 @@ sealed class BottomNavItem(
 fun MainScreen(
     onLogout: () -> Unit
 ) {
-    val navController = rememberNavController()
+    val backStack = rememberNavBackStack(DevicesKey)
     val items = listOf(
         BottomNavItem.Devices,
         BottomNavItem.Rules,
         BottomNavItem.Schedule,
         BottomNavItem.Prices
     )
+    // Set when a form saved something, so the list behind it reloads
+    var devicesChanged by rememberSaveable { mutableStateOf(false) }
+    var rulesChanged by rememberSaveable { mutableStateOf(false) }
 
     // Warn about plugs that could not be switched, also with the app closed
     val context = LocalContext.current
@@ -98,107 +113,89 @@ fun MainScreen(
 
     Scaffold(
         bottomBar = {
-            BottomNavigationBar(navController = navController, items = items)
+            BottomNavigationBar(backStack = backStack, items = items)
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = BottomNavItem.Devices.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(BottomNavItem.Devices.route) { backStackEntry ->
-                // Listen for refresh signal from AddIntegrationScreen
-                val shouldRefresh = backStackEntry.savedStateHandle.get<Boolean>("refresh") == true
-
-                DevicesScreen(
-                    onOpenAccount = { navController.navigate("account") },
-                    onAddIntegration = {
-                        navController.navigate("add_integration")
-                    },
-                    shouldRefresh = shouldRefresh,
-                    onRefreshConsumed = {
-                        backStackEntry.savedStateHandle.remove<Boolean>("refresh")
-                    }
-                )
+        NavDisplay(
+            backStack = backStack,
+            onBack = { backStack.removeLastOrNull() },
+            modifier = Modifier.padding(innerPadding),
+            // Each screen keeps its own state and ViewModel while it is in the stack
+            entryDecorators = listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator()
+            ),
+            entryProvider = entryProvider {
+                entry<DevicesKey> {
+                    DevicesScreen(
+                        onOpenAccount = { backStack.add(AccountKey) },
+                        onAddIntegration = { backStack.add(AddIntegrationKey) },
+                        shouldRefresh = devicesChanged,
+                        onRefreshConsumed = { devicesChanged = false }
+                    )
+                }
+                entry<AccountKey> {
+                    AccountScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                        onLogout = onLogout
+                    )
+                }
+                entry<AddIntegrationKey> {
+                    AddIntegrationScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                        onSuccess = {
+                            devicesChanged = true
+                            backStack.removeLastOrNull()
+                        }
+                    )
+                }
+                entry<RulesKey> {
+                    RulesScreen(
+                        onAddRule = { backStack.add(AddRuleKey) },
+                        onEditRule = { ruleId -> backStack.add(EditRuleKey(ruleId)) },
+                        shouldRefresh = rulesChanged,
+                        onRefreshConsumed = { rulesChanged = false }
+                    )
+                }
+                entry<AddRuleKey> {
+                    AddRuleScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                        onSuccess = {
+                            rulesChanged = true
+                            backStack.removeLastOrNull()
+                        }
+                    )
+                }
+                // Same screen in edit mode
+                entry<EditRuleKey> { key ->
+                    AddRuleScreen(
+                        ruleId = key.ruleId,
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                        onSuccess = {
+                            rulesChanged = true
+                            backStack.removeLastOrNull()
+                        }
+                    )
+                }
+                entry<ScheduleKey> { ScheduleScreen() }
+                entry<PricesKey> { PricesScreen() }
             }
-            composable("account") {
-                AccountScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onLogout = onLogout
-                )
-            }
-            composable("add_integration") {
-                AddIntegrationScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onSuccess = {
-                        // Set a flag to indicate refresh is needed, then navigate back
-                        navController.previousBackStackEntry?.savedStateHandle?.set("refresh", true)
-                        navController.popBackStack()
-                    }
-                )
-            }
-            composable(BottomNavItem.Rules.route) { backStackEntry ->
-                // Listen for refresh signal from AddRuleScreen
-                val shouldRefresh = backStackEntry.savedStateHandle.get<Boolean>("refresh") == true
-
-                RulesScreen(
-                    onAddRule = {
-                        navController.navigate("add_rule")
-                    },
-                    onEditRule = { ruleId ->
-                        navController.navigate("edit_rule/$ruleId")
-                    },
-                    shouldRefresh = shouldRefresh,
-                    onRefreshConsumed = {
-                        backStackEntry.savedStateHandle.remove<Boolean>("refresh")
-                    }
-                )
-            }
-            composable("add_rule") {
-                AddRuleScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onSuccess = {
-                        // Set a flag to indicate refresh is needed, then navigate back
-                        navController.previousBackStackEntry?.savedStateHandle?.set("refresh", true)
-                        navController.popBackStack()
-                    }
-                )
-            }
-            // Same screen in edit mode: AddRuleViewModel reads ruleId from the route
-            composable(
-                route = "edit_rule/{ruleId}",
-                arguments = listOf(navArgument("ruleId") { type = NavType.IntType })
-            ) {
-                AddRuleScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onSuccess = {
-                        navController.previousBackStackEntry?.savedStateHandle?.set("refresh", true)
-                        navController.popBackStack()
-                    }
-                )
-            }
-            composable(BottomNavItem.Schedule.route) {
-                ScheduleScreen()
-            }
-            composable(BottomNavItem.Prices.route) {
-                PricesScreen()
-            }
-        }
+        )
     }
 }
 
 @Composable
 fun BottomNavigationBar(
-    navController: NavHostController,
+    backStack: NavBackStack<NavKey>,
     items: List<BottomNavItem>
 ) {
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
+    // The tab of the screen on top: the last tab in the stack
+    val current = backStack.lastOrNull { key -> items.any { it.key == key } }
 
     NavigationBar {
         items.forEach { item ->
             val title = stringResource(item.titleRes)
-            val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
+            val selected = current == item.key
 
             NavigationBarItem(
                 icon = {
@@ -210,13 +207,10 @@ fun BottomNavigationBar(
                 label = { Text(title) },
                 selected = selected,
                 onClick = {
-                    navController.navigate(item.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    // A tab opens on its own list; back goes to Devices, the first one
+                    backStack.clear()
+                    backStack.add(DevicesKey)
+                    if (item.key != DevicesKey) backStack.add(item.key)
                 }
             )
         }

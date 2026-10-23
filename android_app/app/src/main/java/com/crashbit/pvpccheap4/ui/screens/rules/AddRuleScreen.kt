@@ -62,7 +62,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.crashbit.pvpccheap4.data.model.Account
@@ -74,12 +73,14 @@ import com.crashbit.pvpccheap4.data.model.Rule
 import com.crashbit.pvpccheap4.data.model.RuleConfig
 import com.crashbit.pvpccheap4.data.repository.DeviceRepository
 import com.crashbit.pvpccheap4.data.repository.Result
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class AddRuleUiState(
     val isLoading: Boolean = false,
@@ -101,16 +102,19 @@ data class AddRuleUiState(
     val draftMessage: String? = null
 )
 
-@HiltViewModel
-class AddRuleViewModel @Inject constructor(
+@HiltViewModel(assistedFactory = AddRuleViewModel.Factory::class)
+class AddRuleViewModel @AssistedInject constructor(
+    /** The rule being edited; null for a new one */
+    @Assisted private val ruleId: Int?,
     private val deviceRepository: DeviceRepository,
     private val authRepository: AuthRepository,
-    @ApplicationContext private val context: Context,
-    savedStateHandle: SavedStateHandle
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
-    /** Set by the "edit_rule/{ruleId}" route */
-    private val ruleId: Int? = savedStateHandle.get<Int>("ruleId")
+    @AssistedFactory
+    interface Factory {
+        fun create(ruleId: Int?): AddRuleViewModel
+    }
 
     private val _uiState = MutableStateFlow(AddRuleUiState(isLoadingRule = ruleId != null))
     val uiState: StateFlow<AddRuleUiState> = _uiState.asStateFlow()
@@ -379,7 +383,10 @@ private fun cheapestSummary(windows: List<HourWindow>, perWindow: Boolean, hours
 fun AddRuleScreen(
     onNavigateBack: () -> Unit,
     onSuccess: () -> Unit,
-    viewModel: AddRuleViewModel = hiltViewModel()
+    ruleId: Int? = null,
+    viewModel: AddRuleViewModel = hiltViewModel<AddRuleViewModel, AddRuleViewModel.Factory>(
+        creationCallback = { factory -> factory.create(ruleId) }
+    )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
