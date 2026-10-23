@@ -21,7 +21,7 @@ navigationCompose = "2.10.2"
 # Background work
 work = "2.12.0"
 # Google Play purchases
-billing = "8.0.0"
+billing = "9.1.0"
 # KSP
 ksp = "2.3.12"
 

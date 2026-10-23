@@ -63,6 +63,8 @@ class BillingManager @Inject constructor(
     private val client = BillingClient.newBuilder(context)
         .setListener(this)
         .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+        // The library reconnects by itself when Google Play drops the service
+        .enableAutoServiceReconnection()
         .build()
 
     private suspend fun connect(): Boolean {
@@ -134,6 +136,9 @@ class BillingManager @Inject constructor(
         when (result.responseCode) {
             BillingClient.BillingResponseCode.OK -> scope.launch { purchases.orEmpty().forEach { send(it) } }
             BillingClient.BillingResponseCode.USER_CANCELED -> {}
+            // Google Play blocked on this phone (e.g. a kids mode)
+            BillingClient.BillingResponseCode.BILLING_UNAVAILABLE ->
+                _state.value = _state.value.copy(message = context.getString(R.string.account_billing_unavailable))
             else -> _state.value = _state.value.copy(message = context.getString(R.string.account_billing_failed))
         }
     }
@@ -148,7 +153,8 @@ class BillingManager @Inject constructor(
             val result = client.queryPurchasesAsync(
                 QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
             )
-            val purchases = result.purchasesList.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+            // A suspended subscription (payment declined) gives no access
+            val purchases = result.purchasesList.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isSuspended }
             if (purchases.isEmpty()) {
                 _state.value = _state.value.copy(message = context.getString(R.string.account_billing_no_purchases))
             }
