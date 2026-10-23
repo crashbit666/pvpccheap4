@@ -10,6 +10,7 @@ import com.crashbit.pvpccheap4.data.model.AuthResponse
 import com.crashbit.pvpccheap4.data.model.ChangeEmailRequest
 import com.crashbit.pvpccheap4.data.model.ChangePasswordRequest
 import com.crashbit.pvpccheap4.data.model.ChangeZoneRequest
+import com.crashbit.pvpccheap4.data.model.ZoneInfo
 import com.crashbit.pvpccheap4.data.model.ForgotPasswordRequest
 import com.crashbit.pvpccheap4.data.model.DeleteAccountRequest
 import com.crashbit.pvpccheap4.data.model.LoginRequest
@@ -163,11 +164,24 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    suspend fun changeZone(zone: String): Result<Unit> {
+    /** Null [tariff] or [margin] keeps the account's (the server picks one the zone offers) */
+    suspend fun changeZone(zone: String, tariff: String? = null, margin: Double? = null): Result<Unit> {
         return try {
-            val response = apiService.changeZone(ChangeZoneRequest(zone))
+            val response = apiService.changeZone(ChangeZoneRequest(zone, tariff, margin))
             if (response.isSuccessful) Result.Success(Unit)
             else Result.Error(context.getString(R.string.account_error_change_zone), response.code())
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
+    /** The zones with prices, Spain's first */
+    suspend fun getZones(): Result<List<ZoneInfo>> {
+        return try {
+            val response = apiService.getZones()
+            val zones = response.body()
+            if (response.isSuccessful && zones != null) Result.Success(zones.filter { it.isSpain || it.available })
+            else Result.Error(context.getString(R.string.account_error_load_zones), response.code())
         } catch (e: Exception) {
             Result.fromException(e)
         }

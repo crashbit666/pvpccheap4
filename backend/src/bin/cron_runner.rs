@@ -8,6 +8,8 @@
 //! Environment variables:
 //!   DATABASE_URL - PostgreSQL connection string (required)
 //!   ESIOS_TOKEN  - ESIOS API token for price fetching (required for sync-prices)
+//!   ENTSOE_TOKEN - ENTSO-E API token for the European zones (optional)
+//!   ADMIN_EMAIL  - where alerts go, e.g. Meross stopped working (optional)
 
 use chrono::Timelike;
 use chrono_tz::Europe::Madrid;
@@ -20,7 +22,7 @@ use backend::db::{self, DbPool};
 use backend::integrations::ProviderRegistry;
 use backend::services::automation_engine::AutomationEngine;
 use backend::services::power_monitor;
-use backend::services::price_fetcher::{expected_price_rows, PriceService};
+use backend::services::price_fetcher::PriceService;
 use backend::services::schedule_computation::ScheduleComputationService;
 
 /// One registry for every job, so providers keep their connections open
@@ -144,6 +146,17 @@ async fn main() {
     .expect("Failed to create due subscriptions job");
     sched.add(due_subs_job).await.expect("Failed to add due subscriptions job");
 
+    // Providers without an official API (Meross): warn when they stop working
+    let pool_health = pool.clone();
+    let health_job = Job::new_async_tz("0 7/10 * * * *", Madrid, move |_uuid, _l| {
+        let pool = pool_health.clone();
+        Box::pin(async move {
+            backend::services::provider_health::watch(&pool).await;
+        })
+    })
+    .expect("Failed to create provider health job");
+    sched.add(health_job).await.expect("Failed to add provider health job");
+
     // Start the scheduler
     sched.start().await.expect("Failed to start scheduler");
 
@@ -154,6 +167,7 @@ async fn main() {
     log::info!("  - power-readings: every 5 minutes");
     log::info!("  - mail-key: Mondays at 05:10");
     log::info!("  - subscriptions: daily at 03:20, and ending ones every 5 minutes");
+    log::info!("  - provider-health: every 10 minutes");
     tokio::spawn(check_mail_key());
 
     // Run until podman stops the container (SIGTERM) or Ctrl+C, instead of
@@ -264,22 +278,24 @@ async fn sync_prices_daily(pool: Arc<DbPool>) {
         }
 
         match service.sync_tomorrow().await {
-            Ok(count) if count as i64 >= expected_price_rows(tomorrow) => {
+            Ok(count) => {
                 log::info!("Synced {} prices for tomorrow", count);
-                success = true;
-
-                // Tomorrow's windows and tonight's overnight windows can now be computed
+                // Tomorrow's windows and tonight's overnight windows can now be
+                // computed, with whatever arrived; a missing series is retried
                 if let Err(e) = schedule_service.refresh_all() {
                     log::error!("Failed to compute schedules: {}", e);
                 }
-            }
-            Ok(count) => {
-                log::warn!(
-                    "Only got {} prices for tomorrow (expected {}), will retry...",
-                    count,
-                    expected_price_rows(tomorrow)
-                );
-                attempt += 1;
+                match service.missing_series(tomorrow) {
+                    Ok(missing) if missing.is_empty() => success = true,
+                    Ok(missing) => {
+                        log::warn!("Prices for tomorrow still missing in {:?}, will retry...", missing);
+                        attempt += 1;
+                    }
+                    Err(e) => {
+                        log::warn!("Could not check tomorrow's prices: {}, will retry...", e);
+                        attempt += 1;
+                    }
+                }
             }
             Err(e) => {
                 log::warn!("Failed to sync tomorrow's prices: {}, will retry...", e);

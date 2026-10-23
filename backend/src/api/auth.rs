@@ -1,11 +1,16 @@
 use crate::{
     db::DbPool,
     integrations::ProviderRegistry,
-    models::User,
-    schema::{automation_rules, devices, user_integrations, users},
+    models::{ExecutionStatus, User},
+    schema::{automation_rules, devices, scheduled_executions, user_integrations, users},
     services::auth::{self, Claims},
     lang::Lang,
-    services::{mailer, schedule_computation::ScheduleComputationService, user_tokens},
+    services::{
+        mailer,
+        schedule_computation::ScheduleComputationService,
+        tariff::{Kind as TariffKind, Tariff},
+        user_tokens,
+    },
 };
 use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, post, put, web};
 use diesel::prelude::*;
@@ -245,6 +250,8 @@ pub async fn me(pool: web::Data<DbPool>, claims: Claims) -> impl Responder {
             "email": user.email,
             "email_verified": user.email_verified,
             "zone": user.zone,
+            "tariff": user.tariff,
+            "tariff_margin": user.tariff_margin,
             // Rules written in plain words: paid, and the server needs an API key
             "ai_rules_available": crate::services::rule_assistant::is_configured(),
         })),
@@ -303,14 +310,20 @@ pub async fn change_email(
 #[derive(Deserialize)]
 pub struct ChangeZoneRequest {
     pub zone: String,
+    /// crate::services::tariff::Kind; the current one when missing (or the
+    /// zone's default when the zone does not offer it)
+    pub tariff: Option<String>,
+    /// €/kWh the retailer adds to an indexed tariff; the current one when missing
+    pub tariff_margin: Option<f64>,
 }
 
-/// The zone whose prices the rules follow; the rules are rescheduled with them
+/// Where the user lives and the tariff they pay: what the rules follow. The
+/// rules are rescheduled with it (a zone in another time zone moves them).
 #[put("/zone")]
 pub async fn change_zone(pool: web::Data<DbPool>, claims: Claims, item: web::Json<ChangeZoneRequest>) -> impl Responder {
-    if !crate::zones::is_valid(&item.zone) {
+    let Some(zone) = crate::zones::find(&item.zone) else {
         return HttpResponse::BadRequest().body("Unknown zone");
-    }
+    };
     let Ok(user_id) = claims.sub.parse::<i32>() else {
         return HttpResponse::BadRequest().body("Invalid user ID");
     };
@@ -318,18 +331,44 @@ pub async fn change_zone(pool: web::Data<DbPool>, claims: Claims, item: web::Jso
         let Ok(mut conn) = pool.get() else {
             return HttpResponse::InternalServerError().body("Database connection error");
         };
-        if diesel::update(users::table.find(user_id))
-            .set(users::zone.eq(&item.zone))
-            .execute(&mut conn)
-            .is_err()
-        {
+        let current = Tariff::of_user(&mut conn, user_id);
+        let kind = match item.tariff.as_deref().map(TariffKind::parse) {
+            Some(Some(kind)) => kind,
+            Some(None) => return HttpResponse::BadRequest().body("Unknown tariff"),
+            None if Tariff::new(zone, current.kind, 0.0).is_some() => current.kind,
+            None => Tariff::default_for(zone).kind,
+        };
+        let margin = item.tariff_margin.unwrap_or(current.margin);
+        let Some(tariff) = Tariff::new(zone, kind, margin) else {
+            return HttpResponse::BadRequest().body("Tariff not available in this zone, or margin out of range");
+        };
+        let saved = diesel::update(users::table.find(user_id))
+            .set((
+                users::zone.eq(zone.code),
+                users::tariff.eq(tariff.kind.as_str()),
+                users::tariff_margin.eq(tariff.margin),
+            ))
+            .execute(&mut conn);
+        if saved.is_err() {
             return HttpResponse::InternalServerError().body("Error saving zone");
         }
-        automation_rules::table
+        let rule_ids: Vec<i32> = automation_rules::table
             .filter(automation_rules::user_id.eq(user_id))
             .select(automation_rules::id)
             .load(&mut conn)
-            .unwrap_or_default()
+            .unwrap_or_default();
+        // Pending hours were picked with the old prices and clock: rescheduling
+        // only replaces the ones inside the new windows
+        let dropped = diesel::delete(
+            scheduled_executions::table
+                .filter(scheduled_executions::rule_id.eq_any(&rule_ids))
+                .filter(scheduled_executions::status.eq(ExecutionStatus::Pending.as_str())),
+        )
+        .execute(&mut conn);
+        if let Err(e) = dropped {
+            log::warn!("Failed to drop the pending hours of user {}: {}", user_id, e);
+        }
+        rule_ids
     };
     let schedules = ScheduleComputationService::new(pool.get_ref().clone());
     for rule_id in rule_ids {
@@ -337,7 +376,15 @@ pub async fn change_zone(pool: web::Data<DbPool>, claims: Claims, item: web::Jso
             log::warn!("Failed to reschedule rule {} after a zone change: {}", rule_id, e);
         }
     }
-    HttpResponse::Ok().json(serde_json::json!({"zone": item.zone}))
+    let Ok(mut conn) = pool.get() else {
+        return HttpResponse::InternalServerError().body("Database connection error");
+    };
+    let tariff = Tariff::of_user(&mut conn, user_id);
+    HttpResponse::Ok().json(serde_json::json!({
+        "zone": tariff.zone.code,
+        "tariff": tariff.kind.as_str(),
+        "tariff_margin": tariff.margin,
+    }))
 }
 
 #[derive(Deserialize)]

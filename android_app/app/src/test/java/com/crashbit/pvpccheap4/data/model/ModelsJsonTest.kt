@@ -76,4 +76,25 @@ class ModelsJsonTest {
         assertEquals(2.5, savings.savedEur!!, 0.0)
         assertEquals(0, savings.measuredHours)
     }
+
+    @Test
+    fun zonesTariffAndProviderStatus() {
+        val zones = json.decodeFromString<List<ZoneInfo>>(
+            """[{"code": "canarias", "name": "Canarias", "country": "ES", "tariffs": ["pvpc", "indexed"], "available": true},
+                {"code": "fi", "name": "Suomi", "country": "FI", "tariffs": ["indexed"], "available": false}]"""
+        )
+        assertTrue(zones[0].isSpain)
+        assertFalse(zones[1].available)
+        val account = json.decodeFromString<Account>(
+            """{"id": 1, "username": "joel", "zone": "canarias", "tariff": "indexed", "tariff_margin": 0.012}"""
+        )
+        assertEquals(Tariff.INDEXED, Tariff.of(account.tariff))
+        assertEquals(0.012, account.tariffMargin, 0.0)
+        // Only the zone: the server keeps the tariff
+        assertEquals("""{"zone":"fi"}""", json.encodeToString(ChangeZoneRequest("fi")))
+        val status = json.decodeFromString<List<ProviderStatus>>(
+            """[{"provider": "meross", "healthy": false, "failing_since": "2026-10-23 21:00:00", "accounts": 2, "failing_accounts": 2}]"""
+        )
+        assertFalse(status.single().healthy)
+    }
 }

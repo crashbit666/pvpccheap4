@@ -41,8 +41,13 @@ data class Account(
     val email: String? = null,
     @SerialName("email_verified")
     val emailVerified: Boolean = false,
-    /** Whose prices the rules follow */
+    /** Whose prices and clock the rules follow */
     val zone: String = "peninsula",
+    /** [Tariff] id */
+    val tariff: String = "pvpc",
+    /** €/kWh the retailer adds to an indexed tariff */
+    @SerialName("tariff_margin")
+    val tariffMargin: Double = 0.0,
     /** End of the store subscription ("2026-11-23 11:00:00"), if any */
     @SerialName("premium_until")
     val premiumUntil: String? = null,
@@ -57,20 +62,62 @@ data class GooglePurchaseRequest(
     val purchaseToken: String
 )
 
+/** Null fields keep what the account has */
 @Serializable
-data class ChangeZoneRequest(val zone: String)
+data class ChangeZoneRequest(
+    val zone: String,
+    val tariff: String? = null,
+    @SerialName("tariff_margin")
+    val tariffMargin: Double? = null
+)
 
-/** Price zones of the PVPC (Canàries is not served yet) */
+/** The Spanish zones, named in the app's language; the server lists the rest */
 enum class Zone(val id: String, @StringRes val nameRes: Int) {
     PENINSULA("peninsula", R.string.account_zone_peninsula),
+    CANARIAS("canarias", R.string.account_zone_canarias),
     BALEARS("balears", R.string.account_zone_balears),
     CEUTA("ceuta", R.string.account_zone_ceuta),
     MELILLA("melilla", R.string.account_zone_melilla);
 
     companion object {
-        fun of(id: String) = entries.find { it.id == id } ?: PENINSULA
+        fun find(id: String) = entries.find { it.id == id }
     }
 }
+
+/** A zone the server serves: Spain by zone, the rest of Europe by country */
+@Serializable
+data class ZoneInfo(
+    val code: String,
+    val name: String,
+    /** ISO 3166 code */
+    val country: String,
+    /** [Tariff] ids it offers */
+    val tariffs: List<String> = emptyList(),
+    /** The server has its prices */
+    val available: Boolean = true
+) {
+    val isSpain get() = country == "ES"
+}
+
+/** What the user pays: the regulated price, or the market price plus a margin */
+enum class Tariff(val id: String) {
+    PVPC("pvpc"),
+    INDEXED("indexed");
+
+    companion object {
+        fun of(id: String) = entries.find { it.id == id } ?: PVPC
+    }
+}
+
+/** A provider without an official API that stopped working for everyone */
+@Serializable
+data class ProviderStatus(
+    val provider: String,
+    val healthy: Boolean,
+    /** Local time of the first failure */
+    @SerialName("failing_since")
+    val failingSince: String? = null
+)
 
 // Price models
 @Serializable

@@ -57,7 +57,7 @@
     <string name="account_email_change">Canviar el correu</string>
     <string name="account_email_resend">Tornar a enviar o canviar</string>
     <string name="account_zone_title">Zona</string>
-    <string name="account_zone_text">%1$s. Els preus de Ceuta i Melilla són diferents en algunes hores; les Balears tenen els mateixos que la Península.</string>
+    <string name="account_zone_text">%1$s. Les regles fan servir els preus i l\'hora d\'aquesta zona.</string>
     <string name="account_zone_change">Canviar la zona</string>
     <string name="account_security_title">Seguretat</string>
     <string name="account_security_text">Canvia la contrasenya amb què entres a l\'app. Es tancarà la sessió als altres mòbils.</string>
@@ -70,7 +70,6 @@
     <string name="account_delete_text">Esborra el compte i tot el que hi ha: integracions, dispositius, regles i historial. No es pot desfer.</string>
     <string name="account_logout_dialog_text">Les regles continuaran encenent i apagant els endolls. Per tornar a entrar et caldrà la contrasenya.</string>
     <string name="account_zone_dialog_title">On ets?</string>
-    <string name="account_zone_canaries">Les Canàries encara no hi són.</string>
 
     <!-- Plan -->
     <string name="account_plan_per_month">%1$s/mes</string>
@@ -125,4 +124,23 @@
     <string name="account_billing_pending">El pagament està pendent. S\'activarà quan es completi.</string>
     <string name="account_billing_success">Ja ets prèmium. Gràcies!</string>
     <string name="account_billing_activation_failed">S\'ha pagat, però no s\'ha pogut activar. Torna-ho a provar amb «Restaurar les compres».</string>
+    <string name="account_zone_canarias">Canàries</string>
+    <string name="account_zone_spain">Espanya</string>
+    <string name="account_zone_europe">Resta d\'Europa</string>
+    <string name="account_error_load_zones">No s\'han pogut carregar les zones</string>
+    <string name="account_tariff_title">Tarifa</string>
+    <string name="account_tariff_pvpc_text">PVPC, el preu regulat: canvia cada hora i és igual per a tothom.</string>
+    <string name="account_tariff_indexed_text">Indexada: el preu del mercat diari, més els peatges i càrrecs de cada hora i el marge de la teva comercialitzadora (%1$s).</string>
+    <string name="account_tariff_market_text">El preu del mercat diari del teu país més el marge del teu subministrador (%1$s). No inclou els costos de xarxa ni els impostos.</string>
+    <string name="account_tariff_change">Canviar la tarifa</string>
+    <string name="account_tariff_dialog_title">Quina tarifa tens?</string>
+    <string name="account_tariff_pvpc">PVPC (preu regulat)</string>
+    <string name="account_tariff_indexed">Indexada al mercat (mercat lliure)</string>
+    <string name="account_tariff_indexed_help">La factura segueix el preu del mercat diari (OMIE) hora a hora. L\'app hi suma els peatges i càrrecs de cada hora (punta, pla i vall) i el marge d\'aquí sota.</string>
+    <string name="account_tariff_market_help">L\'app fa servir el preu del mercat diari del teu país (ENTSO-E) i hi suma el marge d\'aquí sota.</string>
+    <string name="account_tariff_margin">Marge</string>
+    <string name="account_tariff_margin_help">El que la comercialitzadora hi suma per kWh (mira el contracte). Si no ho saps, deixa-ho buit: les hores més barates són les mateixes.</string>
+    <string name="account_tariff_margin_value">%1$.3f €/kWh</string>
+    <string name="account_tariff_changed">Tarifa desada: les regles es tornen a programar</string>
+    <string name="account_save">Desa</string>
 </resources>

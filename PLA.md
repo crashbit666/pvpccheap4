@@ -37,7 +37,21 @@ fet i afegeix la data.
 - [x] Invalidar les sessions antigues quan es canvia la contrasenya
       (`users.token_version` dins el JWT). *Fet 21/10/2026.*
 - [ ] Risc: l'API del núvol de Meross no és oficial; pot canviar o tallar-se.
-      Mitigació: suportar més proveïdors (punt 3).
+      - [x] Detectar-ho: cada 10 min el cron mira si totes les accions amb
+        Meross de les últimes 3 h han fallat (3 fallades com a mínim; amb
+        diversos comptes, n'han de fallar 2). Llavors envia un correu a
+        `ADMIN_EMAIL` (o `CONTACT_EMAIL`), un cop al dia mentre duri i un
+        quan torni. *Fet 24/10/2026.*
+      - [x] Que l'usuari no es quedi penjat: l'app mostra «Meross no respon» a
+        Dispositius amb la sortida oficial (endolls a Home Assistant per
+        Matter o HomeKit, i Home Assistant aquí), i el formulari de Meross ho
+        explica abans de connectar-lo (`/api/integrations/status`).
+        *Fet 24/10/2026.*
+      - [ ] La solució de fons és una via oficial: demanar a Meross accés a
+        la seva API de núvol amb OAuth (Homey diu que Meross els en dona
+        l'API i la documentació). Ho ha de demanar el titular.
+      - [ ] Alternativa oficial sense Meross: SmartThings (API pública amb
+        OAuth; Meross s'hi integra oficialment) o Matter (punt 3).
 
 ## 2. Intel·ligència: el que el fa diferent
 
@@ -94,19 +108,46 @@ fet i afegeix la data.
       copiar claus ni ID) i rebem els estats per WebSocket. Cal demanar una
       llicència d'integrador a Shelly (support@shelly.cloud).
 - [ ] **Tuya / Smart Life** (API oficial).
-- [ ] A llarg termini, **Matter**.
-- [x] Zones: Península, Balears, Ceuta i Melilla. Preus desats per zona,
+- [ ] **Matter** (el titular el vol afegir): l'estàndard que fan servir els
+      endolls nous de Meross, Shelly, TP-Link, Eve… El control és local, per
+      tant cal alguna cosa a casa que parli Matter i rebi la programació del
+      servidor: Home Assistant (Matter Server, ja integrat amb HA), la
+      integració HACS d'aquí dalt o un petit hub propi. Lliga amb «Calcular
+      al núvol, executar a prop dels endolls» (punt 4) i treu la dependència
+      de núvols no oficials com el de Meross.
+- [x] Zones: Península, Canàries, Balears, Ceuta i Melilla. Preus desats per zona,
       zona triada al compte; regles, estalvi i API de preus fan servir la de
       l'usuari. *Fet 22/10/2026.*
-- [ ] Canàries: *confirmat 23/10/2026*. L'ESIOS (geo_id 8742) dona els
-      mateixos preus que la Península amb la mateixa etiqueta horària, i el
-      PVPC s'aplica per **hora local**: les 14 h canàries costen el que les
-      14 h peninsulars (una hora més tard en temps real). Per oferir-la cal
-      que la programació i l'execució de les regles d'aquests usuaris vagin
-      en hora canària (Atlantic/Canary) i no en la de Madrid.
-- [ ] Tarifes indexades del mercat lliure; Europa amb ENTSO-E.
-- [ ] Comprovar si el PVPC passa a franges de 15 minuts (el mercat diari ja és
-      quarthorari) i preparar-hi el model.
+- [x] Canàries. L'ESIOS (geo_id 8742) dona els mateixos preus que la
+      Península amb la mateixa etiqueta horària, i el PVPC s'aplica per
+      **hora local**: es desen una hora més tard en hora de Madrid. Cada zona
+      té la seva hora (`zones.rs`): la base de dades i el motor continuen en
+      hora de Madrid, i les franges de les regles, els dies, l'API i l'app
+      van en l'hora de l'usuari. Funciona perquè totes les zones canvien
+      l'hora al mateix instant (regla de la UE), i hi ha una prova que ho
+      comprova. *Fet 24/10/2026 (versió 1.3).*
+- [x] Tarifes indexades del mercat lliure: preu del mercat diari (ESIOS 600,
+      quarts d'hora) + peatges i càrrecs de cada hora (fitxer del PVPC de
+      REE, sense token: segueixen punta/pla/vall, caps de setmana i festius
+      i REE els actualitza quan canvien) + el marge de la comercialitzadora,
+      que l'usuari escriu. Al compte: «Tarifa» → PVPC o indexada.
+      *Fet 24/10/2026 (versió 1.3).*
+- [x] Europa amb ENTSO-E (document A44): 16 països de l'euro (PT, FR,
+      DE-LU, AT, BE, NL, IE, FI, EE, LV, LT, SK, SI, HR, GR, BG), preu del
+      mercat més el marge. L'app només mostra els que tenen preus.
+      *Codi fet 24/10/2026; cal un token (`ENTSOE_TOKEN` al `servidor/.env`):
+      compte a transparency.entsoe.eu i correu a transparency@entsoe.eu amb
+      l'assumpte «Restful API access». Ho ha de fer el titular.*
+      Falta: preus en moneda local fora de l'euro (SE, NO, DK, PL…) i els
+      costos de xarxa que varien per hora en alguns països.
+- [x] Franges de 15 minuts: cada preu desa la seva durada (`prices.minutes`).
+      El mercat diari ja és quarthorari (des de l'1/10/2025) i es desa així;
+      el PVPC continua sent horari (24 preus el 23/10/2026). Les regles
+      encenen per hores: les franges curtes es fan mitjana dins l'hora i una
+      hora només compta si la tenen sencera. *Fet 24/10/2026.*
+- [ ] Si la factura passa a quarts d'hora (PVPC o indexades), programar i
+      executar per quarts: `scheduled_executions` per franja i el cron cada
+      15 min.
 - [x] Idiomes: anglès per defecte, català i castellà (app amb `strings.xml`,
       correus, pàgines legals, respostes de la IA i fitxa de Google Play).
       El servidor tria l'idioma per `Accept-Language` o `?lang=`.
@@ -160,6 +201,8 @@ fet i afegeix la data.
       entrar amb el correu, versió al compte, R8) enviada a revisió.
       Falta: afegir els 12 correus a la llista i passar l'enllaç d'inscripció
       als provadors. 14 dies amb 12 inscrits.
+      La 1.3 (Canàries, tarifa indexada, Europa, avís de Meross) és la
+      següent.
 - [ ] Publicar a Google Play (fitxa, privacitat, esborrat de compte ✓).
 
 ## Ordre proposat

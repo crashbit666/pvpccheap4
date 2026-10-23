@@ -25,11 +25,12 @@ diesel::table! {
 }
 
 diesel::table! {
-    prices (zone, timestamp) {
+    prices (series, timestamp) {
         timestamp -> Timestamp,
         price -> Float8,
         source -> Text,
-        zone -> Text,
+        series -> Text,
+        minutes -> Int2,
     }
 }
 
@@ -70,6 +71,8 @@ diesel::table! {
         email_verified -> Bool,
         zone -> Text,
         premium_until -> Nullable<Timestamp>,
+        tariff -> Text,
+        tariff_margin -> Float8,
     }
 }
 

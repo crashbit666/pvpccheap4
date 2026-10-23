@@ -51,6 +51,7 @@ chrono-tz = "0.10.4"
 aes-gcm = "0.11.1"
 base64 = "0.23.1"
 sha2 = "0.11.1"
+quick-xml = { version = "0.42.0", features = ["serialize"] } # ENTSO-E prices (XML)
 
 [dev-dependencies]
 actix-rt = "2.15.0"

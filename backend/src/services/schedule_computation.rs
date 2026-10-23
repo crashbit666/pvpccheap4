@@ -1,7 +1,8 @@
 use crate::db::DbPool;
-use crate::models::{AutomationRule, ExecutionStatus, NewScheduledExecution, Price};
-use crate::schema::{automation_rules, prices, scheduled_executions};
-use crate::services::price_fetcher::PriceService;
+use crate::models::{AutomationRule, ExecutionStatus, NewScheduledExecution};
+use crate::schema::{automation_rules, scheduled_executions};
+use crate::services::tariff::{HourPrice, Tariff};
+use crate::zones::Zone;
 use chrono::{Duration, NaiveDate, NaiveDateTime, Timelike};
 use diesel::prelude::*;
 use log::{error, info, warn};
@@ -15,7 +16,8 @@ const ACTED_STATUSES: [&str; 4] = ["executed", "executing", "retrying", "done"];
 /// Service for computing and managing scheduled executions.
 ///
 /// A rule's schedule is organised in *instances*: the window that starts on a
-/// given date (e.g. 19:00 on D to 07:00 on D+1). Recomputing an instance only
+/// given date (e.g. 19:00 on D to 07:00 on D+1), in the user's local time.
+/// Recomputing an instance only
 /// replaces its pending hours: hours already executed are kept and count
 /// towards the rule's N hours, and only hours from now on are picked.
 pub struct ScheduleComputationService {
@@ -68,10 +70,11 @@ impl ScheduleComputationService {
             .find(rule_id)
             .first(&mut conn)
             .map_err(|e| e.to_string())?;
-        let today = crate::time::today();
+        let zone = crate::zones::of_user(&mut conn, rule.user_id);
+        let today = zone.now().date();
         let Some(group) = [today - Duration::days(1), today, today + Duration::days(1)]
             .into_iter()
-            .flat_map(|date| instance_groups(&rule, date))
+            .flat_map(|date| instance_groups(&rule, date, zone))
             .find(|g| g.contains(&hour))
         else {
             return Ok(0);
@@ -102,7 +105,8 @@ impl ScheduleComputationService {
         if !is_once(&rule.config) {
             return Ok(());
         }
-        let Some(date) = next_instance_date(&rule, crate::time::now_naive()) else {
+        let zone = crate::zones::of_user(&mut conn, rule.user_id);
+        let Some(date) = next_instance_date(&rule, zone.now()) else {
             return Ok(());
         };
         let mut config = rule.config.clone();
@@ -121,8 +125,13 @@ impl ScheduleComputationService {
             .filter(automation_rules::is_enabled.eq(true))
             .load(&mut conn)
             .map_err(|e| e.to_string())?;
-        let now = crate::time::now_naive();
-        for rule in rules.iter().filter(|r| once_finished(r, now)) {
+        let mut finished = Vec::new();
+        for rule in &rules {
+            if once_finished(rule, crate::zones::of_user(&mut conn, rule.user_id).now()) {
+                finished.push(rule);
+            }
+        }
+        for rule in finished {
             info!("One-off rule {} is over, disabling it", rule.id);
             diesel::update(automation_rules::table.find(rule.id))
                 .set(automation_rules::is_enabled.eq(false))
@@ -133,11 +142,12 @@ impl ScheduleComputationService {
     }
 
     fn refresh_rule_instances(&self, conn: &mut PgConnection, rule: &AutomationRule) -> usize {
-        let today = crate::time::today();
+        let tariff = Tariff::of_user(conn, rule.user_id);
+        let today = tariff.zone.now().date();
         let mut total = 0;
         // Yesterday's instance still matters for windows that cross midnight
         for date in [today - Duration::days(1), today, today + Duration::days(1)] {
-            match self.recompute_rule_instance(conn, rule, date) {
+            match self.recompute_rule_instance(conn, rule, &tariff, date) {
                 Ok(n) => total += n,
                 Err(e) => error!("Failed to compute schedule for rule {} on {}: {}", rule.id, date, e),
             }
@@ -151,11 +161,12 @@ impl ScheduleComputationService {
         &self,
         conn: &mut PgConnection,
         rule: &AutomationRule,
+        tariff: &Tariff,
         date: NaiveDate,
     ) -> Result<usize, String> {
         let mut total = 0;
-        for group in instance_groups(rule, date) {
-            total += self.recompute_group(conn, rule, &group)?;
+        for group in instance_groups(rule, date, tariff.zone) {
+            total += self.recompute_group(conn, rule, tariff, &group)?;
         }
         Ok(total)
     }
@@ -165,6 +176,7 @@ impl ScheduleComputationService {
         &self,
         conn: &mut PgConnection,
         rule: &AutomationRule,
+        tariff: &Tariff,
         group: &WindowGroup,
     ) -> Result<usize, String> {
         let (Some(span_start), Some(span_end)) = (
@@ -208,14 +220,16 @@ impl ScheduleComputationService {
             .count();
         let is_free = |h: &NaiveDateTime| !handled_hours.contains(h);
         let current_hour = crate::time::current_hour();
-        let zone = crate::zones::of_user(conn, rule.user_id);
+        let load = |conn: &mut PgConnection, start: NaiveDateTime, end: NaiveDateTime| {
+            tariff.hourly(conn, start.max(current_hour), end).map_err(|e| e.to_string())
+        };
 
         let picks: Vec<NaiveDateTime> = match rule.rule_type.as_str() {
             "cheapest_hours" => {
                 if let Some(&(start, end)) = group
                     .windows
                     .iter()
-                    .find(|(start, end)| !self.prices_complete(*start, *end, &zone))
+                    .find(|(start, end)| !tariff.complete(conn, *start, *end).unwrap_or(false))
                 {
                     // Picking from a partial window would choose expensive hours
                     // (e.g. only the evening of an overnight window)
@@ -226,24 +240,12 @@ impl ScheduleComputationService {
                     return Ok(0);
                 }
                 let hours_needed = group.hours.unwrap_or(0).saturating_sub(acted);
-                let mut candidates: Vec<Price> = Vec::new();
+                let mut candidates: Vec<HourPrice> = Vec::new();
                 for &(start, end) in &group.windows {
-                    candidates.extend(
-                        load_prices(conn, start.max(current_hour), end, &zone)?
-                            .into_iter()
-                            .filter(|p| is_free(&p.timestamp)),
-                    );
+                    candidates.extend(load(conn, start, end)?.into_iter().filter(|p| is_free(&p.hour)));
                 }
-                candidates.sort_by(|a, b| {
-                    a.price
-                        .total_cmp(&b.price)
-                        .then(a.timestamp.cmp(&b.timestamp))
-                });
-                candidates
-                    .into_iter()
-                    .take(hours_needed)
-                    .map(|p| p.timestamp)
-                    .collect()
+                candidates.sort_by(|a, b| a.price.total_cmp(&b.price).then(a.hour.cmp(&b.hour)));
+                candidates.into_iter().take(hours_needed).map(|p| p.hour).collect()
             }
             "price_threshold" => {
                 let threshold = rule
@@ -254,10 +256,10 @@ impl ScheduleComputationService {
                 let mut hours = Vec::new();
                 for &(start, end) in &group.windows {
                     hours.extend(
-                        load_prices(conn, start.max(current_hour), end, &zone)?
+                        load(conn, start, end)?
                             .into_iter()
-                            .filter(|p| p.price <= threshold && is_free(&p.timestamp))
-                            .map(|p| p.timestamp),
+                            .filter(|p| p.price <= threshold && is_free(&p.hour))
+                            .map(|p| p.hour),
                     );
                 }
                 hours
@@ -299,20 +301,6 @@ impl ScheduleComputationService {
         }
 
         Ok(picks.len())
-    }
-
-    /// True when every day touched by [start, end) has its full set of prices.
-    fn prices_complete(&self, start: NaiveDateTime, end: NaiveDateTime, zone: &str) -> bool {
-        let price_service = PriceService::new(self.pool.clone());
-        let last_day = (end - Duration::seconds(1)).date();
-        let mut day = start.date();
-        while day <= last_day {
-            if !price_service.has_zone_prices_for_date(day, zone).unwrap_or(false) {
-                return false;
-            }
-            day += Duration::days(1);
-        }
-        true
     }
 
     /// Put rows left in "executing" by a crashed runner back in the retry queue.
@@ -369,22 +357,6 @@ fn cheapest_hours_needed(rule: &AutomationRule) -> usize {
         .and_then(|v| v.as_i64())
         .unwrap_or(6)
         .clamp(0, 24) as usize
-}
-
-/// Prices of the zone in [start, end), in time order.
-fn load_prices(
-    conn: &mut PgConnection,
-    start: NaiveDateTime,
-    end: NaiveDateTime,
-    zone: &str,
-) -> Result<Vec<Price>, String> {
-    prices::table
-        .filter(prices::zone.eq(zone))
-        .filter(prices::timestamp.ge(start))
-        .filter(prices::timestamp.lt(end))
-        .order(prices::timestamp.asc())
-        .load(conn)
-        .map_err(|e| e.to_string())
 }
 
 /// A time window of a rule, in whole hours: [start, end), crossing midnight
@@ -450,21 +422,28 @@ impl WindowGroup {
     }
 }
 
-/// Window groups of the rule's instance for `date`: the windows that end on
+/// Window groups of the rule's instance for `date`, in engine time: the
+/// windows of the zone's local day, converted. They are the windows that end on
 /// `date`. A window crossing midnight belongs to the day it ends, so with
 /// 14:00-16:00 and 20:00-06:00 the day is "last night + this afternoon": all of
 /// it priced by ~20:15 the evening before, in time to choose before it starts.
 /// (Anchoring on the start day would put this afternoon with tonight, whose
 /// prices only arrive after the afternoon is over.)
-fn instance_groups(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGroup> {
+fn instance_groups(rule: &AutomationRule, date: NaiveDate, zone: &Zone) -> Vec<WindowGroup> {
     // A one-off rule has a single instance; not armed yet, none
     if is_once(&rule.config) && once_date(&rule.config) != Some(date) {
         return vec![];
     }
     windows_of_instance(rule, date)
+        .into_iter()
+        .map(|g| WindowGroup {
+            windows: g.windows.into_iter().map(|(s, e)| (zone.to_engine(s), zone.to_engine(e))).collect(),
+            hours: g.hours,
+        })
+        .collect()
 }
 
-/// The window groups of the instance for `date`, ignoring "once"
+/// The window groups of the instance for `date` in local time, ignoring "once"
 fn windows_of_instance(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGroup> {
     let at = |d: NaiveDate, hour: u32| d.and_hms_opt(0, 0, 0).unwrap() + Duration::hours(hour as i64);
     let span = |w: &WindowSpec| {
@@ -625,7 +604,7 @@ mod tests {
             json!({"cheapest_hours": 4, "windows": window, "once": true, "once_date": "2026-10-19"}),
         );
         assert_eq!(groups(r.clone()).len(), 1);
-        assert!(instance_groups(&r, NaiveDate::from_ymd_opt(2026, 10, 20).unwrap()).is_empty());
+        assert!(instance_groups(&r, NaiveDate::from_ymd_opt(2026, 10, 20).unwrap(), peninsula()).is_empty());
         assert!(!once_finished(&r, dt(19, 7)));
         assert!(once_finished(&r, dt(19, 8)));
         // A daily rule never finishes
@@ -639,7 +618,20 @@ mod tests {
 
     fn groups(r: AutomationRule) -> Vec<(Vec<(NaiveDateTime, NaiveDateTime)>, Option<usize>)> {
         let date = NaiveDate::from_ymd_opt(2026, 10, 19).unwrap();
-        instance_groups(&r, date).into_iter().map(|g| (g.windows, g.hours)).collect()
+        instance_groups(&r, date, peninsula()).into_iter().map(|g| (g.windows, g.hours)).collect()
+    }
+
+    fn peninsula() -> &'static Zone {
+        crate::zones::get("peninsula")
+    }
+
+    #[test]
+    fn test_instance_groups_follow_local_time() {
+        // 22:00-08:00 in the Canaries is 23:00-09:00 in Madrid
+        let r = rule("cheapest_hours", json!({"cheapest_hours": 4, "windows": [{"start": "22:00", "end": "08:00"}]}));
+        let date = NaiveDate::from_ymd_opt(2026, 10, 19).unwrap();
+        let windows: Vec<_> = instance_groups(&r, date, crate::zones::get("canarias")).into_iter().flat_map(|g| g.windows).collect();
+        assert_eq!(windows, vec![(dt(18, 23), dt(19, 9))]);
     }
 
     #[test]

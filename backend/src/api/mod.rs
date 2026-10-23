@@ -4,7 +4,6 @@ pub mod account_pages;
 pub mod alerts;
 pub mod auth;
 pub mod billing;
-pub mod automation;
 pub mod devices;
 pub mod integrations;
 pub mod legal;
@@ -50,6 +49,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/integrations")
             .service(integrations::add_integration)
+            .service(integrations::integrations_status)
             .service(integrations::list_integrations)
             .service(integrations::delete_integration),
     );
@@ -79,12 +79,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(rules::get_rule_executions),
     );
 
-    // Automation engine routes (protected)
-    cfg.service(
-        web::scope("/api/automation")
-            .service(automation::run_automation),
-    );
-
     // Schedule routes (protected)
     cfg.service(
         web::scope("/api/schedules")
@@ -96,6 +90,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/api/prices")
             .service(prices::get_prices)
             .service(prices::get_current_price)
+            .service(prices::list_zones)
             .service(prices::get_price_summary)
             .service(prices::get_cheapest_hours)
             .service(prices::get_expensive_hours)

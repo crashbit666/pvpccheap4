@@ -58,7 +58,11 @@ serveis = {
     "cron": {
         "DATABASE_URL": cal("DATABASE_URL"),
         "ESIOS_TOKEN": cal("ESIOS_TOKEN"),
+        # Opcional: preus dels països europeus (ENTSO-E)
+        "ENTSOE_TOKEN": env.get("ENTSOE_TOKEN") or "",
         "CREDENTIALS_KEY": cal("CREDENTIALS_KEY"),
+        # Opcional: on van els avisos (p. ex. Meross ha deixat de funcionar)
+        "ADMIN_EMAIL": env.get("ADMIN_EMAIL") or env.get("CONTACT_EMAIL") or "",
         # Per fer servir la clau de Brevo cada setmana (caduca si no s'usa)
         "BREVO_API_KEY": env.get("BREVO_API_KEY") or "",
         "MAIL_FROM": env.get("MAIL_FROM") or "",

@@ -47,9 +47,11 @@ pub async fn list_alerts(
         return HttpResponse::InternalServerError().body("Database connection error");
     };
 
+    // The app sees local times: `since` and `failed_at` are in the user's zone
+    let zone = crate::zones::of_user(&mut conn, user_id);
     let now = crate::time::now_naive();
     let floor = now - Duration::hours(MAX_LOOKBACK_HOURS);
-    let since = query.since.map_or(floor, |s| s.max(floor));
+    let since = query.since.map_or(floor, |s| zone.to_engine(s).max(floor));
     let settled = now - Duration::minutes(RETRY_GRACE_MINUTES);
 
     // Every execution of the user's rules since then, oldest first
@@ -75,7 +77,11 @@ pub async fn list_alerts(
             Err(_) => return HttpResponse::InternalServerError().body("Error loading executions"),
         };
 
-    HttpResponse::Ok().json(unresolved_failures(rows, settled))
+    let alerts: Vec<Alert> = unresolved_failures(rows, settled)
+        .into_iter()
+        .map(|a| Alert { failed_at: zone.to_local(a.failed_at), ..a })
+        .collect();
+    HttpResponse::Ok().json(alerts)
 }
 
 /// The last failure of each rule that no later success fixed and that is

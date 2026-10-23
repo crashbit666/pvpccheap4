@@ -494,14 +494,15 @@ pub async fn draft_rule(
         ));
     }
 
-    let devices: Vec<DeviceInfo> = {
+    let (devices, local_now): (Vec<DeviceInfo>, _) = {
         let Ok(mut conn) = pool.get() else {
             return HttpResponse::InternalServerError().body("Database connection error");
         };
         if !premium::user_has_premium(&mut conn, user_id) {
             return HttpResponse::PaymentRequired().body("Rules written in plain words need the paid plan");
         }
-        devices::table
+        let local_now = crate::zones::of_user(&mut conn, user_id).now();
+        let devices = devices::table
             .inner_join(user_integrations::table)
             .filter(user_integrations::user_id.eq(user_id))
             .filter(user_integrations::is_active.eq(true))
@@ -510,7 +511,8 @@ pub async fn draft_rule(
             .unwrap_or_default()
             .into_iter()
             .map(|(id, name, measures)| DeviceInfo { id, name, measures_power: measures == Some(true) })
-            .collect()
+            .collect();
+        (devices, local_now)
     };
     if devices.is_empty() {
         return HttpResponse::BadRequest().body("No devices");
@@ -523,7 +525,7 @@ pub async fn draft_rule(
     }
 
     let lang = Lang::of(&req);
-    let draft = match rule_assistant::draft_rule(text, &devices, lang).await {
+    let draft = match rule_assistant::draft_rule(text, &devices, lang, local_now).await {
         Ok(draft) => draft,
         Err(AssistantError::NotConfigured) => {
             return HttpResponse::ServiceUnavailable().body("Rules written in plain words are not available")
@@ -819,6 +821,7 @@ pub async fn get_rule_executions(
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0);
+    let zone = crate::zones::of_user(&mut conn, user_id);
 
     let executions: Vec<RuleExecution> = match rule_executions::table
         .filter(rule_executions::rule_id.eq(rule_id))
@@ -836,7 +839,7 @@ pub async fn get_rule_executions(
         .map(|e| ExecutionResponse {
             id: e.id,
             rule_id: e.rule_id,
-            executed_at: e.executed_at.to_string(),
+            executed_at: zone.to_local(e.executed_at).to_string(),
             action_taken: e.action_taken,
             success: e.success,
             error_message: e.error_message,

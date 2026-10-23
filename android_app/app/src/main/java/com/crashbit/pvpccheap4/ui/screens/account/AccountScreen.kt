@@ -75,7 +75,9 @@ import com.crashbit.pvpccheap4.data.model.Account
 import com.crashbit.pvpccheap4.data.billing.BillingManager
 import com.crashbit.pvpccheap4.data.billing.BillingState
 import com.crashbit.pvpccheap4.data.billing.Plan
+import com.crashbit.pvpccheap4.data.model.Tariff
 import com.crashbit.pvpccheap4.data.model.Zone
+import com.crashbit.pvpccheap4.data.model.ZoneInfo
 import com.crashbit.pvpccheap4.data.repository.AuthRepository
 import com.crashbit.pvpccheap4.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -84,6 +86,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.Locale
 import javax.inject.Inject
 
 data class AccountUiState(
@@ -94,8 +97,16 @@ data class AccountUiState(
     val passwordChanged: Boolean = false,
     val accountDeleted: Boolean = false,
     val account: Account? = null,
-    val emailSaved: Boolean = false
+    val emailSaved: Boolean = false,
+    /** Zones the user can pick, from the server */
+    val zones: List<ZoneInfo> = emptyList()
 )
+
+/** A zone's name in the app's language: Spain's from the resources, the rest by country */
+fun zoneName(context: Context, code: String, country: String? = null): String =
+    Zone.find(code)?.let { context.getString(it.nameRes) }
+        ?: Locale.Builder().setRegion(country ?: code.uppercase()).build()
+            .getDisplayCountry(context.resources.configuration.locales[0])
 
 @HiltViewModel
 class AccountViewModel @Inject constructor(
@@ -126,7 +137,16 @@ class AccountViewModel @Inject constructor(
 
     init {
         loadAccount()
+        loadZones()
         billing.loadPlans()
+    }
+
+    private fun loadZones() {
+        viewModelScope.launch {
+            (authRepository.getZones() as? Result.Success)?.let {
+                _uiState.value = _uiState.value.copy(zones = it.data)
+            }
+        }
     }
 
     /** Also when coming back from the browser, after verifying the email */
@@ -139,14 +159,31 @@ class AccountViewModel @Inject constructor(
         }
     }
 
-    fun changeZone(zone: Zone) {
+    /** Outside Spain the server switches to the market price, the only tariff there */
+    fun changeZone(zone: ZoneInfo) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isWorking = true)
-            _uiState.value = when (val result = authRepository.changeZone(zone.id)) {
+            _uiState.value = when (val result = authRepository.changeZone(zone.code)) {
                 is Result.Success -> _uiState.value.copy(
                     isWorking = false,
-                    account = _uiState.value.account?.copy(zone = zone.id),
-                    message = context.getString(R.string.account_zone_changed, context.getString(zone.nameRes))
+                    message = context.getString(R.string.account_zone_changed, zoneName(context, zone.code, zone.country))
+                )
+                is Result.Error -> _uiState.value.copy(isWorking = false, message = result.message)
+                is Result.Loading -> _uiState.value
+            }
+            loadAccount()
+        }
+    }
+
+    fun changeTariff(tariff: Tariff, margin: Double) {
+        val zone = _uiState.value.account?.zone ?: return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isWorking = true)
+            _uiState.value = when (val result = authRepository.changeZone(zone, tariff.id, margin)) {
+                is Result.Success -> _uiState.value.copy(
+                    isWorking = false,
+                    account = _uiState.value.account?.copy(tariff = tariff.id, tariffMargin = margin),
+                    message = context.getString(R.string.account_tariff_changed)
                 )
                 is Result.Error -> _uiState.value.copy(isWorking = false, message = result.message)
                 is Result.Loading -> _uiState.value
@@ -216,6 +253,7 @@ fun AccountScreen(
     var showChangePassword by remember { mutableStateOf(false) }
     var showChangeEmail by remember { mutableStateOf(false) }
     var showZone by remember { mutableStateOf(false) }
+    var showTariff by remember { mutableStateOf(false) }
     var showDeleteAccount by remember { mutableStateOf(false) }
     var showLogout by remember { mutableStateOf(false) }
 
@@ -357,11 +395,23 @@ fun AccountScreen(
             }
 
             uiState.account?.let { account ->
+                val country = uiState.zones.find { it.code == account.zone }?.country
                 SettingsCard(
                     title = stringResource(R.string.account_zone_title),
-                    text = stringResource(R.string.account_zone_text, stringResource(Zone.of(account.zone).nameRes))
+                    text = stringResource(R.string.account_zone_text, zoneName(context, account.zone, country))
                 ) {
                     OutlinedButton(onClick = { showZone = true }) { Text(stringResource(R.string.account_zone_change)) }
+                }
+                val inSpain = Zone.find(account.zone) != null
+                SettingsCard(
+                    title = stringResource(R.string.account_tariff_title),
+                    text = when {
+                        Tariff.of(account.tariff) == Tariff.PVPC -> stringResource(R.string.account_tariff_pvpc_text)
+                        inSpain -> stringResource(R.string.account_tariff_indexed_text, formatMargin(account.tariffMargin))
+                        else -> stringResource(R.string.account_tariff_market_text, formatMargin(account.tariffMargin))
+                    }
+                ) {
+                    OutlinedButton(onClick = { showTariff = true }) { Text(stringResource(R.string.account_tariff_change)) }
                 }
             }
 
@@ -447,42 +497,63 @@ fun AccountScreen(
     }
 
     if (showZone) {
-        val current = Zone.of(uiState.account?.zone ?: "peninsula")
+        val current = uiState.account?.zone ?: "peninsula"
+        val (spain, europe) = uiState.zones.partition { it.isSpain }
         AlertDialog(
             onDismissRequest = { showZone = false },
             title = { Text(stringResource(R.string.account_zone_dialog_title)) },
             text = {
-                Column(Modifier.selectableGroup()) {
-                    Zone.entries.forEach { zone ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = zone == current,
-                                    onClick = {
-                                        showZone = false
-                                        if (zone != current) viewModel.changeZone(zone)
-                                    },
-                                    role = Role.RadioButton
-                                )
-                                .padding(vertical = 10.dp)
-                        ) {
-                            RadioButton(selected = zone == current, onClick = null)
-                            Spacer(Modifier.width(12.dp))
-                            Text(stringResource(zone.nameRes))
+                Column(Modifier.selectableGroup().verticalScroll(rememberScrollState())) {
+                    if (uiState.zones.isEmpty()) CircularProgressIndicator(Modifier.padding(16.dp))
+                    listOf(R.string.account_zone_spain to spain, R.string.account_zone_europe to europe)
+                        .filter { (_, zones) -> zones.isNotEmpty() }
+                        .forEach { (header, zones) ->
+                            Text(
+                                stringResource(header),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                            zones.sortedBy { if (it.isSpain) "" else zoneName(context, it.code, it.country) }.forEach { zone ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .selectable(
+                                            selected = zone.code == current,
+                                            onClick = {
+                                                showZone = false
+                                                if (zone.code != current) viewModel.changeZone(zone)
+                                            },
+                                            role = Role.RadioButton
+                                        )
+                                        .padding(vertical = 10.dp)
+                                ) {
+                                    RadioButton(selected = zone.code == current, onClick = null)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(zoneName(context, zone.code, zone.country))
+                                }
+                            }
                         }
-                    }
-                    Text(
-                        stringResource(R.string.account_zone_canaries),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
                 }
             },
             confirmButton = { TextButton(onClick = { showZone = false }) { Text(stringResource(R.string.account_close)) } }
         )
+    }
+
+    if (showTariff) {
+        uiState.account?.let { account ->
+            TariffDialog(
+                inSpain = Zone.find(account.zone) != null,
+                tariff = Tariff.of(account.tariff),
+                margin = account.tariffMargin,
+                onDismiss = { showTariff = false },
+                onConfirm = { tariff, margin ->
+                    showTariff = false
+                    viewModel.changeTariff(tariff, margin)
+                }
+            )
+        }
     }
 
     if (showChangeEmail) {
@@ -631,6 +702,81 @@ private fun ChangePasswordDialog(
                 if (isWorking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Text(stringResource(R.string.account_change))
             }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.account_cancel)) } }
+    )
+}
+
+/** "0,012 €/kWh" in the app's language */
+@Composable
+private fun formatMargin(margin: Double): String =
+    stringResource(R.string.account_tariff_margin_value, margin)
+
+/** The margin typed with a comma or a point, between 0 and 1 €/kWh */
+private fun parseMargin(text: String): Double? =
+    text.trim().replace(',', '.').ifEmpty { "0" }.toDoubleOrNull()?.takeIf { it in 0.0..1.0 }
+
+@Composable
+private fun TariffDialog(
+    inSpain: Boolean,
+    tariff: Tariff,
+    margin: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Tariff, Double) -> Unit
+) {
+    // Outside Spain the market price is the only choice
+    var chosen by remember { mutableStateOf(if (inSpain) tariff else Tariff.INDEXED) }
+    var marginText by remember { mutableStateOf(if (margin == 0.0) "" else margin.toString()) }
+    val parsed = parseMargin(marginText)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.account_tariff_dialog_title)) },
+        text = {
+            Column(Modifier.selectableGroup().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (inSpain) {
+                    listOf(
+                        Tariff.PVPC to R.string.account_tariff_pvpc,
+                        Tariff.INDEXED to R.string.account_tariff_indexed
+                    ).forEach { (option, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(selected = chosen == option, onClick = { chosen = option }, role = Role.RadioButton)
+                                .padding(vertical = 8.dp)
+                        ) {
+                            RadioButton(selected = chosen == option, onClick = null)
+                            Spacer(Modifier.width(12.dp))
+                            Text(stringResource(label))
+                        }
+                    }
+                }
+                if (chosen == Tariff.INDEXED) {
+                    Text(
+                        stringResource(if (inSpain) R.string.account_tariff_indexed_help else R.string.account_tariff_market_help),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = marginText,
+                        onValueChange = { marginText = it },
+                        label = { Text(stringResource(R.string.account_tariff_margin)) },
+                        placeholder = { Text("0,015") },
+                        suffix = { Text("€/kWh") },
+                        singleLine = true,
+                        isError = parsed == null,
+                        supportingText = { Text(stringResource(R.string.account_tariff_margin_help)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(chosen, if (chosen == Tariff.PVPC) 0.0 else parsed ?: 0.0) },
+                enabled = chosen == Tariff.PVPC || parsed != null
+            ) { Text(stringResource(R.string.account_save)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.account_cancel)) } }
     )

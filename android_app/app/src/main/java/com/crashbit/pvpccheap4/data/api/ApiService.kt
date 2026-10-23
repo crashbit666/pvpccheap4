@@ -19,6 +19,7 @@ import com.crashbit.pvpccheap4.data.model.RuleDraft
 import com.crashbit.pvpccheap4.data.model.Integration
 import com.crashbit.pvpccheap4.data.model.LoginRequest
 import com.crashbit.pvpccheap4.data.model.PriceData
+import com.crashbit.pvpccheap4.data.model.ProviderStatus
 import com.crashbit.pvpccheap4.data.model.RegisterRequest
 import com.crashbit.pvpccheap4.data.model.Rule
 import com.crashbit.pvpccheap4.data.model.Savings
@@ -26,6 +27,7 @@ import com.crashbit.pvpccheap4.data.model.UpdateDeviceRequest
 import com.crashbit.pvpccheap4.data.model.ScheduleResponse
 import com.crashbit.pvpccheap4.data.model.SyncDevicesRequest
 import com.crashbit.pvpccheap4.data.model.SyncDevicesResponse
+import com.crashbit.pvpccheap4.data.model.ZoneInfo
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -65,6 +67,10 @@ interface ApiService {
     @GET("api/prices")
     suspend fun getPricesTomorrow(@Query("date") date: String): Response<List<PriceData>>
 
+    /** Zones served and the tariffs each offers (public) */
+    @GET("api/prices/zones")
+    suspend fun getZones(): Response<List<ZoneInfo>>
+
     @GET("api/prices/cheapest")
     suspend fun getCheapestHours(
         @Query("count") count: Int = 3,
@@ -74,6 +80,10 @@ interface ApiService {
     // Integrations endpoints
     @GET("api/integrations")
     suspend fun getIntegrations(): Response<List<Integration>>
+
+    /** Providers of the user's integrations that seem down */
+    @GET("api/integrations/status")
+    suspend fun getIntegrationsStatus(): Response<List<ProviderStatus>>
 
     @POST("api/integrations")
     suspend fun createIntegration(@Body request: AddIntegrationRequest): Response<Integration>

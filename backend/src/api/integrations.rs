@@ -1,6 +1,6 @@
 use crate::{
     db::DbPool, integrations::{ProviderError, ProviderRegistry}, models::UserIntegration,
-    schema::{devices, user_integrations}, services::{auth::Claims, credentials},
+    schema::{devices, user_integrations}, services::{auth::Claims, credentials, provider_health},
 };
 use actix_web::{HttpResponse, Responder, delete, get, post, web};
 use diesel::prelude::*;
@@ -103,6 +103,33 @@ pub async fn list_integrations(pool: web::Data<DbPool>, claims: Claims) -> impl 
         Ok(list) => HttpResponse::Ok().json(list),
         Err(_) => HttpResponse::InternalServerError().body("Error fetching integrations"),
     }
+}
+
+/// Providers of the user's integrations that seem down (their API is not
+/// official and may have changed), so the app can offer another path
+#[get("/status")]
+pub async fn integrations_status(pool: web::Data<DbPool>, claims: Claims) -> impl Responder {
+    let Ok(user_id) = claims.sub.parse::<i32>() else {
+        return HttpResponse::BadRequest().body("Invalid user ID");
+    };
+    let Ok(mut conn) = pool.get() else {
+        return HttpResponse::InternalServerError().body("Database connection error");
+    };
+    let used: Vec<String> = user_integrations::table
+        .filter(user_integrations::user_id.eq(user_id))
+        .select(user_integrations::provider_name)
+        .distinct()
+        .load(&mut conn)
+        .unwrap_or_default();
+    let now = crate::time::now_naive();
+    let zone = crate::zones::of_user(&mut conn, user_id);
+    let statuses: Vec<provider_health::ProviderStatus> = provider_health::UNOFFICIAL
+        .iter()
+        .filter(|p| used.iter().any(|u| u == *p))
+        .filter_map(|p| provider_health::status(&mut conn, p, now).ok())
+        .map(|s| provider_health::ProviderStatus { failing_since: s.failing_since.map(|t| zone.to_local(t)), ..s })
+        .collect();
+    HttpResponse::Ok().json(statuses)
 }
 
 #[delete("/{id}")]

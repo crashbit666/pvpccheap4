@@ -20,6 +20,10 @@ pub struct User {
     pub email_verified: bool,
     pub zone: String,
     pub premium_until: Option<NaiveDateTime>,
+    /// crate::services::tariff::Kind
+    pub tariff: String,
+    /// €/kWh the retailer adds to an indexed tariff
+    pub tariff_margin: f64,
 }
 
 #[derive(Queryable, Selectable, Insertable, Serialize, Deserialize, Debug, Clone)]
@@ -28,7 +32,10 @@ pub struct Price {
     pub timestamp: NaiveDateTime,
     pub price: f64,
     pub source: String,
-    pub zone: String,
+    /// crate::services::tariff series code
+    pub series: String,
+    /// Length of the slot that starts at `timestamp`
+    pub minutes: i16,
 }
 
 // ============================================================================
@@ -330,42 +337,6 @@ pub struct UpdateScheduledExecution {
     pub next_retry_at: Option<Option<NaiveDateTime>>,
 }
 
-// ============================================================================
-// Configuration Structs for Rules
-// ============================================================================
-
-/// Configuration for price threshold rules
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PriceThresholdConfig {
-    /// Price threshold in €/kWh
-    pub threshold: f64,
-    /// "below" or "above"
-    pub comparison: String,
-}
-
-/// Configuration for cheapest hours rules
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CheapestHoursConfig {
-    /// Number of hours needed
-    pub hours_needed: i32,
-    /// Start of the time window (e.g., "00:00")
-    pub window_start: String,
-    /// End of the time window (e.g., "08:00")
-    pub window_end: String,
-    /// Whether hours must be contiguous
-    #[serde(default)]
-    pub contiguous: bool,
-}
-
-/// Configuration for time schedule rules
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimeScheduleConfig {
-    /// Days of week: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-    pub days: Vec<String>,
-    /// Time to trigger (e.g., "06:00")
-    pub time: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,40 +356,5 @@ mod tests {
         assert_eq!(RuleAction::TurnOn.as_str(), "turn_on");
         assert_eq!(RuleAction::parse("turn_off"), Some(RuleAction::TurnOff));
         assert_eq!(RuleAction::parse("invalid"), None);
-    }
-
-    #[test]
-    fn test_price_threshold_config_serialization() {
-        let config = PriceThresholdConfig {
-            threshold: 0.10,
-            comparison: "below".to_string(),
-        };
-        let json = serde_json::to_string(&config).unwrap();
-        assert!(json.contains("0.1"));
-        assert!(json.contains("below"));
-    }
-
-    #[test]
-    fn test_cheapest_hours_config_serialization() {
-        let config = CheapestHoursConfig {
-            hours_needed: 3,
-            window_start: "00:00".to_string(),
-            window_end: "08:00".to_string(),
-            contiguous: false,
-        };
-        let json = serde_json::to_string(&config).unwrap();
-        let parsed: CheapestHoursConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.hours_needed, 3);
-    }
-
-    #[test]
-    fn test_time_schedule_config_serialization() {
-        let config = TimeScheduleConfig {
-            days: vec!["mon".to_string(), "wed".to_string(), "fri".to_string()],
-            time: "06:30".to_string(),
-        };
-        let json = serde_json::to_string(&config).unwrap();
-        assert!(json.contains("mon"));
-        assert!(json.contains("06:30"));
     }
 }

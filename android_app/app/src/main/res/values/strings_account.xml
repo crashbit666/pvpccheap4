@@ -57,7 +57,7 @@
     <string name="account_email_change">Change email</string>
     <string name="account_email_resend">Resend or change</string>
     <string name="account_zone_title">Zone</string>
-    <string name="account_zone_text">%1$s. Prices in Ceuta and Melilla differ at some hours; the Balearic Islands have the same as the mainland.</string>
+    <string name="account_zone_text">%1$s. Rules use the prices and the time of this zone.</string>
     <string name="account_zone_change">Change zone</string>
     <string name="account_security_title">Security</string>
     <string name="account_security_text">Change the password you use to sign in to the app. You\'ll be signed out on your other phones.</string>
@@ -70,7 +70,6 @@
     <string name="account_delete_text">Deletes the account and everything in it: integrations, devices, rules and history. This can\'t be undone.</string>
     <string name="account_logout_dialog_text">Your rules will keep turning the plugs on and off. You\'ll need your password to sign in again.</string>
     <string name="account_zone_dialog_title">Where are you?</string>
-    <string name="account_zone_canaries">The Canary Islands aren\'t available yet.</string>
 
     <!-- Plan -->
     <string name="account_plan_per_month">%1$s/month</string>
@@ -125,4 +124,23 @@
     <string name="account_billing_pending">The payment is pending. It will be activated once it\'s complete.</string>
     <string name="account_billing_success">You\'re premium now. Thank you!</string>
     <string name="account_billing_activation_failed">The payment went through, but it couldn\'t be activated. Try again with \"Restore purchases\".</string>
+    <string name="account_zone_canarias">Canary Islands</string>
+    <string name="account_zone_spain">Spain</string>
+    <string name="account_zone_europe">Rest of Europe</string>
+    <string name="account_error_load_zones">Couldn\'t load the zones</string>
+    <string name="account_tariff_title">Tariff</string>
+    <string name="account_tariff_pvpc_text">PVPC, the regulated price: it changes every hour and is the same for everyone.</string>
+    <string name="account_tariff_indexed_text">Indexed: the day-ahead market price, plus the tolls and charges of each hour and your retailer\'s margin (%1$s).</string>
+    <string name="account_tariff_market_text">The day-ahead market price of your country plus your supplier\'s margin (%1$s). Network fees and taxes are not included.</string>
+    <string name="account_tariff_change">Change tariff</string>
+    <string name="account_tariff_dialog_title">What tariff do you have?</string>
+    <string name="account_tariff_pvpc">PVPC (regulated price)</string>
+    <string name="account_tariff_indexed">Indexed to the market (free market)</string>
+    <string name="account_tariff_indexed_help">Your bill follows the day-ahead market (OMIE) hour by hour. The app adds the tolls and charges of each hour (peak, standard, off-peak) and the margin below.</string>
+    <string name="account_tariff_market_help">The app uses the day-ahead price of your country (ENTSO-E) and adds the margin below.</string>
+    <string name="account_tariff_margin">Margin</string>
+    <string name="account_tariff_margin_help">What your retailer adds per kWh (see your contract). If you don\'t know it, leave it empty: the cheapest hours are the same.</string>
+    <string name="account_tariff_margin_value">%1$.3f €/kWh</string>
+    <string name="account_tariff_changed">Tariff saved: the rules are being rescheduled</string>
+    <string name="account_save">Save</string>
 </resources>

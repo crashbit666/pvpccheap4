@@ -5,6 +5,7 @@ import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.data.api.ApiService
 import com.crashbit.pvpccheap4.data.model.AddIntegrationRequest
 import com.crashbit.pvpccheap4.data.model.Alert
+import com.crashbit.pvpccheap4.data.model.ProviderStatus
 import com.crashbit.pvpccheap4.data.model.ControlDeviceRequest
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.DeviceActionResponse
@@ -27,6 +28,18 @@ class DeviceRepository @Inject constructor(
     private val apiService: ApiService,
     @ApplicationContext private val context: Context
 ) {
+    /** Providers of the user's integrations that stopped working for everyone */
+    suspend fun getProviderIssues(): Result<List<ProviderStatus>> {
+        return try {
+            val response = apiService.getIntegrationsStatus()
+            val statuses = response.body()
+            if (response.isSuccessful && statuses != null) Result.Success(statuses.filter { !it.healthy })
+            else Result.Error(context.getString(R.string.devices_error_load_alerts), response.code())
+        } catch (e: Exception) {
+            Result.fromException(e)
+        }
+    }
+
     suspend fun getAlerts(since: String? = null): Result<List<Alert>> {
         return try {
             val response = apiService.getAlerts(since)

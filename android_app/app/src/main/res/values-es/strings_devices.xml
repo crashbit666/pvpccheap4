@@ -85,7 +85,7 @@
     <string name="devices_field_password">Contraseña</string>
     <string name="devices_field_ha_url">Dirección de Home Assistant</string>
     <string name="devices_field_ha_token">Token de acceso</string>
-    <string name="devices_help_meross">El correo y la contraseña de tu cuenta de la app de Meross.</string>
+    <string name="devices_help_meross">El correo y la contraseña de tu cuenta de la app de Meross. Meross no tiene una API oficial: si la cambia, puede dejar de funcionar un tiempo. Si tienes Home Assistant, es más seguro conectar allí los enchufes (Matter o HomeKit) y añadir aquí Home Assistant.</string>
     <string name="devices_help_home_assistant">Sirve para cualquier enchufe o luz que tengas en Home Assistant (Shelly, Tuya, Zigbee...). La dirección debe ser accesible desde Internet, por ejemplo la de Home Assistant Cloud. El token se crea en Home Assistant: tu perfil → Seguridad → Tokens de acceso de larga duración → Crear token.</string>
     <string name="devices_field_shelly_server">Servidor</string>
     <string name="devices_field_shelly_key">Clave de autorización de la nube</string>
@@ -131,4 +131,6 @@
     <string name="devices_alert_detail">A las %1$s del %2$s · regla %3$s</string>
     <string name="devices_alerts_channel_name">Avisos de los dispositivos</string>
     <string name="devices_alerts_channel_description">Cuando un enchufe no se ha podido encender o apagar</string>
+    <string name="devices_provider_down_title">%1$s no responde</string>
+    <string name="devices_provider_down_text">Desde %1$s no ha funcionado ninguna acción con %2$s, para nadie. %2$s no tiene una API oficial y quizá la ha cambiado; ya estamos avisados. Mientras tanto, si tienes Home Assistant, conecta allí los enchufes (muchos Meross funcionan con Matter o HomeKit) y añade Home Assistant aquí.</string>
 </resources>

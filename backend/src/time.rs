@@ -28,3 +28,9 @@ pub fn current_hour() -> NaiveDateTime {
     let now = now_naive();
     now.date().and_hms_opt(now.hour(), 0, 0).unwrap()
 }
+
+/// Whether a Madrid wall time happens (the hour skipped in spring does not)
+pub fn exists(t: NaiveDateTime) -> bool {
+    use chrono::TimeZone;
+    Madrid.from_local_datetime(&t).earliest().is_some()
+}

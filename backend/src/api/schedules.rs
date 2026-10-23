@@ -2,7 +2,7 @@ use crate::{
     db::DbPool,
     models::ScheduledExecution,
     schema::{automation_rules, devices, scheduled_executions},
-    services::{auth::Claims, price_fetcher::PriceService, schedule_computation::ScheduleComputationService},
+    services::{auth::Claims, schedule_computation::ScheduleComputationService, tariff::Tariff},
 };
 use actix_web::{get, web, HttpResponse, Responder};
 use chrono::{NaiveDate, Timelike};
@@ -15,11 +15,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct ScheduleQuery {
-    pub date: Option<String>, // Format: YYYY-MM-DD
+    /// Local date (YYYY-MM-DD); today when missing
+    pub date: Option<String>,
 }
 
 #[derive(Serialize)]
 pub struct ScheduledHour {
+    /// Local hour
     pub hour: u32,
     pub device_id: i32,
     pub device_name: String,
@@ -58,12 +60,13 @@ pub async fn get_schedule(
         Err(_) => return HttpResponse::BadRequest().body("Invalid user ID"),
     };
 
+    let tariff = Tariff::of_user(&mut conn, user_id);
     let date = match &query.date {
         Some(d) => match NaiveDate::parse_from_str(d, "%Y-%m-%d") {
             Ok(date) => date,
             Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
         },
-        None => crate::time::today(),
+        None => tariff.zone.now().date(),
     };
 
     // Schedules are computed by the cron and on rule changes; just make sure
@@ -72,8 +75,7 @@ pub async fn get_schedule(
     let _ = schedule_service.mark_missed_hours();
 
     // Get scheduled executions for this user's rules on the given date
-    let start_of_day = date.and_hms_opt(0, 0, 0).unwrap();
-    let end_of_day = date.and_hms_opt(23, 59, 59).unwrap();
+    let (start_of_day, end_of_day) = tariff.local_day(date);
 
     // Join scheduled_executions with automation_rules and devices to get all needed info
     let executions: Vec<(ScheduledExecution, String, String, i32, String)> = match scheduled_executions::table
@@ -85,7 +87,7 @@ pub async fn get_schedule(
         ))
         .filter(automation_rules::user_id.eq(user_id))
         .filter(scheduled_executions::scheduled_hour.ge(start_of_day))
-        .filter(scheduled_executions::scheduled_hour.le(end_of_day))
+        .filter(scheduled_executions::scheduled_hour.lt(end_of_day))
         .select((
             ScheduledExecution::as_select(),
             automation_rules::name,
@@ -102,20 +104,13 @@ pub async fn get_schedule(
         }
     };
 
-    // Get prices for the date for price info
-    let price_service = PriceService::new(pool.get_ref().clone());
-    let zone = crate::zones::of_user(&mut conn, user_id);
-    let prices = price_service.get_prices_for_date(date, &zone).unwrap_or_default();
+    let prices = tariff.day(&mut conn, date).unwrap_or_default();
 
     let scheduled_hours: Vec<ScheduledHour> = executions
         .into_iter()
         .map(|(exec, rule_name, device_name, device_id, action)| {
-            let hour = exec.scheduled_hour.hour();
-
-            // Find price for this hour
-            let price_at_hour = prices.iter()
-                .find(|p| p.timestamp.hour() == hour)
-                .map(|p| p.price);
+            let hour = tariff.zone.to_local(exec.scheduled_hour).hour();
+            let price_at_hour = prices.iter().find(|p| p.hour == exec.scheduled_hour).map(|p| p.price);
 
             // Map database status to API status
             let status = match exec.status.as_str() {

@@ -5,8 +5,8 @@
 
 use crate::{
     db::DbPool,
-    schema::{automation_rules, devices, power_readings, prices, scheduled_executions},
-    services::auth::Claims,
+    schema::{automation_rules, devices, power_readings, scheduled_executions},
+    services::{auth::Claims, tariff::Tariff},
 };
 use actix_web::{HttpResponse, Responder, get, web};
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
@@ -73,18 +73,21 @@ pub async fn get_savings(
     let Ok(user_id) = claims.sub.parse::<i32>() else {
         return HttpResponse::BadRequest().body("Invalid user ID");
     };
-    let today = crate::time::today();
+    let Ok(mut conn) = pool.get() else {
+        return HttpResponse::InternalServerError().body("Database connection error");
+    };
+    // Days are the user's local days; the database is in engine time
+    let tariff = Tariff::of_user(&mut conn, user_id);
+    let zone = tariff.zone;
+    let today = zone.now().date();
     let to = query.to.unwrap_or(today).min(today);
     let from = query.from.unwrap_or_else(|| today.with_day(1).unwrap_or(today));
     if from > to {
         return HttpResponse::BadRequest().body("from must not be after to");
     }
-    let Ok(mut conn) = pool.get() else {
-        return HttpResponse::InternalServerError().body("Database connection error");
-    };
 
-    let start = from.and_hms_opt(0, 0, 0).unwrap();
-    let end = (to + chrono::Duration::days(1)).and_hms_opt(0, 0, 0).unwrap();
+    let (start, _) = tariff.local_day(from);
+    let (_, end) = tariff.local_day(to);
     let now = crate::time::now_naive();
 
     let on_hours: Vec<OnHour> = match scheduled_executions::table
@@ -101,17 +104,12 @@ pub async fn get_savings(
         Err(_) => return HttpResponse::InternalServerError().body("Error loading executions"),
     };
 
-    let zone = crate::zones::of_user(&mut conn, user_id);
-    let day_prices: Vec<(NaiveDateTime, f64)> = match prices::table
-        .filter(prices::zone.eq(zone))
-        .filter(prices::timestamp.ge(start))
-        .filter(prices::timestamp.lt(end))
-        .select((prices::timestamp, prices::price))
-        .load(&mut conn)
-    {
-        Ok(rows) => rows,
+    let day_prices: Vec<(NaiveDateTime, f64)> = match tariff.hourly(&mut conn, start, end) {
+        Ok(rows) => rows.into_iter().map(|p| (zone.to_local(p.hour), p.price)).collect(),
         Err(_) => return HttpResponse::InternalServerError().body("Error loading prices"),
     };
+    let on_hours: Vec<OnHour> =
+        on_hours.into_iter().map(|(id, name, watts, hour)| (id, name, watts, zone.to_local(hour))).collect();
 
     let device_ids: Vec<i32> = on_hours.iter().map(|(id, ..)| *id).collect::<BTreeSet<_>>().into_iter().collect();
     let readings: Vec<Reading> = match power_readings::table
@@ -121,7 +119,7 @@ pub async fn get_savings(
         .select((power_readings::device_id, power_readings::measured_at, power_readings::watts))
         .load(&mut conn)
     {
-        Ok(rows) => rows,
+        Ok(rows) => rows.into_iter().map(|(id, at, watts)| (id, zone.to_local(at), watts)).collect(),
         Err(_) => return HttpResponse::InternalServerError().body("Error loading power readings"),
     };
 

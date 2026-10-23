@@ -85,7 +85,7 @@
     <string name="devices_field_password">Contrasenya</string>
     <string name="devices_field_ha_url">Adreça de Home Assistant</string>
     <string name="devices_field_ha_token">Token d\'accés</string>
-    <string name="devices_help_meross">El correu i la contrasenya del teu compte de l\'app de Meross.</string>
+    <string name="devices_help_meross">El correu i la contrasenya del teu compte de l\'app de Meross. Meross no té una API oficial: si la canvia, pot deixar de funcionar una estona. Si tens Home Assistant, és més segur connectar-hi els endolls (Matter o HomeKit) i afegir aquí Home Assistant.</string>
     <string name="devices_help_home_assistant">Serveix per a qualsevol endoll o llum que tinguis a Home Assistant (Shelly, Tuya, Zigbee...). L\'adreça ha de ser accessible des d\'Internet, per exemple la de Home Assistant Cloud. El token es crea a Home Assistant: el teu perfil → Seguretat → Tokens d\'accés de llarga durada → Crea un token.</string>
     <string name="devices_field_shelly_server">Servidor</string>
     <string name="devices_field_shelly_key">Clau d\'autorització del núvol</string>
@@ -131,4 +131,6 @@
     <string name="devices_alert_detail">A les %1$s del %2$s · regla %3$s</string>
     <string name="devices_alerts_channel_name">Avisos dels dispositius</string>
     <string name="devices_alerts_channel_description">Quan un endoll no s\'ha pogut encendre o apagar</string>
+    <string name="devices_provider_down_title">%1$s no respon</string>
+    <string name="devices_provider_down_text">Des de %1$s no ha funcionat cap acció amb %2$s, per a ningú. %2$s no té una API oficial i potser l\'ha canviada; ja n\'estem avisats. Mentrestant, si tens Home Assistant, connecta-hi els endolls (molts Meross funcionen amb Matter o HomeKit) i afegeix Home Assistant aquí.</string>
 </resources>

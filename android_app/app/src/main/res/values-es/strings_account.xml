@@ -57,7 +57,7 @@
     <string name="account_email_change">Cambiar el correo</string>
     <string name="account_email_resend">Reenviar o cambiar</string>
     <string name="account_zone_title">Zona</string>
-    <string name="account_zone_text">%1$s. Los precios de Ceuta y Melilla son distintos en algunas horas; Baleares tiene los mismos que la Península.</string>
+    <string name="account_zone_text">%1$s. Las reglas usan los precios y la hora de esta zona.</string>
     <string name="account_zone_change">Cambiar la zona</string>
     <string name="account_security_title">Seguridad</string>
     <string name="account_security_text">Cambia la contraseña con la que entras en la app. Se cerrará la sesión en los demás móviles.</string>
@@ -70,7 +70,6 @@
     <string name="account_delete_text">Borra la cuenta y todo lo que contiene: integraciones, dispositivos, reglas e historial. No se puede deshacer.</string>
     <string name="account_logout_dialog_text">Las reglas seguirán encendiendo y apagando los enchufes. Para volver a entrar necesitarás la contraseña.</string>
     <string name="account_zone_dialog_title">¿Dónde estás?</string>
-    <string name="account_zone_canaries">Canarias todavía no está disponible.</string>
 
     <!-- Plan -->
     <string name="account_plan_per_month">%1$s/mes</string>
@@ -125,4 +124,23 @@
     <string name="account_billing_pending">El pago está pendiente. Se activará cuando se complete.</string>
     <string name="account_billing_success">Ya eres prémium. ¡Gracias!</string>
     <string name="account_billing_activation_failed">Se ha pagado, pero no se ha podido activar. Vuelve a intentarlo con «Restaurar las compras».</string>
+    <string name="account_zone_canarias">Canarias</string>
+    <string name="account_zone_spain">España</string>
+    <string name="account_zone_europe">Resto de Europa</string>
+    <string name="account_error_load_zones">No se han podido cargar las zonas</string>
+    <string name="account_tariff_title">Tarifa</string>
+    <string name="account_tariff_pvpc_text">PVPC, el precio regulado: cambia cada hora y es igual para todos.</string>
+    <string name="account_tariff_indexed_text">Indexada: el precio del mercado diario, más los peajes y cargos de cada hora y el margen de tu comercializadora (%1$s).</string>
+    <string name="account_tariff_market_text">El precio del mercado diario de tu país más el margen de tu suministrador (%1$s). No incluye los costes de red ni los impuestos.</string>
+    <string name="account_tariff_change">Cambiar la tarifa</string>
+    <string name="account_tariff_dialog_title">¿Qué tarifa tienes?</string>
+    <string name="account_tariff_pvpc">PVPC (precio regulado)</string>
+    <string name="account_tariff_indexed">Indexada al mercado (mercado libre)</string>
+    <string name="account_tariff_indexed_help">La factura sigue el precio del mercado diario (OMIE) hora a hora. La app suma los peajes y cargos de cada hora (punta, llano y valle) y el margen de aquí abajo.</string>
+    <string name="account_tariff_market_help">La app usa el precio del mercado diario de tu país (ENTSO-E) y le suma el margen de aquí abajo.</string>
+    <string name="account_tariff_margin">Margen</string>
+    <string name="account_tariff_margin_help">Lo que la comercializadora suma por kWh (mira el contrato). Si no lo sabes, déjalo vacío: las horas más baratas son las mismas.</string>
+    <string name="account_tariff_margin_value">%1$.3f €/kWh</string>
+    <string name="account_tariff_changed">Tarifa guardada: las reglas se vuelven a programar</string>
+    <string name="account_save">Guardar</string>
 </resources>

@@ -49,6 +49,8 @@ mod tests {
             email_verified: false,
             zone: "peninsula".to_string(),
             premium_until,
+            tariff: "pvpc".to_string(),
+            tariff_margin: 0.0,
         }
     }
 

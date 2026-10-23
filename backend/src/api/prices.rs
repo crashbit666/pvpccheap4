@@ -1,9 +1,15 @@
 use crate::{
     db::DbPool,
-    services::{auth::Claims, price_fetcher::PriceService},
+    schema::prices,
+    services::{
+        auth::Claims,
+        price_fetcher::PriceService,
+        tariff::{self, HourPrice, Tariff},
+    },
 };
 use actix_web::{get, post, web, HttpResponse, Responder};
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Timelike};
+use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -12,8 +18,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct DateQuery {
-    pub date: Option<String>, // Format: YYYY-MM-DD
-    /// crate::zones code; the Peninsula when missing
+    /// Local date in the zone (YYYY-MM-DD); today when missing
+    pub date: Option<String>,
+    /// crate::zones code; the logged-in user's tariff, or the Peninsula, when missing
     pub zone: Option<String>,
 }
 
@@ -29,28 +36,61 @@ pub struct ZoneQuery {
     pub zone: Option<String>,
 }
 
-/// The zone asked for; without one, the logged-in user's zone, or the
-/// Peninsula. An error answer when it is not one we serve.
-fn zone_param(pool: &DbPool, claims: Option<Claims>, zone: &Option<String>) -> Result<String, HttpResponse> {
+/// The prices to show: the zone asked for (its PVPC in Spain, its market
+/// price elsewhere), else the logged-in user's tariff, else the Peninsula's
+/// PVPC. An error answer when the zone is not one we serve.
+fn tariff_param(pool: &DbPool, claims: Option<Claims>, zone: &Option<String>) -> Result<Tariff, Box<HttpResponse>> {
     match zone.as_deref() {
-        Some(z) if crate::zones::is_valid(z) => Ok(z.to_string()),
-        Some(_) => Err(HttpResponse::BadRequest().body("Unknown zone")),
+        Some(z) => crate::zones::find(z)
+            .map(Tariff::default_for)
+            .ok_or_else(|| Box::new(HttpResponse::BadRequest().body("Unknown zone"))),
         None => Ok(claims
             .and_then(|c| c.sub.parse::<i32>().ok())
             .and_then(|user_id| {
                 let mut conn = pool.get().ok()?;
-                Some(crate::zones::of_user(&mut conn, user_id))
+                Some(Tariff::of_user(&mut conn, user_id))
             })
-            .unwrap_or_else(|| crate::zones::DEFAULT.to_string())),
+            .unwrap_or_else(|| Tariff::default_for(crate::zones::get(crate::zones::DEFAULT)))),
     }
+}
+
+/// The local date asked for, or today in the tariff's zone
+fn date_param(date: &Option<String>, tariff: &Tariff) -> Result<NaiveDate, Box<HttpResponse>> {
+    match date {
+        Some(d) => NaiveDate::parse_from_str(d, "%Y-%m-%d")
+            .map_err(|_| Box::new(HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"))),
+        None => Ok(tariff.zone.now().date()),
+    }
+}
+
+/// Prices of a local day, with local times
+fn day_prices(pool: &DbPool, tariff: &Tariff, date: NaiveDate) -> Result<Vec<PriceResponse>, Box<HttpResponse>> {
+    let mut conn = pool.get().map_err(|_| Box::new(HttpResponse::InternalServerError().body("Database connection error")))?;
+    tariff
+        .day(&mut conn, date)
+        .map(|prices| prices.into_iter().map(|p| PriceResponse::local(tariff, p)).collect())
+        .map_err(|e| Box::new(HttpResponse::InternalServerError().body(e.to_string())))
 }
 
 #[derive(Serialize)]
 pub struct PriceResponse {
+    /// Local time in the zone
     pub timestamp: String,
     pub hour: u32,
     pub price: f64,
     pub price_formatted: String,
+}
+
+impl PriceResponse {
+    fn local(tariff: &Tariff, p: HourPrice) -> Self {
+        let local = tariff.zone.to_local(p.hour);
+        Self {
+            timestamp: local.to_string(),
+            hour: local.hour(),
+            price: p.price,
+            price_formatted: format!("{:.4} €/kWh", p.price),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -64,6 +104,17 @@ pub struct PriceSummary {
 }
 
 #[derive(Serialize)]
+pub struct ZoneInfo {
+    pub code: &'static str,
+    pub name: &'static str,
+    pub country: &'static str,
+    /// Tariffs a user of the zone can choose (crate::services::tariff::Kind)
+    pub tariffs: Vec<&'static str>,
+    /// Whether the server has today's market prices for it
+    pub available: bool,
+}
+
+#[derive(Serialize)]
 pub struct SyncResponse {
     pub success: bool,
     pub prices_synced: usize,
@@ -74,59 +125,32 @@ pub struct SyncResponse {
 // Endpoints
 // ============================================================================
 
-/// Get prices for a specific date (defaults to today)
+/// Prices of a local day (defaults to today)
 #[get("")]
 pub async fn get_prices(pool: web::Data<DbPool>, claims: Option<Claims>, query: web::Query<DateQuery>) -> impl Responder {
-    let service = PriceService::new(pool.get_ref().clone());
-
-    let date = match &query.date {
-        Some(d) => match NaiveDate::parse_from_str(d, "%Y-%m-%d") {
-            Ok(date) => date,
-            Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
-        },
-        None => crate::time::today(),
-    };
-
-    let zone = match zone_param(&pool, claims, &query.zone) {
-        Ok(z) => z,
-        Err(response) => return response,
-    };
-    match service.get_prices_for_date(date, &zone) {
-        Ok(prices) => {
-            let response: Vec<PriceResponse> = prices
-                .into_iter()
-                .map(|p| PriceResponse {
-                    timestamp: p.timestamp.to_string(),
-                    hour: p.timestamp.format("%H").to_string().parse().unwrap_or(0),
-                    price: p.price,
-                    price_formatted: format!("{:.4} €/kWh", p.price),
-                })
-                .collect();
-            HttpResponse::Ok().json(response)
-        }
-        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+    let result = tariff_param(&pool, claims, &query.zone).and_then(|tariff| {
+        let date = date_param(&query.date, &tariff)?;
+        day_prices(&pool, &tariff, date)
+    });
+    match result {
+        Ok(prices) => HttpResponse::Ok().json(prices),
+        Err(response) => *response,
     }
 }
 
-/// Get current hour's price
+/// Price of the current hour
 #[get("/current")]
 pub async fn get_current_price(pool: web::Data<DbPool>, claims: Option<Claims>, query: web::Query<ZoneQuery>) -> impl Responder {
-    let service = PriceService::new(pool.get_ref().clone());
-    let zone = match zone_param(&pool, claims, &query.zone) {
-        Ok(z) => z,
-        Err(response) => return response,
+    let tariff = match tariff_param(&pool, claims, &query.zone) {
+        Ok(t) => t,
+        Err(response) => return *response,
     };
-
-    match service.get_current_price(&zone) {
-        Ok(Some(price)) => {
-            let response = PriceResponse {
-                timestamp: price.timestamp.to_string(),
-                hour: price.timestamp.format("%H").to_string().parse().unwrap_or(0),
-                price: price.price,
-                price_formatted: format!("{:.4} €/kWh", price.price),
-            };
-            HttpResponse::Ok().json(response)
-        }
+    let Ok(mut conn) = pool.get() else {
+        return HttpResponse::InternalServerError().body("Database connection error");
+    };
+    let hour = crate::time::current_hour();
+    match tariff.at(&mut conn, hour) {
+        Ok(Some(price)) => HttpResponse::Ok().json(PriceResponse::local(&tariff, HourPrice { hour, price })),
         Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
             "error": "No price available for current hour",
             "hint": "Prices may need to be synced. Call POST /api/prices/sync"
@@ -135,47 +159,49 @@ pub async fn get_current_price(pool: web::Data<DbPool>, claims: Option<Claims>, 
     }
 }
 
-/// Get summary statistics for a date
+/// Summary statistics of a local day
 #[get("/summary")]
 pub async fn get_price_summary(pool: web::Data<DbPool>, claims: Option<Claims>, query: web::Query<DateQuery>) -> impl Responder {
-    let service = PriceService::new(pool.get_ref().clone());
-
-    let date = match &query.date {
-        Some(d) => match NaiveDate::parse_from_str(d, "%Y-%m-%d") {
-            Ok(date) => date,
-            Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
-        },
-        None => crate::time::today(),
+    let result = tariff_param(&pool, claims, &query.zone).and_then(|tariff| {
+        let date = date_param(&query.date, &tariff)?;
+        Ok((date, day_prices(&pool, &tariff, date)?))
+    });
+    let (date, prices) = match result {
+        Ok(r) => r,
+        Err(response) => return *response,
     };
-
-    let zone = match zone_param(&pool, claims, &query.zone) {
-        Ok(z) => z,
-        Err(response) => return response,
-    };
-    match service.get_prices_for_date(date, &zone) {
-        Ok(prices) if !prices.is_empty() => {
-            let min_price = prices.iter().map(|p| p.price).fold(f64::INFINITY, f64::min);
-            let max_price = prices.iter().map(|p| p.price).fold(f64::NEG_INFINITY, f64::max);
-            let avg_price: f64 = prices.iter().map(|p| p.price).sum::<f64>() / prices.len() as f64;
-
-            let cheapest = prices.iter().min_by(|a, b| a.price.partial_cmp(&b.price).unwrap()).unwrap();
-            let most_expensive = prices.iter().max_by(|a, b| a.price.partial_cmp(&b.price).unwrap()).unwrap();
-
-            let summary = PriceSummary {
-                date: date.to_string(),
-                min_price,
-                max_price,
-                avg_price,
-                cheapest_hour: cheapest.timestamp.format("%H").to_string().parse().unwrap_or(0),
-                most_expensive_hour: most_expensive.timestamp.format("%H").to_string().parse().unwrap_or(0),
-            };
-            HttpResponse::Ok().json(summary)
-        }
-        Ok(_) => HttpResponse::NotFound().json(serde_json::json!({
+    let (Some(cheapest), Some(most_expensive)) = (
+        prices.iter().min_by(|a, b| a.price.total_cmp(&b.price)),
+        prices.iter().max_by(|a, b| a.price.total_cmp(&b.price)),
+    ) else {
+        return HttpResponse::NotFound().json(serde_json::json!({
             "error": "No prices available for this date",
             "date": date.to_string()
-        })),
-        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+        }));
+    };
+    HttpResponse::Ok().json(PriceSummary {
+        date: date.to_string(),
+        min_price: cheapest.price,
+        max_price: most_expensive.price,
+        avg_price: prices.iter().map(|p| p.price).sum::<f64>() / prices.len() as f64,
+        cheapest_hour: cheapest.hour,
+        most_expensive_hour: most_expensive.hour,
+    })
+}
+
+/// The N cheapest (or most expensive) hours of a local day
+fn ranked_hours(pool: &DbPool, claims: Option<Claims>, query: &CheapestHoursQuery, cheapest_first: bool) -> HttpResponse {
+    let result = tariff_param(pool, claims, &query.zone).and_then(|tariff| {
+        let date = date_param(&query.date, &tariff)?;
+        day_prices(pool, &tariff, date)
+    });
+    match result {
+        Ok(mut prices) => {
+            prices.sort_by(|a, b| if cheapest_first { a.price.total_cmp(&b.price) } else { b.price.total_cmp(&a.price) });
+            prices.truncate(query.count.unwrap_or(6).min(24));
+            HttpResponse::Ok().json(prices)
+        }
+        Err(response) => *response,
     }
 }
 
@@ -186,37 +212,7 @@ pub async fn get_cheapest_hours(
     claims: Option<Claims>,
     query: web::Query<CheapestHoursQuery>,
 ) -> impl Responder {
-    let service = PriceService::new(pool.get_ref().clone());
-
-    let date = match &query.date {
-        Some(d) => match NaiveDate::parse_from_str(d, "%Y-%m-%d") {
-            Ok(date) => date,
-            Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
-        },
-        None => crate::time::today(),
-    };
-
-    let count = query.count.unwrap_or(6).min(24);
-
-    let zone = match zone_param(&pool, claims, &query.zone) {
-        Ok(z) => z,
-        Err(response) => return response,
-    };
-    match service.get_cheapest_hours(date, count, &zone) {
-        Ok(prices) => {
-            let response: Vec<PriceResponse> = prices
-                .into_iter()
-                .map(|p| PriceResponse {
-                    timestamp: p.timestamp.to_string(),
-                    hour: p.timestamp.format("%H").to_string().parse().unwrap_or(0),
-                    price: p.price,
-                    price_formatted: format!("{:.4} €/kWh", p.price),
-                })
-                .collect();
-            HttpResponse::Ok().json(response)
-        }
-        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
-    }
+    ranked_hours(&pool, claims, &query, true)
 }
 
 /// Get the N most expensive hours for a date
@@ -226,37 +222,33 @@ pub async fn get_expensive_hours(
     claims: Option<Claims>,
     query: web::Query<CheapestHoursQuery>,
 ) -> impl Responder {
-    let service = PriceService::new(pool.get_ref().clone());
+    ranked_hours(&pool, claims, &query, false)
+}
 
-    let date = match &query.date {
-        Some(d) => match NaiveDate::parse_from_str(d, "%Y-%m-%d") {
-            Ok(date) => date,
-            Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
-        },
-        None => crate::time::today(),
+/// The zones served, with the tariffs each one offers
+#[get("/zones")]
+pub async fn list_zones(pool: web::Data<DbPool>) -> impl Responder {
+    let Ok(mut conn) = pool.get() else {
+        return HttpResponse::InternalServerError().body("Database connection error");
     };
-
-    let count = query.count.unwrap_or(6).min(24);
-
-    let zone = match zone_param(&pool, claims, &query.zone) {
-        Ok(z) => z,
-        Err(response) => return response,
-    };
-    match service.get_most_expensive_hours(date, count, &zone) {
-        Ok(prices) => {
-            let response: Vec<PriceResponse> = prices
-                .into_iter()
-                .map(|p| PriceResponse {
-                    timestamp: p.timestamp.to_string(),
-                    hour: p.timestamp.format("%H").to_string().parse().unwrap_or(0),
-                    price: p.price,
-                    price_formatted: format!("{:.4} €/kWh", p.price),
-                })
-                .collect();
-            HttpResponse::Ok().json(response)
-        }
-        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
-    }
+    let today = crate::time::today().and_hms_opt(0, 0, 0).unwrap();
+    let with_prices: Vec<String> = prices::table
+        .filter(prices::timestamp.ge(today))
+        .select(prices::series)
+        .distinct()
+        .load(&mut conn)
+        .unwrap_or_default();
+    let zones: Vec<ZoneInfo> = crate::zones::ZONES
+        .iter()
+        .map(|zone| ZoneInfo {
+            code: zone.code,
+            name: zone.name,
+            country: zone.country,
+            tariffs: if zone.is_spain() { vec!["pvpc", "indexed"] } else { vec!["indexed"] },
+            available: with_prices.contains(&tariff::spot_series(zone)),
+        })
+        .collect();
+    HttpResponse::Ok().json(zones)
 }
 
 /// Sync prices from ESIOS API (today and tomorrow if available)

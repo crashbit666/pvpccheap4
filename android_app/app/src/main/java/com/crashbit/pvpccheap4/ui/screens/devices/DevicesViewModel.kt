@@ -7,6 +7,7 @@ import com.crashbit.pvpccheap4.R
 import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.Integration
+import com.crashbit.pvpccheap4.data.model.ProviderStatus
 import com.crashbit.pvpccheap4.data.model.Savings
 import com.crashbit.pvpccheap4.data.repository.DeviceRepository
 import com.crashbit.pvpccheap4.data.repository.Result
@@ -29,6 +30,8 @@ data class DevicesUiState(
     val rulesByDevice: Map<Int, List<String>> = emptyMap(),
     /** Device actions that failed after the retries (last 48 h) */
     val alerts: List<Alert> = emptyList(),
+    /** Providers without an official API that stopped working for everyone */
+    val providerIssues: List<ProviderStatus> = emptyList(),
     /** This month's savings; null until loaded or if nothing ran yet */
     val savings: Savings? = null,
     val syncMessage: String? = null
@@ -66,6 +69,9 @@ class DevicesViewModel @Inject constructor(
             // Like the rules below, alerts are extra: a failure here is not an error
             (deviceRepository.getAlerts() as? Result.Success)?.let {
                 _uiState.value = _uiState.value.copy(alerts = it.data)
+            }
+            (deviceRepository.getProviderIssues() as? Result.Success)?.let {
+                _uiState.value = _uiState.value.copy(providerIssues = it.data)
             }
 
             loadSavings()

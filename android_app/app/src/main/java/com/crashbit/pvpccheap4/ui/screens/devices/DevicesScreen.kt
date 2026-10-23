@@ -59,6 +59,10 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.crashbit.pvpccheap4.data.model.Alert
 import com.crashbit.pvpccheap4.data.model.Device
 import com.crashbit.pvpccheap4.data.model.Integration
+import com.crashbit.pvpccheap4.data.model.ProviderStatus
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -181,6 +185,9 @@ fun DevicesScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // A provider down for everyone explains the failures below
+                    items(uiState.providerIssues) { issue -> ProviderIssueCard(issue) }
+
                     // Failures the retries could not fix, first of all
                     if (uiState.alerts.isNotEmpty()) {
                         items(uiState.alerts.reversed()) { alert -> AlertCard(alert) }
@@ -245,6 +252,44 @@ fun DevicesScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** "21:00", or "22/10 21:00" when it was not today */
+private fun shortTime(localTime: String?): String {
+    val time = localTime?.let { runCatching { LocalDateTime.parse(it.replace(' ', 'T')) }.getOrNull() }
+        ?: return localTime.orEmpty()
+    val pattern = if (time.toLocalDate() == LocalDate.now()) "HH:mm" else "dd/MM HH:mm"
+    return time.format(DateTimeFormatter.ofPattern(pattern))
+}
+
+@Composable
+fun ProviderIssueCard(issue: ProviderStatus) {
+    val name = issue.provider.replaceFirstChar { it.uppercase() }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painterResource(R.drawable.ic_warning),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    stringResource(R.string.devices_provider_down_title, name),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    stringResource(R.string.devices_provider_down_text, shortTime(issue.failingSince), name),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
             }
         }
     }
