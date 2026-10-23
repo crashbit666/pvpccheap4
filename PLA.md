@@ -156,9 +156,10 @@ fet i afegeix la data.
       pack amb endoll preconfigurat.
 - [ ] Prova tancada (canal Alpha), preparada 23/10/2026: Espanya, llista
       «Familia», suggeriments a pvpccheap.dev@gmail.com, versió 2 (1.1) desada.
-      Clau del nom de paquet verificada i canvis enviats a revisió 23/10/2026.
-      Falta: que Google l'aprovi, afegir els 12 correus a la llista i passar
-      l'enllaç d'inscripció als provadors. 14 dies amb 12 inscrits.
+      Aprovada 23/10/2026: canal Alpha actiu amb la 1.1; la 1.2 (Shelly,
+      entrar amb el correu, versió al compte, R8) enviada a revisió.
+      Falta: afegir els 12 correus a la llista i passar l'enllaç d'inscripció
+      als provadors. 14 dies amb 12 inscrits.
 - [ ] Publicar a Google Play (fitxa, privacitat, esborrat de compte ✓).
 
 ## Ordre proposat

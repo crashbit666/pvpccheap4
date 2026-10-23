@@ -48,6 +48,8 @@ android {
             // R8: smaller and faster code (Google Play warns when it is off)
             isMinifyEnabled = true
             isShrinkResources = true
+            // Symbols of the libraries' native code, so Play can read their crashes
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
