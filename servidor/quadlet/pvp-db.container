@@ -1,11 +1,11 @@
-# Postgres de pvpccheap. La mateixa empremta que corria al servidor antic
-# (postgres:18.1): les dades hi arriben per pg_dump/pg_restore.
+# Postgres de pvpccheap: postgres:18.6 (23/10/2026). Dins la 18 es pot pujar
+# de versió menor canviant l'empremta; per passar a la 19 cal pg_dump/pg_restore.
 [Unit]
 Description=Postgres de pvpccheap
 After=network-online.target
 
 [Container]
-Image=docker.io/library/postgres@sha256:3baafb47e05b749eddd549ea4eab576631d1db72dc083542f37984455457fece
+Image=docker.io/library/postgres@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
 ContainerName=pvp-db
 Network=pvp-lab.network
 NetworkAlias=db
