@@ -90,12 +90,12 @@ interface ApiService {
 
     @POST("api/devices/{id}/control")
     suspend fun controlDevice(
-        @Path("id") id: String,
+        @Path("id") id: Int,
         @Body request: ControlDeviceRequest
     ): Response<DeviceActionResponse>
 
     @POST("api/devices/{id}")
-    suspend fun updateDevice(@Path("id") id: String, @Body request: UpdateDeviceRequest): Response<Device>
+    suspend fun updateDevice(@Path("id") id: Int, @Body request: UpdateDeviceRequest): Response<Device>
 
     // What the rules saved; default this month
     @GET("api/savings")
@@ -105,10 +105,10 @@ interface ApiService {
     ): Response<Savings>
 
     @GET("api/devices/{id}/usage")
-    suspend fun getDeviceUsage(@Path("id") id: String): Response<DeviceUsage>
+    suspend fun getDeviceUsage(@Path("id") id: Int): Response<DeviceUsage>
 
     @GET("api/devices/{id}/state")
-    suspend fun getDeviceState(@Path("id") id: String): Response<DeviceActionResponse>
+    suspend fun getDeviceState(@Path("id") id: Int): Response<DeviceActionResponse>
 
     @GET("api/auth/me")
     suspend fun getAccount(): Response<Account>

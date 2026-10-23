@@ -459,7 +459,7 @@ fun AddRuleScreen(
         ruleName = rule.name
         selectedRuleType = if (rule.config.goal == "deadline") RuleType.DEADLINE
         else RuleType.entries.firstOrNull { it.apiType == rule.ruleType } ?: RuleType.MANUAL
-        selectedDevice = uiState.devices.firstOrNull { it.id == rule.deviceId.toString() }
+        selectedDevice = uiState.devices.firstOrNull { it.id == rule.deviceId }
         val config = rule.config
         stopWhenDone = config.stopWhenDone == true
         once = config.once == true
@@ -946,7 +946,7 @@ fun AddRuleScreen(
 
                         val rule = Rule(
                             name = ruleName.ifBlank { "$selectedTypeName - ${device.name}" },
-                            deviceId = device.id.toIntOrNull() ?: 0,
+                            deviceId = device.id,
                             ruleType = selectedRuleType.apiType,
                             action = "turn_on",
                             config = config.copy(

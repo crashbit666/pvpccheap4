@@ -26,7 +26,7 @@ data class DevicesUiState(
     val devices: List<Device> = emptyList(),
     val integrations: List<Integration> = emptyList(),
     /** Names of the enabled rules that control each device, by device id */
-    val rulesByDevice: Map<String, List<String>> = emptyMap(),
+    val rulesByDevice: Map<Int, List<String>> = emptyMap(),
     /** Device actions that failed after the retries (last 48 h) */
     val alerts: List<Alert> = emptyList(),
     /** This month's savings; null until loaded or if nothing ran yet */
@@ -75,7 +75,7 @@ class DevicesViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     rulesByDevice = rules.data
                         .filter { it.isEnabled }
-                        .groupBy({ it.deviceId.toString() }, { it.name })
+                        .groupBy({ it.deviceId }, { it.name })
                 )
             }
 

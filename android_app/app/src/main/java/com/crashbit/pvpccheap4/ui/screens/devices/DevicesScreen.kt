@@ -202,7 +202,7 @@ fun DevicesScreen(
                         items(uiState.integrations) { integration ->
                             IntegrationCard(
                                 integration = integration,
-                                deviceCount = uiState.devices.count { it.integrationId == integration.id?.toString() },
+                                deviceCount = uiState.devices.count { it.integrationId == integration.id },
                                 onDelete = { integration.id?.let { viewModel.deleteIntegration(it) } },
                                 onSync = { integration.id?.let { viewModel.syncDevices() } }
                             )

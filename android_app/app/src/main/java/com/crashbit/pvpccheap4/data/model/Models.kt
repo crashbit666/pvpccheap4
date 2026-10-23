@@ -2,14 +2,17 @@ package com.crashbit.pvpccheap4.data.model
 
 import androidx.annotation.StringRes
 import com.crashbit.pvpccheap4.R
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 // Auth models
+@Serializable
 data class LoginRequest(
     val username: String,
     val password: String
 )
 
+@Serializable
 data class RegisterRequest(
     val username: String,
     val password: String,
@@ -17,6 +20,7 @@ data class RegisterRequest(
     val email: String? = null
 )
 
+@Serializable
 data class AuthResponse(
     val token: String? = null,
     val id: Int? = null,
@@ -25,32 +29,35 @@ data class AuthResponse(
 )
 
 /** The logged-in user and what their plan unlocks */
+@Serializable
 data class Account(
     val id: Int,
     val username: String,
-    @SerializedName("is_premium")
+    @SerialName("is_premium")
     val isPremium: Boolean = false,
     /** Rules written in plain words are set up on the server */
-    @SerializedName("ai_rules_available")
+    @SerialName("ai_rules_available")
     val aiRulesAvailable: Boolean = false,
     val email: String? = null,
-    @SerializedName("email_verified")
+    @SerialName("email_verified")
     val emailVerified: Boolean = false,
     /** Whose prices the rules follow */
     val zone: String = "peninsula",
     /** End of the store subscription ("2026-11-23 11:00:00"), if any */
-    @SerializedName("premium_until")
+    @SerialName("premium_until")
     val premiumUntil: String? = null,
     /** Rules allowed without the paid plan */
-    @SerializedName("free_rules")
+    @SerialName("free_rules")
     val freeRules: Int = 4
 )
 
+@Serializable
 data class GooglePurchaseRequest(
-    @SerializedName("purchase_token")
+    @SerialName("purchase_token")
     val purchaseToken: String
 )
 
+@Serializable
 data class ChangeZoneRequest(val zone: String)
 
 /** Price zones of the PVPC (Canàries is not served yet) */
@@ -66,138 +73,151 @@ enum class Zone(val id: String, @StringRes val nameRes: Int) {
 }
 
 // Price models
+@Serializable
 data class PriceData(
     val timestamp: String,
     val hour: Int,
     val price: Double,
-    @SerializedName("price_formatted")
+    @SerialName("price_formatted")
     val priceFormatted: String
 )
 
 // Integration models
+@Serializable
 data class Integration(
     val id: Int? = null,
-    @SerializedName("user_id")
+    @SerialName("user_id")
     val userId: Int? = null,
-    @SerializedName("provider_name")
+    @SerialName("provider_name")
     val providerName: String,
-    @SerializedName("credentials_json")
+    @SerialName("credentials_json")
     val credentialsJson: String? = null,
-    @SerializedName("is_active")
+    @SerialName("is_active")
     val isActive: Boolean = true,
-    @SerializedName("created_at")
+    @SerialName("created_at")
     val createdAt: String? = null
 )
 
+@Serializable
 data class AddIntegrationRequest(
     val provider: String,
     val credentials: Map<String, String>
 )
 
+@Serializable
 data class SyncDevicesRequest(
-    @SerializedName("integration_id")
+    @SerialName("integration_id")
     val integrationId: Int
 )
 
+@Serializable
 data class SyncDevicesResponse(
     val synced: Int,
     val new: Int,
     val message: String
 )
 
+@Serializable
 data class ControlDeviceRequest(
     val action: String // "turn_on" or "turn_off"
 )
 
 // Device models
+@Serializable
 data class Device(
-    val id: String,
+    val id: Int,
     val name: String,
-    @SerializedName("external_id")
+    @SerialName("external_id")
     val externalId: String,
-    @SerializedName("device_type")
+    @SerialName("device_type")
     val deviceType: String,
-    @SerializedName("integration_id")
-    val integrationId: String,
-    @SerializedName("is_on")
+    @SerialName("integration_id")
+    val integrationId: Int,
+    @SerialName("is_on")
     val isOn: Boolean = false,
     /** Watts the appliance draws when on, set by the user (for the savings in euros) */
-    @SerializedName("power_watts")
+    @SerialName("power_watts")
     val powerWatts: Int? = null,
     /** The plug reports its power, so the savings use what it measures */
-    @SerializedName("measures_power")
+    @SerialName("measures_power")
     val measuresPower: Boolean = false,
-    @SerializedName("created_at")
+    @SerialName("created_at")
     val createdAt: String? = null
 )
 
 /** How long the appliance runs before it finishes, learnt from its plug's readings */
+@Serializable
 data class DeviceUsage(
-    @SerializedName("finished_runs")
+    @SerialName("finished_runs")
     val finishedRuns: Int = 0,
-    @SerializedName("unfinished_runs")
+    @SerialName("unfinished_runs")
     val unfinishedRuns: Int = 0,
     val restarts: Int = 0,
-    @SerializedName("typical_minutes")
+    @SerialName("typical_minutes")
     val typicalMinutes: Int? = null,
-    @SerializedName("suggested_hours")
+    @SerialName("suggested_hours")
     val suggestedHours: Int? = null
 )
 
+@Serializable
 data class UpdateDeviceRequest(
-    @SerializedName("power_watts")
+    @SerialName("power_watts")
     val powerWatts: Int? = null
 )
 
+@Serializable
 data class DeviceActionResponse(
     val success: Boolean,
     val message: String? = null,
-    @SerializedName("new_state")
+    @SerialName("new_state")
     val newState: DeviceState? = null
 )
 
+@Serializable
 data class DeviceState(
-    @SerializedName("is_on")
+    @SerialName("is_on")
     val isOn: Boolean,
     val brightness: Int? = null,
     val temperature: Float? = null,
-    @SerializedName("power_consumption_watts")
+    @SerialName("power_consumption_watts")
     val powerConsumptionWatts: Float? = null
 )
 
 // Rule models
+@Serializable
 data class Rule(
     val id: Int? = null,
-    @SerializedName("user_id")
+    @SerialName("user_id")
     val userId: Int? = null,
     val name: String,
-    @SerializedName("device_id")
+    @SerialName("device_id")
     val deviceId: Int,
-    @SerializedName("device_name")
+    @SerialName("device_name")
     val deviceName: String? = null,
-    @SerializedName("rule_type")
+    @SerialName("rule_type")
     val ruleType: String,
     val action: String = "turn_on", // "turn_on", "turn_off", or "toggle"
     val config: RuleConfig,
-    @SerializedName("is_enabled")
+    @SerialName("is_enabled")
     val isEnabled: Boolean = true,
     val priority: Int? = null,
-    @SerializedName("created_at")
+    @SerialName("created_at")
     val createdAt: String? = null,
-    @SerializedName("updated_at")
+    @SerialName("updated_at")
     val updatedAt: String? = null,
-    @SerializedName("last_triggered_at")
+    @SerialName("last_triggered_at")
     val lastTriggeredAt: String? = null
 )
 
+@Serializable
 data class RuleConfig(
-    @SerializedName("cheapest_hours")
+    @SerialName("cheapest_hours")
     val cheapestHours: Int? = null,
-    @SerializedName("price_threshold")
+    @SerialName("price_threshold")
     val priceThreshold: Double? = null,
-    @SerializedName("time_range_start")
+    @SerialName("time_range_start")
     val timeRangeStart: String? = null,
-    @SerializedName("time_range_end")
+    @SerialName("time_range_end")
     val timeRangeEnd: String? = null,
     /** Time windows ("HH:00"); replaces time_range_start/end */
     val windows: List<TimeWindow>? = null,
@@ -206,30 +226,33 @@ data class RuleConfig(
     /** "deadline": one window that ends when the device must be ready */
     val goal: String? = null,
     /** Turn off when the measured power drops (the appliance finished) */
-    @SerializedName("stop_when_done")
+    @SerialName("stop_when_done")
     val stopWhenDone: Boolean? = null,
     /** One-off: only the next window, then the rule disables itself */
     val once: Boolean? = null,
     /** The date of that window ("YYYY-MM-DD"), set by the server */
-    @SerializedName("once_date")
+    @SerialName("once_date")
     val onceDate: String? = null
 )
 
+@Serializable
 data class DraftRuleRequest(val text: String)
 
 /** A rule proposed from plain words, or a question when the text was not enough */
+@Serializable
 data class RuleDraft(
     val question: String? = null,
-    @SerializedName("device_id")
+    @SerialName("device_id")
     val deviceId: Int? = null,
     val name: String? = null,
-    @SerializedName("rule_type")
+    @SerialName("rule_type")
     val ruleType: String? = null,
     val action: String? = null,
     val config: RuleConfig? = null,
     val explanation: String? = null
 )
 
+@Serializable
 data class TimeWindow(
     val start: String,
     val end: String,
@@ -238,99 +261,108 @@ data class TimeWindow(
 )
 
 // Schedule models
+@Serializable
 data class ScheduleResponse(
     val date: String,
-    @SerializedName("scheduled_hours")
+    @SerialName("scheduled_hours")
     val scheduledHours: List<ScheduledHour>
 )
 
+@Serializable
 data class ScheduledHour(
     val hour: Int,
-    @SerializedName("device_id")
+    @SerialName("device_id")
     val deviceId: Int,
-    @SerializedName("device_name")
+    @SerialName("device_name")
     val deviceName: String,
-    @SerializedName("rule_id")
+    @SerialName("rule_id")
     val ruleId: Int,
-    @SerializedName("rule_name")
+    @SerialName("rule_name")
     val ruleName: String,
     val action: String,
     val status: String, // "pending", "completed_on", "completed_off", "failed"
     val price: Double? = null,
-    @SerializedName("price_formatted")
+    @SerialName("price_formatted")
     val priceFormatted: String? = null
 )
 
 // Account models
+@Serializable
 data class ChangePasswordRequest(
-    @SerializedName("current_password")
+    @SerialName("current_password")
     val currentPassword: String,
-    @SerializedName("new_password")
+    @SerialName("new_password")
     val newPassword: String
 )
 
+@Serializable
 data class DeleteAccountRequest(val password: String)
 
+@Serializable
 data class ChangeEmailRequest(val email: String, val password: String)
 
+@Serializable
 data class ForgotPasswordRequest(val email: String)
 
 /** A device action that failed and the automatic retries could not fix */
+@Serializable
 data class Alert(
-    @SerializedName("execution_id")
+    @SerialName("execution_id")
     val executionId: Int,
-    @SerializedName("rule_id")
+    @SerialName("rule_id")
     val ruleId: Int,
-    @SerializedName("rule_name")
+    @SerialName("rule_name")
     val ruleName: String,
-    @SerializedName("device_name")
+    @SerialName("device_name")
     val deviceName: String,
     val action: String,
-    @SerializedName("failed_at")
+    @SerialName("failed_at")
     val failedAt: String,
     val error: String? = null
 )
 
 // Savings
+@Serializable
 data class DeviceSavings(
-    @SerializedName("device_id")
+    @SerialName("device_id")
     val deviceId: Int,
-    @SerializedName("device_name")
+    @SerialName("device_name")
     val deviceName: String,
-    @SerializedName("hours_on")
+    @SerialName("hours_on")
     val hoursOn: Int,
-    @SerializedName("avg_price_paid")
+    @SerialName("avg_price_paid")
     val avgPricePaid: Double,
-    @SerializedName("avg_price_reference")
+    @SerialName("avg_price_reference")
     val avgPriceReference: Double,
-    @SerializedName("saving_ratio")
+    @SerialName("saving_ratio")
     val savingRatio: Double,
-    @SerializedName("power_watts")
+    @SerialName("power_watts")
     val powerWatts: Int? = null,
-    @SerializedName("measured_hours")
+    @SerialName("measured_hours")
     val measuredHours: Int = 0,
-    @SerializedName("energy_kwh")
+    @SerialName("energy_kwh")
     val energyKwh: Double? = null,
-    @SerializedName("cost_eur")
+    @SerialName("cost_eur")
     val costEur: Double? = null,
-    @SerializedName("saved_eur")
+    @SerialName("saved_eur")
     val savedEur: Double? = null
 )
 
+@Serializable
 data class Savings(
     val from: String,
     val to: String,
-    @SerializedName("hours_on")
+    @SerialName("hours_on")
     val hoursOn: Int,
-    @SerializedName("saving_ratio")
+    @SerialName("saving_ratio")
     val savingRatio: Double,
-    @SerializedName("cost_eur")
+    @SerialName("cost_eur")
     val costEur: Double? = null,
-    @SerializedName("saved_eur")
+    @SerialName("saved_eur")
     val savedEur: Double? = null,
-    @SerializedName("devices_without_power")
+    @SerialName("devices_without_power")
     val devicesWithoutPower: Int = 0,
-    @SerializedName("measured_hours")
+    @SerialName("measured_hours")
     val measuredHours: Int = 0,
     val devices: List<DeviceSavings> = emptyList()
 )

@@ -41,7 +41,7 @@ class DeviceRepository @Inject constructor(
     }
 
     /** [watts] = 0 clears it */
-    suspend fun setDevicePower(id: String, watts: Int): Result<Device> {
+    suspend fun setDevicePower(id: Int, watts: Int): Result<Device> {
         return try {
             val response = apiService.updateDevice(id, UpdateDeviceRequest(powerWatts = watts))
             if (response.isSuccessful && response.body() != null) {
@@ -154,7 +154,7 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun controlDevice(id: String, action: String): Result<DeviceActionResponse> {
+    suspend fun controlDevice(id: Int, action: String): Result<DeviceActionResponse> {
         return try {
             val request = ControlDeviceRequest(action)
             val response = apiService.controlDevice(id, request)
@@ -168,15 +168,15 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun turnOnDevice(id: String): Result<DeviceActionResponse> {
+    suspend fun turnOnDevice(id: Int): Result<DeviceActionResponse> {
         return controlDevice(id, "turn_on")
     }
 
-    suspend fun turnOffDevice(id: String): Result<DeviceActionResponse> {
+    suspend fun turnOffDevice(id: Int): Result<DeviceActionResponse> {
         return controlDevice(id, "turn_off")
     }
 
-    suspend fun getDeviceState(id: String): Result<DeviceActionResponse> {
+    suspend fun getDeviceState(id: Int): Result<DeviceActionResponse> {
         return try {
             val response = apiService.getDeviceState(id)
             if (response.isSuccessful && response.body() != null) {
@@ -189,7 +189,7 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun getDeviceUsage(id: String): Result<DeviceUsage> {
+    suspend fun getDeviceUsage(id: Int): Result<DeviceUsage> {
         return try {
             val response = apiService.getDeviceUsage(id)
             if (response.isSuccessful && response.body() != null) {
