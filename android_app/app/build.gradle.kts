@@ -38,6 +38,11 @@ android {
     } else null
 
     buildTypes {
+        // Installs next to the app from Google Play (other signature)
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             signingConfig = releaseSigning
             isMinifyEnabled = false
