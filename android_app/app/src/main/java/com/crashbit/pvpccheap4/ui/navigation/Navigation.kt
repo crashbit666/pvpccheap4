@@ -1,7 +1,7 @@
 package com.crashbit.pvpccheap4.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -24,7 +24,7 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController(),
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
-    val isLoggedIn by authViewModel.isLoggedIn.collectAsState(initial = false)
+    val isLoggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle(initialValue = false)
 
     val startDestination = if (isLoggedIn) Screen.Main.route else Screen.Login.route
 
