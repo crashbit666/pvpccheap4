@@ -97,7 +97,7 @@ class DeviceRepository @Inject constructor(
                         context.getString(R.string.devices_error_ha_invalid_url)
                     provider == "home_assistant" -> context.getString(R.string.devices_error_ha_token)
                     "Invalid Shelly server" in body -> context.getString(R.string.devices_error_shelly_server)
-                    "No Shelly devices found" in body || "device id" in body ->
+                    "device id" in body ->
                         context.getString(R.string.devices_error_shelly_ids)
                     provider == "shelly" -> context.getString(R.string.devices_error_shelly_key)
                     else -> context.getString(R.string.devices_error_add_integration)

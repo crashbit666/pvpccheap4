@@ -106,8 +106,7 @@ data class CredentialField(
     @StringRes val label: Int,
     val keyboardType: KeyboardType,
     val secret: Boolean = false,
-    val placeholder: String? = null,
-    val optional: Boolean = false
+    val placeholder: String? = null
 )
 
 /** Providers the backend can control */
@@ -130,7 +129,7 @@ enum class Provider(
         listOf(
             CredentialField("server", R.string.devices_field_shelly_server, KeyboardType.Uri, placeholder = "shelly-103-eu.shelly.cloud"),
             CredentialField("auth_key", R.string.devices_field_shelly_key, KeyboardType.Password, secret = true),
-            CredentialField("device_ids", R.string.devices_field_shelly_ids, KeyboardType.Ascii, placeholder = "b48a0a1cd978, …", optional = true)
+            CredentialField("device_ids", R.string.devices_field_shelly_ids, KeyboardType.Ascii, placeholder = "b48a0a1cd978, …")
         ),
         R.string.devices_help_shelly
     ),
@@ -160,7 +159,7 @@ fun AddIntegrationScreen(
 
     var selectedProvider by remember { mutableStateOf(Provider.MEROSS) }
     val values = remember { mutableStateMapOf<String, String>() }
-    val filled = selectedProvider.fields.all { it.optional || !values[it.key].isNullOrBlank() }
+    val filled = selectedProvider.fields.all { !values[it.key].isNullOrBlank() }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {

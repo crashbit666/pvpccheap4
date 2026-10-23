@@ -89,8 +89,8 @@
     <string name="devices_help_home_assistant">Serveix per a qualsevol endoll o llum que tinguis a Home Assistant (Shelly, Tuya, Zigbee...). L\'adreça ha de ser accessible des d\'Internet, per exemple la de Home Assistant Cloud. El token es crea a Home Assistant: el teu perfil → Seguretat → Tokens d\'accés de llarga durada → Crea un token.</string>
     <string name="devices_field_shelly_server">Servidor</string>
     <string name="devices_field_shelly_key">Clau d\'autorització del núvol</string>
-    <string name="devices_field_shelly_ids">ID dels dispositius (opcional)</string>
-    <string name="devices_help_shelly">A l\'app de Shelly: Configuració d\'usuari → Clau d\'autorització del núvol (Authorization cloud key). Copia la clau i el servidor que hi surten. Si algun dispositiu no apareix, escriu-ne l\'ID (Dispositiu → Configuració → Informació del dispositiu), separats per comes. La clau canvia si canvies la contrasenya de Shelly.</string>
+    <string name="devices_field_shelly_ids">ID dels dispositius</string>
+    <string name="devices_help_shelly">A l\'app de Shelly: Configuració d\'usuari → Clau d\'autorització del núvol (Authorization cloud key). Copia la clau i el servidor que hi surten. Escriu l\'ID de cada dispositiu que vulguis programar (Dispositiu → Configuració → Informació del dispositiu), separats per comes. La clau canvia si canvies la contrasenya de Shelly.</string>
 
     <!-- Repository errors -->
     <string name="devices_error_load_alerts">No s\'han pogut carregar els avisos</string>
@@ -103,7 +103,7 @@
     <string name="devices_error_ha_token">Home Assistant no ha acceptat el token. Revisa\'l</string>
     <string name="devices_error_shelly_key">Shelly no ha acceptat la clau o el servidor. Revisa\'ls a l\'app de Shelly</string>
     <string name="devices_error_shelly_server">El servidor no és vàlid: és semblant a shelly-XX-eu.shelly.cloud</string>
-    <string name="devices_error_shelly_ids">No s\'ha trobat cap dispositiu. Escriu-ne els ID, separats per comes</string>
+    <string name="devices_error_shelly_ids">Shelly no reconeix algun dels ID. Revisa\'ls a l\'app (Dispositiu → Configuració → Informació del dispositiu)</string>
     <string name="devices_error_add_integration">No s\'ha pogut afegir la integració. Revisa el correu i la contrasenya</string>
     <string name="devices_error_delete_integration">No s\'ha pogut eliminar la integració</string>
     <string name="devices_error_load_devices">No s\'han pogut carregar els dispositius</string>

@@ -1,10 +1,10 @@
 //! Shelly through its cloud (Cloud Control API v2), with the "Authorization
 //! cloud key" and server shown in the Shelly app (User settings).
 //!
-//! The v2 API has no call that lists an account's devices: they come from
-//! the deprecated `/device/all_status` when it answers, plus the device ids
-//! the user typed. Every device id is then read with the v2 API, which gives
-//! its channels, names and power meter.
+//! The v2 API has no call that lists an account's devices, so the user types
+//! their ids (shown in the app). Each one is read with the v2 API, which
+//! gives its channels, names and power meter. Only v2 calls are made: v1 is
+//! deprecated.
 //!
 //! The cloud allows one call per second per account, so calls with the same
 //! key are spaced out.
@@ -207,16 +207,6 @@ fn device_channels(device: &Value) -> Vec<(Channel, String)> {
         .collect()
 }
 
-/// Device ids in an answer of the deprecated /device/all_status
-fn all_status_ids(answer: &Value) -> Vec<String> {
-    answer
-        .get("data")
-        .and_then(|d| d.get("devices_status"))
-        .and_then(Value::as_object)
-        .map(|devices| devices.keys().filter_map(|k| parse_device_id(k)).collect())
-        .unwrap_or_default()
-}
-
 /// When each key last called the cloud
 fn last_calls() -> &'static Mutex<HashMap<String, Instant>> {
     static LAST: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
@@ -258,6 +248,9 @@ impl Api {
             .filter(|k| !k.is_empty())
             .ok_or_else(|| ProviderError::AuthenticationFailed("No Shelly key".to_string()))?;
         let device_ids = parse_device_ids(credentials.get("device_ids").unwrap_or(&Value::Null))?;
+        if device_ids.is_empty() {
+            return Err(ProviderError::AuthenticationFailed("No Shelly device ids".to_string()));
+        }
         let client = Client::builder()
             .redirect(Policy::none())
             .timeout(Duration::from_secs(10))
@@ -333,35 +326,6 @@ impl Api {
         channel_status(&device, ch).ok_or_else(|| ProviderError::DeviceNotFound(ch.external_id()))
     }
 
-    /// Ids from the deprecated all_status call; empty if it no longer answers
-    async fn listed_ids(&self) -> Result<Vec<String>, ProviderError> {
-        let url = format!("https://{}/device/all_status", self.server);
-        let body = format!("auth_key={}&show_info=true", urlencoding::encode(&self.auth_key));
-        match self
-            .send(|| {
-                self.client
-                    .post(&url)
-                    .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                    .body(body.clone())
-            })
-            .await
-        {
-            Ok(response) => {
-                let answer: Value = response.json().await.unwrap_or(Value::Null);
-                if answer.get("isok").and_then(Value::as_bool) == Some(false) {
-                    // v1 answers 200 with isok=false to a wrong key
-                    return Err(ProviderError::InvalidCredentials);
-                }
-                Ok(all_status_ids(&answer))
-            }
-            Err(e @ ProviderError::InvalidCredentials) => Err(e),
-            Err(e) => {
-                warn!("Shelly all_status failed, using the typed ids: {}", e);
-                Ok(Vec::new())
-            }
-        }
-    }
-
     async fn switch(&self, external_id: &str, on: bool) -> Result<DeviceActionResult, ProviderError> {
         let ch = Channel::parse(external_id).ok_or_else(|| ProviderError::DeviceNotFound(external_id.to_string()))?;
         let url = self.v2(if ch.kind == Kind::Light { "set/light" } else { "set/switch" });
@@ -391,20 +355,16 @@ impl SmartHomeProvider for ShellyProvider {
         "Shelly"
     }
 
-    /// Checks the key with the devices it can find, so a wrong key or id is
+    /// Checks the key with the typed devices, so a wrong key or id is
     /// reported when the integration is added
     async fn login(&self, credentials: &Value) -> Result<Value, ProviderError> {
         let api = Api::new(credentials)?;
-        if api.device_ids.is_empty() {
-            if api.listed_ids().await?.is_empty() {
-                return Err(ProviderError::AuthenticationFailed("No Shelly devices found: type their ids".to_string()));
-            }
-        } else {
-            let ids = &api.device_ids[..api.device_ids.len().min(IDS_PER_CALL)];
-            let found = api.get(ids, &["status"], Some(json!({ "status": ["sys"] }))).await?;
-            if found.is_empty() {
-                return Err(ProviderError::AuthenticationFailed("Shelly does not know these device ids".to_string()));
-            }
+        let mut found = 0;
+        for chunk in api.device_ids.chunks(IDS_PER_CALL) {
+            found += api.get(chunk, &["status"], Some(json!({ "status": ["sys"] }))).await?.len();
+        }
+        if found < api.device_ids.len() {
+            return Err(ProviderError::AuthenticationFailed("Shelly does not know some device ids".to_string()));
         }
         info!("Shelly login successful");
         Ok(api.credentials())
@@ -417,14 +377,8 @@ impl SmartHomeProvider for ShellyProvider {
 
     async fn list_devices(&self, credentials: &Value) -> Result<Vec<DiscoveredDevice>, ProviderError> {
         let api = Api::new(credentials)?;
-        let mut ids = api.listed_ids().await?;
-        for id in &api.device_ids {
-            if !ids.contains(id) {
-                ids.push(id.clone());
-            }
-        }
         let mut devices = Vec::new();
-        for chunk in ids.chunks(IDS_PER_CALL) {
+        for chunk in api.device_ids.chunks(IDS_PER_CALL) {
             for device in api.get(chunk, &["status", "settings"], None).await? {
                 for (ch, name) in device_channels(&device) {
                     devices.push(DiscoveredDevice {
@@ -435,7 +389,7 @@ impl SmartHomeProvider for ShellyProvider {
                 }
             }
         }
-        info!("Shelly found {} channels in {} devices", devices.len(), ids.len());
+        info!("Shelly found {} channels in {} devices", devices.len(), api.device_ids.len());
         Ok(devices)
     }
 
@@ -491,6 +445,12 @@ mod tests {
         assert!(parse_device_ids(&Value::Null).unwrap().is_empty());
         assert!(parse_device_ids(&json!("b48a0a1cd978/../x")).is_err());
         assert_eq!(parse_device_ids(&json!(["abcdef"])).unwrap(), ["abcdef"]);
+    }
+
+    #[test]
+    fn test_ids_are_required() {
+        let creds = json!({ "server": "shelly-103-eu.shelly.cloud", "auth_key": "k", "device_ids": " " });
+        assert!(matches!(Api::new(&creds), Err(ProviderError::AuthenticationFailed(_))));
     }
 
     #[test]
@@ -566,17 +526,6 @@ mod tests {
         assert!(device_channels(&json!({"id": "nothex!", "status": {}})).is_empty());
     }
 
-    #[test]
-    fn test_all_status_ids() {
-        let answer = json!({"isok": true, "data": {"devices_status": {
-            "b48a0a1cd978": {"_dev_info": {"gen": "G2"}}, "E8DB84D2A1B3": {}, "../x": {}
-        }}});
-        let mut ids = all_status_ids(&answer);
-        ids.sort();
-        assert_eq!(ids, ["b48a0a1cd978", "e8db84d2a1b3"]);
-        assert!(all_status_ids(&json!({"isok": false})).is_empty());
-    }
-
     #[tokio::test]
     async fn test_calls_with_one_key_are_spaced() {
         let start = Instant::now();
@@ -588,7 +537,7 @@ mod tests {
     }
 
     /// Against a real account:
-    /// SHELLY_SERVER=shelly-XX-eu.shelly.cloud SHELLY_KEY=... [SHELLY_IDS=id1,id2] \
+    /// SHELLY_SERVER=shelly-XX-eu.shelly.cloud SHELLY_KEY=... SHELLY_IDS=id1,id2 \
     ///   cargo test -p backend shelly -- --ignored
     #[tokio::test]
     #[ignore]
@@ -596,7 +545,7 @@ mod tests {
         let creds = json!({
             "server": std::env::var("SHELLY_SERVER").unwrap(),
             "auth_key": std::env::var("SHELLY_KEY").unwrap(),
-            "device_ids": std::env::var("SHELLY_IDS").unwrap_or_default(),
+            "device_ids": std::env::var("SHELLY_IDS").unwrap(),
         });
         let shelly = ShellyProvider::new();
         let creds = shelly.login(&creds).await.unwrap();

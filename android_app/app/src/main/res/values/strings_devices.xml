@@ -85,8 +85,8 @@
     <string name="devices_help_home_assistant">Works with any plug or light you have in Home Assistant (Shelly, Tuya, Zigbee...). The address must be reachable from the internet, for example your Home Assistant Cloud one. Create the token in Home Assistant: your profile → Security → Long-lived access tokens → Create token.</string>
     <string name="devices_field_shelly_server">Server</string>
     <string name="devices_field_shelly_key">Authorization cloud key</string>
-    <string name="devices_field_shelly_ids">Device IDs (optional)</string>
-    <string name="devices_help_shelly">In the Shelly app: User settings → Authorization cloud key. Copy the key and the server shown there. If some device doesn\'t appear, type its ID (Device → Settings → Device information), separated by commas. The key changes if you change your Shelly password.</string>
+    <string name="devices_field_shelly_ids">Device IDs</string>
+    <string name="devices_help_shelly">In the Shelly app: User settings → Authorization cloud key. Copy the key and the server shown there. Type the ID of each device you want to schedule (Device → Settings → Device information), separated by commas. The key changes if you change your Shelly password.</string>
 
     <!-- Repository errors -->
     <string name="devices_error_load_alerts">Couldn\'t load the alerts</string>
@@ -99,7 +99,7 @@
     <string name="devices_error_ha_token">Home Assistant didn\'t accept the token. Please check it</string>
     <string name="devices_error_shelly_key">Shelly didn\'t accept the key or the server. Check them in the Shelly app</string>
     <string name="devices_error_shelly_server">The server isn\'t valid: it looks like shelly-XX-eu.shelly.cloud</string>
-    <string name="devices_error_shelly_ids">No devices were found. Type their IDs, separated by commas</string>
+    <string name="devices_error_shelly_ids">Shelly doesn\'t know some of the IDs. Check them in the app (Device → Settings → Device information)</string>
     <string name="devices_error_add_integration">Couldn\'t add the integration. Check your email and password</string>
     <string name="devices_error_delete_integration">Couldn\'t remove the integration</string>
     <string name="devices_error_load_devices">Couldn\'t load the devices</string>

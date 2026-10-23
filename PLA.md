@@ -84,12 +84,15 @@ fet i afegeix la data.
       exposar l'HA). Si el servidor cau, els dispositius continuen. Cal:
       endpoints de programació i d'estat/consum al backend, la integració en
       Python i provar-la amb un HA en contenidor. Lliga amb el punt 4.
-- [x] **Shelly** pel núvol (Cloud Control API v2, oficial): servidor i
-      «Authorization cloud key» de l'app, i els ID dels dispositius que no
-      surtin sols (el v2 no té cap crida per llistar-los; es prova el
-      `/device/all_status` antic). Gen1 i Gen2+, interruptors i llums, consum
-      si l'endoll el mesura. Una crida per segon i clau. *Codi fet 23/10/2026;
-      falta provar-lo amb un compte real i publicar la versió de l'app.*
+- [x] **Shelly** pel núvol, només amb l'API v2 (la v1 és obsoleta): servidor
+      i «Authorization cloud key» de l'app, i l'ID de cada dispositiu (el v2
+      no té cap crida per llistar-los). Gen1 i Gen2+, interruptors i llums,
+      consum si l'endoll el mesura. Una crida per segon i clau. *Codi fet
+      23/10/2026; falta provar-lo amb un compte real i publicar l'app.*
+- [ ] Shelly **Integrator API**: la via oficial per a serveis com aquest.
+      L'usuari tria a la web de Shelly quins dispositius comparteix (sense
+      copiar claus ni ID) i rebem els estats per WebSocket. Cal demanar una
+      llicència d'integrador a Shelly (support@shelly.cloud).
 - [ ] **Tuya / Smart Life** (API oficial).
 - [ ] A llarg termini, **Matter**.
 - [x] Zones: Península, Balears, Ceuta i Melilla. Preus desats per zona,
