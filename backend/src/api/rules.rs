@@ -32,18 +32,16 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
         }
     }
 
-    if let Some(threshold) = config.get("price_threshold") {
-        if !threshold.is_number() {
+    if let Some(threshold) = config.get("price_threshold")
+        && !threshold.is_number() {
             return Err("price_threshold must be a number (€/kWh)".to_string());
         }
-    }
 
     for key in ["time_range_start", "time_range_end"] {
-        if let Some(value) = config.get(key) {
-            if value.as_str().and_then(parse_time_of_day).is_none() {
+        if let Some(value) = config.get(key)
+            && value.as_str().and_then(parse_time_of_day).is_none() {
                 return Err(format!("{} must be a time in HH:MM format", key));
             }
-        }
     }
 
     if rule_type == "cheapest_hours"
@@ -52,11 +50,10 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
         return Err("time_range_start and time_range_end must be set together".to_string());
     }
 
-    if let Some(stop) = config.get("stop_when_done") {
-        if !stop.is_boolean() {
+    if let Some(stop) = config.get("stop_when_done")
+        && !stop.is_boolean() {
             return Err("stop_when_done must be true or false".to_string());
         }
-    }
 
     // A one-off rule; "once_date" is set by the server when it is armed
     if let Some(once) = config.get("once") {
@@ -67,11 +64,10 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
             return Err("a manual rule cannot be one-off".to_string());
         }
     }
-    if let Some(date) = config.get("once_date") {
-        if date.as_str().and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()).is_none() {
+    if let Some(date) = config.get("once_date")
+        && date.as_str().and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()).is_none() {
             return Err("once_date must be a date in YYYY-MM-DD format".to_string());
         }
-    }
 
     validate_goal(rule_type, config)?;
     validate_windows(config)
@@ -97,11 +93,10 @@ fn validate_goal(rule_type: &str, config: &JsonValue) -> Result<(), String> {
 fn validate_windows(config: &JsonValue) -> Result<(), String> {
     const MAX_WINDOWS: usize = 8;
 
-    if let Some(distribution) = config.get("distribution") {
-        if !matches!(distribution.as_str(), Some("total") | Some("per_window")) {
+    if let Some(distribution) = config.get("distribution")
+        && !matches!(distribution.as_str(), Some("total") | Some("per_window")) {
             return Err("distribution must be \"total\" or \"per_window\"".to_string());
         }
-    }
 
     let Some(list) = config.get("windows") else {
         return Ok(());
@@ -118,11 +113,10 @@ fn validate_windows(config: &JsonValue) -> Result<(), String> {
                 return Err(format!("Window {}: {} must be a time in HH:MM format", i + 1, key));
             }
         }
-        if let Some(hours) = w.get("hours") {
-            if !matches!(hours.as_i64(), Some(1..=24)) {
+        if let Some(hours) = w.get("hours")
+            && !matches!(hours.as_i64(), Some(1..=24)) {
                 return Err(format!("Window {}: hours must be an integer between 1 and 24", i + 1));
             }
-        }
     }
 
     let specs = window_specs(config);
@@ -134,8 +128,8 @@ fn validate_windows(config: &JsonValue) -> Result<(), String> {
             return Err(format!("Window {} overlaps another window", i + 1));
         }
         hours.iter().for_each(|h| used[*h as usize] = true);
-        if per_window {
-            if let Some(n) = spec.hours.filter(|n| *n > hours.len()) {
+        if per_window
+            && let Some(n) = spec.hours.filter(|n| *n > hours.len()) {
                 return Err(format!(
                     "Window {} lasts {} h and cannot hold {} h",
                     i + 1,
@@ -143,7 +137,6 @@ fn validate_windows(config: &JsonValue) -> Result<(), String> {
                     n
                 ));
             }
-        }
     }
 
     Ok(())
@@ -173,14 +166,13 @@ pub(crate) async fn release_devices(
 /// used when the rule stops applying (disabled or about to be deleted).
 async fn release_device(pool: &web::Data<DbPool>, registry: &web::Data<ProviderRegistry>, rule_id: i32) {
     let engine = AutomationEngine::new(pool.get_ref().clone(), Arc::new(registry.get_ref().clone()));
-    if let Some(result) = engine.release_device_for_rule(rule_id).await {
-        if !result.success {
+    if let Some(result) = engine.release_device_for_rule(rule_id).await
+        && !result.success {
             log::warn!(
                 "Could not turn off device of rule {}: {:?}",
                 rule_id, result.error_message
             );
         }
-    }
 }
 
 // ============================================================================
@@ -666,11 +658,10 @@ pub async fn update_rule(
     if should_recompute {
         let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
         // Edited or enabled again: a one-off rule applies to the next window
-        if body.config.is_some() || body.is_enabled == Some(true) {
-            if let Err(e) = schedule_service.arm_once(rule_id) {
+        if (body.config.is_some() || body.is_enabled == Some(true))
+            && let Err(e) = schedule_service.arm_once(rule_id) {
                 log::warn!("Failed to arm one-off rule {}: {}", rule_id, e);
             }
-        }
         if let Err(e) = schedule_service.refresh_rule(rule_id) {
             log::warn!("Failed to recompute schedule for rule {}: {}", rule_id, e);
         }
@@ -777,11 +768,10 @@ pub async fn toggle_rule(
 
     // Recompute schedules: enabled rules get their hours, disabled ones lose the pending ones
     let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
-    if new_status {
-        if let Err(e) = schedule_service.arm_once(rule_id) {
+    if new_status
+        && let Err(e) = schedule_service.arm_once(rule_id) {
             log::warn!("Failed to arm one-off rule {}: {}", rule_id, e);
         }
-    }
     if let Err(e) = schedule_service.refresh_rule(rule_id) {
         log::warn!("Failed to recompute schedule for toggled rule {}: {}", rule_id, e);
     }

@@ -289,53 +289,6 @@ async fn sync_prices_daily(pool: Arc<DbPool>) {
     }
 }
 
-/// Run automation rules based on current prices
-async fn run_automation(pool: Arc<DbPool>) {
-    // First, ensure we have today's prices
-    let service = PriceService::new((*pool).clone());
-    let today = backend::time::today();
-
-    match service.has_prices_for_date(today) {
-        Ok(false) => {
-            log::warn!("Today's prices missing! Attempting to fetch before automation...");
-            if let Err(e) = service.sync_today().await {
-                log::error!("Failed to sync today's prices: {}", e);
-                log::warn!("Running automation without complete price data");
-            }
-        }
-        Err(e) => {
-            log::warn!("Could not check today's prices: {}", e);
-        }
-        Ok(true) => {}
-    }
-
-    let registry = registry();
-    let engine = AutomationEngine::new((*pool).clone(), registry);
-
-    let results = engine.run().await;
-
-    let successful = results.iter().filter(|r| r.success).count();
-    let failed = results.len() - successful;
-
-    if results.is_empty() {
-        log::info!("Automation: no rules to execute");
-    } else {
-        log::info!(
-            "Automation completed: {} rules executed, {} successful, {} failed",
-            results.len(),
-            successful,
-            failed
-        );
-
-        // Log details of failed executions
-        for result in results.iter().filter(|r| !r.success) {
-            if let Some(ref error) = result.error_message {
-                log::error!("Rule {} failed: {}", result.rule_id, error);
-            }
-        }
-    }
-}
-
 /// Run scheduled automation for the current hour
 async fn run_scheduled_automation(pool: Arc<DbPool>) {
     // Catch up if the 20:30 sync failed or the cron was down: fetch missing

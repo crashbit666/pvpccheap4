@@ -131,7 +131,7 @@ impl AutomationEngine {
         now: &NaiveDateTime,
         current_price: Option<f64>,
     ) -> RuleEvaluation {
-        let action = RuleAction::from_str(&rule.action).unwrap_or(RuleAction::TurnOn);
+        let action = RuleAction::parse(&rule.action).unwrap_or(RuleAction::TurnOn);
 
         match rule.rule_type.as_str() {
             "price_threshold" => self.evaluate_price_threshold(rule, current_price, action),
@@ -558,8 +558,8 @@ impl AutomationEngine {
                     success: result.success,
                     error_message: result.message,
                     price_at_execution: current_price,
-                    device_state_before: state_before.map(|s| serde_json::to_value(s).ok()).flatten(),
-                    device_state_after: result.new_state.map(|s| serde_json::to_value(s).ok()).flatten(),
+                    device_state_before: state_before.and_then(|s| serde_json::to_value(s).ok()),
+                    device_state_after: result.new_state.and_then(|s| serde_json::to_value(s).ok()),
                 }
             }
             Err(e) => ExecutionResult {
@@ -567,7 +567,7 @@ impl AutomationEngine {
                 success: false,
                 error_message: Some(e.to_string()),
                 price_at_execution: current_price,
-                device_state_before: state_before.map(|s| serde_json::to_value(s).ok()).flatten(),
+                device_state_before: state_before.and_then(|s| serde_json::to_value(s).ok()),
                 device_state_after: None,
             },
         }
@@ -797,7 +797,7 @@ impl AutomationEngine {
         rule: &AutomationRule,
     ) -> ExecutionResult {
         let current_price = self.get_current_price(&crate::time::now_naive(), rule.user_id);
-        let action = RuleAction::from_str(&scheduled.expected_action).unwrap_or(RuleAction::TurnOn);
+        let action = RuleAction::parse(&scheduled.expected_action).unwrap_or(RuleAction::TurnOn);
 
         let evaluation = RuleEvaluation {
             rule_id: rule.id,

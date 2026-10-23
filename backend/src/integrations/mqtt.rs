@@ -476,6 +476,7 @@ mod tests {
     fn test_mqtt_message_parse_json_invalid() {
         #[derive(Deserialize)]
         struct TestPayload {
+            #[allow(dead_code)]
             value: i32,
         }
 

@@ -281,9 +281,9 @@ pub async fn sync_prices(
 
     let message = match (today_ok, tomorrow_ok) {
         (true, true) => "Synced prices for today and tomorrow".to_string(),
-        (true, false) => format!("Synced today's prices. Tomorrow not available yet."),
-        (false, true) => format!("Failed to sync today. Synced tomorrow."),
-        (false, false) => format!("Failed to sync prices. Check ESIOS_TOKEN configuration."),
+        (true, false) => "Synced today's prices. Tomorrow not available yet.".to_string(),
+        (false, true) => "Failed to sync today. Synced tomorrow.".to_string(),
+        (false, false) => "Failed to sync prices. Check ESIOS_TOKEN configuration.".to_string(),
     };
 
     let success = today_ok || tomorrow_ok;

@@ -103,12 +103,11 @@ pub async fn google_purchase(
             return HttpResponse::Conflict().body(e);
         }
     }
-    if sub.needs_acknowledge && sub.is_paid() {
-        if let Err(e) = google_play::acknowledge(&sub.product_id, token).await {
+    if sub.needs_acknowledge && sub.is_paid()
+        && let Err(e) = google_play::acknowledge(&sub.product_id, token).await {
             // The app acknowledges too; Google refunds only after 3 days
             log::warn!("Could not acknowledge the purchase of user {}: {}", user_id, e);
         }
-    }
     log::info!("User {} bought {} ({}) until {}", user_id, sub.product_id, sub.state, sub.expires_at);
 
     let Ok(mut conn) = pool.get() else {
@@ -145,11 +144,10 @@ async fn refresh_from_google(pool: &DbPool, user_id: Option<i32>, token: &str) -
         }
         store_subscription(&mut conn, user_id, token, &sub)?;
     }
-    if sub.needs_acknowledge && sub.is_paid() {
-        if let Err(e) = google_play::acknowledge(&sub.product_id, token).await {
+    if sub.needs_acknowledge && sub.is_paid()
+        && let Err(e) = google_play::acknowledge(&sub.product_id, token).await {
             log::warn!("Could not acknowledge the purchase of user {}: {}", user_id, e);
         }
-    }
     log::info!("Subscription of user {} is {} until {}", user_id, sub.state, sub.expires_at);
     Ok(())
 }

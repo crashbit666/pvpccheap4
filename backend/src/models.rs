@@ -117,7 +117,7 @@ impl RuleType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "price_threshold" => Some(RuleType::PriceThreshold),
             "cheapest_hours" => Some(RuleType::CheapestHours),
@@ -146,7 +146,7 @@ impl RuleAction {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "turn_on" => Some(RuleAction::TurnOn),
             "turn_off" => Some(RuleAction::TurnOff),
@@ -175,11 +175,11 @@ pub struct AutomationRule {
 
 impl AutomationRule {
     pub fn get_rule_type(&self) -> Option<RuleType> {
-        RuleType::from_str(&self.rule_type)
+        RuleType::parse(&self.rule_type)
     }
 
     pub fn get_action(&self) -> Option<RuleAction> {
-        RuleAction::from_str(&self.action)
+        RuleAction::parse(&self.action)
     }
 }
 
@@ -274,7 +274,7 @@ impl ExecutionStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(ExecutionStatus::Pending),
             "executing" => Some(ExecutionStatus::Executing),
@@ -306,7 +306,7 @@ pub struct ScheduledExecution {
 
 impl ScheduledExecution {
     pub fn get_status(&self) -> Option<ExecutionStatus> {
-        ExecutionStatus::from_str(&self.status)
+        ExecutionStatus::parse(&self.status)
     }
 }
 
@@ -374,17 +374,17 @@ mod tests {
     fn test_rule_type_conversion() {
         assert_eq!(RuleType::PriceThreshold.as_str(), "price_threshold");
         assert_eq!(
-            RuleType::from_str("cheapest_hours"),
+            RuleType::parse("cheapest_hours"),
             Some(RuleType::CheapestHours)
         );
-        assert_eq!(RuleType::from_str("invalid"), None);
+        assert_eq!(RuleType::parse("invalid"), None);
     }
 
     #[test]
     fn test_rule_action_conversion() {
         assert_eq!(RuleAction::TurnOn.as_str(), "turn_on");
-        assert_eq!(RuleAction::from_str("turn_off"), Some(RuleAction::TurnOff));
-        assert_eq!(RuleAction::from_str("invalid"), None);
+        assert_eq!(RuleAction::parse("turn_off"), Some(RuleAction::TurnOff));
+        assert_eq!(RuleAction::parse("invalid"), None);
     }
 
     #[test]

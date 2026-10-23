@@ -37,12 +37,3 @@ pub async fn run_automation(
 
     HttpResponse::Ok().json(summary)
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_automation_endpoint_exists() {
-        // Basic test to ensure the module compiles
-        assert!(true);
-    }
-}

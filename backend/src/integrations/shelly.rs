@@ -315,7 +315,7 @@ impl Api {
     /// The status of one channel, read with the v2 API
     async fn channel(&self, ch: &Channel) -> Result<(bool, Option<f32>), ProviderError> {
         let device = self
-            .get(&[ch.id.clone()], &["status"], None)
+            .get(std::slice::from_ref(&ch.id), &["status"], None)
             .await?
             .into_iter()
             .next()

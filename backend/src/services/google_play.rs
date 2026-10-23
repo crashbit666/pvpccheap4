@@ -43,11 +43,10 @@ fn package() -> String {
 async fn access_token() -> Result<String, String> {
     static CACHE: Mutex<Option<(String, i64)>> = Mutex::new(None);
     let now = Utc::now().timestamp();
-    if let Some((token, expires)) = CACHE.lock().unwrap_or_else(|e| e.into_inner()).clone() {
-        if expires - 60 > now {
+    if let Some((token, expires)) = CACHE.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        && expires - 60 > now {
             return Ok(token);
         }
-    }
 
     let account = service_account()?;
     let claims = serde_json::json!({

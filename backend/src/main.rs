@@ -1,17 +1,8 @@
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
-mod api;
-mod db;
-mod integrations;
-mod lang;
-mod models;
-mod schema;
-mod services;
-mod time;
-mod zones;
-
-use integrations::ProviderRegistry;
+use backend::integrations::ProviderRegistry;
+use backend::{api, db, services};
 
 #[get("/")]
 async fn health_check() -> impl Responder {
@@ -52,11 +43,10 @@ async fn main() -> std::io::Result<()> {
     // DB Pool initialization
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = db::init_pool(&database_url);
-    if let Ok(mut conn) = pool.get() {
-        if let Err(e) = services::credentials::encrypt_legacy_rows(&mut conn) {
+    if let Ok(mut conn) = pool.get()
+        && let Err(e) = services::credentials::encrypt_legacy_rows(&mut conn) {
             log::error!("Could not encrypt stored credentials: {}", e);
         }
-    }
 
     // Provider registry
     let provider_registry = ProviderRegistry::new();

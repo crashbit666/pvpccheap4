@@ -2,7 +2,7 @@
 //!
 //! This library provides the core functionality for the PVPC Cheap automation service,
 //! including:
-//! - Smart home device integrations (Meross, and future providers)
+//! - Smart home device integrations (Meross, Home Assistant, Shelly)
 //! - PVPC electricity price fetching from ESIOS API
 //! - Automation rules engine
 //! - User authentication and management

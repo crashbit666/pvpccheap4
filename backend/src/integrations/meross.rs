@@ -33,17 +33,13 @@ struct MerossRequest {
 struct MerossResponse<T> {
     #[serde(rename = "apiStatus")]
     api_status: i32,
-    #[serde(rename = "sysStatus")]
-    sys_status: Option<i32>,
     data: Option<T>,
     info: Option<String>,
-    timestamp: Option<i64>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 struct MerossLoginData {
     userid: String,
-    email: String,
     token: String,
     key: String,
     #[serde(rename = "mqttDomain", default)]
@@ -59,28 +55,7 @@ struct MerossDeviceData {
     dev_name: String,
     #[serde(rename = "deviceType")]
     device_type: String,
-    // onlineStatus can be int (0/1/2) or string ("ONLINE"/"OFFLINE") depending on API version
-    #[serde(default, rename = "onlineStatus")]
-    online_status: serde_json::Value,
-    #[serde(default)]
-    channels: Option<Vec<MerossChannel>>,
-    #[serde(default)]
-    domain: Option<String>,
-    #[serde(default)]
-    region: Option<String>,
     // Allow any other fields we don't care about
-    #[serde(flatten)]
-    _extra: std::collections::HashMap<String, serde_json::Value>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct MerossChannel {
-    #[serde(default)]
-    channel: Option<i32>,
-    #[serde(rename = "devName", default)]
-    dev_name: Option<String>,
-    #[serde(rename = "type", default)]
-    channel_type: Option<String>,
     #[serde(flatten)]
     _extra: std::collections::HashMap<String, serde_json::Value>,
 }

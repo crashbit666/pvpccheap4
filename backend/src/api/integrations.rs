@@ -45,16 +45,14 @@ pub async fn add_integration(
     let mut final_credentials = session_credentials.clone();
     if let (Some(obj), Some(orig)) = (final_credentials.as_object_mut(), item.credentials.as_object()) {
         // Copy email and password from original request if not present
-        if !obj.contains_key("email") {
-            if let Some(email) = orig.get("email") {
+        if !obj.contains_key("email")
+            && let Some(email) = orig.get("email") {
                 obj.insert("email".to_string(), email.clone());
             }
-        }
-        if !obj.contains_key("password") {
-            if let Some(password) = orig.get("password") {
+        if !obj.contains_key("password")
+            && let Some(password) = orig.get("password") {
                 obj.insert("password".to_string(), password.clone());
             }
-        }
     }
 
     info!("Integration login successful for provider: {}", item.provider);

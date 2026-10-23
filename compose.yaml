@@ -1,10 +1,15 @@
+# Base de dades per desenvolupar en local: podman compose up -d
+# El backend i el cron s'executen amb cargo run (vegeu servidor/README.md per
+# a producció, amb quadlets).
 services:
   db:
-    image: docker.io/library/postgres:18.1
+    image: docker.io/library/postgres:18.6
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - db_data:/var/lib/postgresql
     healthcheck:
@@ -12,43 +17,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
-
-  backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    ports:
-      - "8080:8080"
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      RUST_LOG: ${RUST_LOG:-info}
-      HOST: 0.0.0.0
-      PORT: 8080
-      TZ: Europe/Madrid
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # Cron scheduler per tasques programades (preus, automatització)
-  # - sync-prices: cada dia a les 20:30 (quan es publiquen els preus de demà)
-  # - run-automation: cada hora en punt (quan canvia el preu)
-  cron:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    command: ["cron_runner"]
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      ESIOS_TOKEN: ${ESIOS_TOKEN}
-      RUST_LOG: ${RUST_LOG:-info}
-      TZ: Europe/Madrid
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
 
 volumes:
   db_data:
