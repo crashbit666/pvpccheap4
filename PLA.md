@@ -84,14 +84,23 @@ fet i afegeix la data.
       exposar l'HA). Si el servidor cau, els dispositius continuen. Cal:
       endpoints de programació i d'estat/consum al backend, la integració en
       Python i provar-la amb un HA en contenidor. Lliga amb el punt 4.
-- [ ] **Shelly** (API local i oficial) i **Tuya / Smart Life** (API oficial).
+- [x] **Shelly** pel núvol (Cloud Control API v2, oficial): servidor i
+      «Authorization cloud key» de l'app, i els ID dels dispositius que no
+      surtin sols (el v2 no té cap crida per llistar-los; es prova el
+      `/device/all_status` antic). Gen1 i Gen2+, interruptors i llums, consum
+      si l'endoll el mesura. Una crida per segon i clau. *Codi fet 23/10/2026;
+      falta provar-lo amb un compte real i publicar la versió de l'app.*
+- [ ] **Tuya / Smart Life** (API oficial).
 - [ ] A llarg termini, **Matter**.
 - [x] Zones: Península, Balears, Ceuta i Melilla. Preus desats per zona,
       zona triada al compte; regles, estalvi i API de preus fan servir la de
       l'usuari. *Fet 22/10/2026.*
-- [ ] Canàries: l'ESIOS en dona els mateixos números que la Península amb
-      la mateixa hora; cal confirmar si és hora local o peninsular abans
-      d'oferir-la (tenen una hora menys).
+- [ ] Canàries: *confirmat 23/10/2026*. L'ESIOS (geo_id 8742) dona els
+      mateixos preus que la Península amb la mateixa etiqueta horària, i el
+      PVPC s'aplica per **hora local**: les 14 h canàries costen el que les
+      14 h peninsulars (una hora més tard en temps real). Per oferir-la cal
+      que la programació i l'execució de les regles d'aquests usuaris vagin
+      en hora canària (Atlantic/Canary) i no en la de Madrid.
 - [ ] Tarifes indexades del mercat lliure; Europa amb ENTSO-E.
 - [ ] Comprovar si el PVPC passa a franges de 15 minuts (el mercat diari ja és
       quarthorari) i preparar-hi el model.

@@ -8,10 +8,12 @@ pub mod home_assistant;
 pub mod meross;
 pub mod meross_mqtt;
 pub mod mqtt;
+pub mod shelly;
 
 // Re-export providers
 pub use home_assistant::HomeAssistantProvider;
 pub use meross::MerossProvider;
+pub use shelly::ShellyProvider;
 
 /// Device discovered from a provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,8 +167,8 @@ impl ProviderRegistry {
         // Register all available providers
         registry.register(Arc::new(MerossProvider::new()));
         registry.register(Arc::new(HomeAssistantProvider::new()));
+        registry.register(Arc::new(ShellyProvider::new()));
         // Future: registry.register(Arc::new(TuyaProvider::new()));
-        // Future: registry.register(Arc::new(ShellyProvider::new()));
 
         registry
     }

@@ -87,6 +87,10 @@
     <string name="devices_field_ha_token">Token de acceso</string>
     <string name="devices_help_meross">El correo y la contraseña de tu cuenta de la app de Meross.</string>
     <string name="devices_help_home_assistant">Sirve para cualquier enchufe o luz que tengas en Home Assistant (Shelly, Tuya, Zigbee...). La dirección debe ser accesible desde Internet, por ejemplo la de Home Assistant Cloud. El token se crea en Home Assistant: tu perfil → Seguridad → Tokens de acceso de larga duración → Crear token.</string>
+    <string name="devices_field_shelly_server">Servidor</string>
+    <string name="devices_field_shelly_key">Clave de autorización de la nube</string>
+    <string name="devices_field_shelly_ids">ID de los dispositivos (opcional)</string>
+    <string name="devices_help_shelly">En la app de Shelly: Ajustes de usuario → Clave de autorización de la nube (Authorization cloud key). Copia la clave y el servidor que aparecen. Si algún dispositivo no aparece, escribe su ID (Dispositivo → Ajustes → Información del dispositivo), separados por comas. La clave cambia si cambias la contraseña de Shelly.</string>
 
     <!-- Repository errors -->
     <string name="devices_error_load_alerts">No se han podido cargar los avisos</string>
@@ -97,6 +101,9 @@
     <string name="devices_error_provider_unreachable">No se ha podido conectar con el proveedor. Vuelve a intentarlo más tarde</string>
     <string name="devices_error_ha_invalid_url">La dirección no es válida: debe empezar por https:// y ser accesible desde Internet</string>
     <string name="devices_error_ha_token">Home Assistant no ha aceptado el token. Revísalo</string>
+    <string name="devices_error_shelly_key">Shelly no ha aceptado la clave o el servidor. Revísalos en la app de Shelly</string>
+    <string name="devices_error_shelly_server">El servidor no es válido: es parecido a shelly-XX-eu.shelly.cloud</string>
+    <string name="devices_error_shelly_ids">No se ha encontrado ningún dispositivo. Escribe sus ID, separados por comas</string>
     <string name="devices_error_add_integration">No se ha podido añadir la integración. Revisa el correo y la contraseña</string>
     <string name="devices_error_delete_integration">No se ha podido eliminar la integración</string>
     <string name="devices_error_load_devices">No se han podido cargar los dispositivos</string>
