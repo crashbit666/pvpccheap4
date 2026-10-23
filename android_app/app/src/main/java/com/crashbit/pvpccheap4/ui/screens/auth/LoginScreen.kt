@@ -90,7 +90,7 @@ fun LoginScreen(
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text(stringResource(R.string.account_username)) },
+                label = { Text(stringResource(R.string.account_username_or_email)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,

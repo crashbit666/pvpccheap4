@@ -190,10 +190,22 @@ pub async fn register(req: HttpRequest, pool: web::Data<DbPool>, item: web::Json
 pub async fn login(pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> impl Responder {
     let mut conn = pool.get().expect("Couldn't get db connection");
 
-    // Find user
+    // The username, or a verified email (an unverified one could be anyone's)
+    let login = item.username.trim();
     let user_result = users::table
         .filter(users::username.eq(&item.username))
-        .first::<User>(&mut conn);
+        .first::<User>(&mut conn)
+        .or_else(|e| {
+            if !valid_email(login) {
+                return Err(e);
+            }
+            users::table
+                .filter(users::email_verified.eq(true))
+                .filter(diesel::dsl::sql::<diesel::sql_types::Bool>("lower(email) = lower(")
+                    .bind::<diesel::sql_types::Text, _>(login)
+                    .sql(")"))
+                .first::<User>(&mut conn)
+        });
 
     match user_result {
         Ok(user) => {

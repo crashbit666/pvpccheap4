@@ -45,7 +45,9 @@ android {
         }
         release {
             signingConfig = releaseSigning
-            isMinifyEnabled = false
+            // R8: smaller and faster code (Google Play warns when it is off)
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

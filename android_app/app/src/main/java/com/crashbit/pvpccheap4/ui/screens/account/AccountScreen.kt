@@ -1,5 +1,6 @@
 package com.crashbit.pvpccheap4.ui.screens.account
 
+import androidx.compose.ui.text.style.TextAlign
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -405,6 +406,15 @@ fun AccountScreen(
                     Text(stringResource(R.string.account_delete_title), color = MaterialTheme.colorScheme.error)
                 }
             }
+
+            // Which build is installed, to tell when reporting a problem
+            Text(
+                text = stringResource(R.string.account_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 
