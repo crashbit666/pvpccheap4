@@ -245,7 +245,11 @@ pub async fn me(pool: web::Data<DbPool>, claims: Claims) -> impl Responder {
             "username": user.username,
             // Paid (store) or granted by hand
             "is_premium": crate::services::premium::has_premium(&user, crate::time::now_naive()),
-            "premium_until": user.premium_until.map(|u| u.to_string()),
+            // Only a store subscription still running renews; an expired one
+            // would show a past date to a user who has the plan by hand
+            "premium_until": user.premium_until
+                .filter(|until| *until > crate::time::now_naive())
+                .map(|u| u.to_string()),
             "free_rules": crate::services::premium::FREE_RULES,
             "email": user.email,
             "email_verified": user.email_verified,
