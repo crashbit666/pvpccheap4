@@ -101,7 +101,10 @@ pub trait SmartHomeProvider: Send + Sync {
     async fn login(&self, credentials: &Value) -> Result<Value, ProviderError>;
 
     /// Lists all devices available in the user's account
-    async fn list_devices(&self, credentials: &Value) -> Result<Vec<DiscoveredDevice>, ProviderError>;
+    async fn list_devices(
+        &self,
+        credentials: &Value,
+    ) -> Result<Vec<DiscoveredDevice>, ProviderError>;
 
     /// Gets the current state of a device
     async fn get_device_state(
@@ -134,8 +137,15 @@ pub trait SmartHomeProvider: Send + Sync {
     }
 
     /// Watts the device draws right now
-    async fn read_power(&self, _credentials: &Value, external_id: &str) -> Result<f32, ProviderError> {
-        Err(ProviderError::Unknown(format!("{} does not report its power", external_id)))
+    async fn read_power(
+        &self,
+        _credentials: &Value,
+        external_id: &str,
+    ) -> Result<f32, ProviderError> {
+        Err(ProviderError::Unknown(format!(
+            "{} does not report its power",
+            external_id
+        )))
     }
 
     /// Get device capabilities

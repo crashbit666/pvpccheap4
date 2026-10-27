@@ -7,7 +7,7 @@ use crate::{
         tariff::{self, HourPrice, Tariff},
     },
 };
-use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get, post, web};
 use chrono::{NaiveDate, Timelike};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -39,7 +39,11 @@ pub struct ZoneQuery {
 /// The prices to show: the zone asked for (its PVPC in Spain, its market
 /// price elsewhere), else the logged-in user's tariff, else the Peninsula's
 /// PVPC. An error answer when the zone is not one we serve.
-fn tariff_param(pool: &DbPool, claims: Option<Claims>, zone: &Option<String>) -> Result<Tariff, Box<HttpResponse>> {
+fn tariff_param(
+    pool: &DbPool,
+    claims: Option<Claims>,
+    zone: &Option<String>,
+) -> Result<Tariff, Box<HttpResponse>> {
     match zone.as_deref() {
         Some(z) => crate::zones::find(z)
             .map(Tariff::default_for)
@@ -57,18 +61,30 @@ fn tariff_param(pool: &DbPool, claims: Option<Claims>, zone: &Option<String>) ->
 /// The local date asked for, or today in the tariff's zone
 fn date_param(date: &Option<String>, tariff: &Tariff) -> Result<NaiveDate, Box<HttpResponse>> {
     match date {
-        Some(d) => NaiveDate::parse_from_str(d, "%Y-%m-%d")
-            .map_err(|_| Box::new(HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"))),
+        Some(d) => NaiveDate::parse_from_str(d, "%Y-%m-%d").map_err(|_| {
+            Box::new(HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"))
+        }),
         None => Ok(tariff.zone.now().date()),
     }
 }
 
 /// Prices of a local day, with local times
-fn day_prices(pool: &DbPool, tariff: &Tariff, date: NaiveDate) -> Result<Vec<PriceResponse>, Box<HttpResponse>> {
-    let mut conn = pool.get().map_err(|_| Box::new(HttpResponse::InternalServerError().body("Database connection error")))?;
+fn day_prices(
+    pool: &DbPool,
+    tariff: &Tariff,
+    date: NaiveDate,
+) -> Result<Vec<PriceResponse>, Box<HttpResponse>> {
+    let mut conn = pool.get().map_err(|_| {
+        Box::new(HttpResponse::InternalServerError().body("Database connection error"))
+    })?;
     tariff
         .day(&mut conn, date)
-        .map(|prices| prices.into_iter().map(|p| PriceResponse::local(tariff, p)).collect())
+        .map(|prices| {
+            prices
+                .into_iter()
+                .map(|p| PriceResponse::local(tariff, p))
+                .collect()
+        })
         .map_err(|e| Box::new(HttpResponse::InternalServerError().body(e.to_string())))
 }
 
@@ -127,7 +143,11 @@ pub struct SyncResponse {
 
 /// Prices of a local day (defaults to today)
 #[get("")]
-pub async fn get_prices(pool: web::Data<DbPool>, claims: Option<Claims>, query: web::Query<DateQuery>) -> impl Responder {
+pub async fn get_prices(
+    pool: web::Data<DbPool>,
+    claims: Option<Claims>,
+    query: web::Query<DateQuery>,
+) -> impl Responder {
     let result = tariff_param(&pool, claims, &query.zone).and_then(|tariff| {
         let date = date_param(&query.date, &tariff)?;
         day_prices(&pool, &tariff, date)
@@ -140,7 +160,11 @@ pub async fn get_prices(pool: web::Data<DbPool>, claims: Option<Claims>, query: 
 
 /// Price of the current hour
 #[get("/current")]
-pub async fn get_current_price(pool: web::Data<DbPool>, claims: Option<Claims>, query: web::Query<ZoneQuery>) -> impl Responder {
+pub async fn get_current_price(
+    pool: web::Data<DbPool>,
+    claims: Option<Claims>,
+    query: web::Query<ZoneQuery>,
+) -> impl Responder {
     let tariff = match tariff_param(&pool, claims, &query.zone) {
         Ok(t) => t,
         Err(response) => return *response,
@@ -150,7 +174,9 @@ pub async fn get_current_price(pool: web::Data<DbPool>, claims: Option<Claims>, 
     };
     let hour = crate::time::current_hour();
     match tariff.at(&mut conn, hour) {
-        Ok(Some(price)) => HttpResponse::Ok().json(PriceResponse::local(&tariff, HourPrice { hour, price })),
+        Ok(Some(price)) => {
+            HttpResponse::Ok().json(PriceResponse::local(&tariff, HourPrice { hour, price }))
+        }
         Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
             "error": "No price available for current hour",
             "hint": "Prices may need to be synced. Call POST /api/prices/sync"
@@ -161,7 +187,11 @@ pub async fn get_current_price(pool: web::Data<DbPool>, claims: Option<Claims>, 
 
 /// Summary statistics of a local day
 #[get("/summary")]
-pub async fn get_price_summary(pool: web::Data<DbPool>, claims: Option<Claims>, query: web::Query<DateQuery>) -> impl Responder {
+pub async fn get_price_summary(
+    pool: web::Data<DbPool>,
+    claims: Option<Claims>,
+    query: web::Query<DateQuery>,
+) -> impl Responder {
     let result = tariff_param(&pool, claims, &query.zone).and_then(|tariff| {
         let date = date_param(&query.date, &tariff)?;
         Ok((date, day_prices(&pool, &tariff, date)?))
@@ -190,14 +220,25 @@ pub async fn get_price_summary(pool: web::Data<DbPool>, claims: Option<Claims>, 
 }
 
 /// The N cheapest (or most expensive) hours of a local day
-fn ranked_hours(pool: &DbPool, claims: Option<Claims>, query: &CheapestHoursQuery, cheapest_first: bool) -> HttpResponse {
+fn ranked_hours(
+    pool: &DbPool,
+    claims: Option<Claims>,
+    query: &CheapestHoursQuery,
+    cheapest_first: bool,
+) -> HttpResponse {
     let result = tariff_param(pool, claims, &query.zone).and_then(|tariff| {
         let date = date_param(&query.date, &tariff)?;
         day_prices(pool, &tariff, date)
     });
     match result {
         Ok(mut prices) => {
-            prices.sort_by(|a, b| if cheapest_first { a.price.total_cmp(&b.price) } else { b.price.total_cmp(&a.price) });
+            prices.sort_by(|a, b| {
+                if cheapest_first {
+                    a.price.total_cmp(&b.price)
+                } else {
+                    b.price.total_cmp(&a.price)
+                }
+            });
             prices.truncate(query.count.unwrap_or(6).min(24));
             HttpResponse::Ok().json(prices)
         }
@@ -244,7 +285,11 @@ pub async fn list_zones(pool: web::Data<DbPool>) -> impl Responder {
             code: zone.code,
             name: zone.name,
             country: zone.country,
-            tariffs: if zone.is_spain() { vec!["pvpc", "indexed"] } else { vec!["indexed"] },
+            tariffs: if zone.is_spain() {
+                vec!["pvpc", "indexed"]
+            } else {
+                vec!["indexed"]
+            },
             available: with_prices.contains(&tariff::spot_series(zone)),
         })
         .collect();

@@ -1,6 +1,6 @@
 use crate::{
     db::DbPool,
-    integrations::{ProviderError, ProviderRegistry, DeviceState},
+    integrations::{DeviceState, ProviderError, ProviderRegistry},
     models::{
         AutomationRule, ExecutionStatus, NewRuleExecution, RuleAction, ScheduledExecution,
         UpdateScheduledExecution,
@@ -51,7 +51,10 @@ impl AutomationEngine {
     /// What the user pays in the hour of `now`
     fn get_current_price(&self, now: &NaiveDateTime, user_id: i32) -> Option<f64> {
         let mut conn = self.pool.get().ok()?;
-        Tariff::of_user(&mut conn, user_id).at(&mut conn, *now).ok().flatten()
+        Tariff::of_user(&mut conn, user_id)
+            .at(&mut conn, *now)
+            .ok()
+            .flatten()
     }
 
     /// Execute a rule action on the device
@@ -71,7 +74,7 @@ impl AutomationEngine {
                     price_at_execution: current_price,
                     device_state_before: None,
                     device_state_after: None,
-                }
+                };
             }
         };
 
@@ -99,7 +102,7 @@ impl AutomationEngine {
                     price_at_execution: current_price,
                     device_state_before: None,
                     device_state_after: None,
-                }
+                };
             }
         };
 
@@ -114,24 +117,25 @@ impl AutomationEngine {
                     price_at_execution: current_price,
                     device_state_before: None,
                     device_state_after: None,
-                }
+                };
             }
         };
 
         // Parse credentials
-        let mut credentials: JsonValue = match crate::services::credentials::decrypt(&credentials_json) {
-            Ok(c) => c,
-            Err(e) => {
-                return ExecutionResult {
-                    rule_id: rule.id,
-                    success: false,
-                    error_message: Some(format!("Invalid credentials: {}", e)),
-                    price_at_execution: current_price,
-                    device_state_before: None,
-                    device_state_after: None,
+        let mut credentials: JsonValue =
+            match crate::services::credentials::decrypt(&credentials_json) {
+                Ok(c) => c,
+                Err(e) => {
+                    return ExecutionResult {
+                        rule_id: rule.id,
+                        success: false,
+                        error_message: Some(format!("Invalid credentials: {}", e)),
+                        price_at_execution: current_price,
+                        device_state_before: None,
+                        device_state_after: None,
+                    };
                 }
-            }
-        };
+            };
 
         // Get device state before action
         let state_before = provider
@@ -140,14 +144,16 @@ impl AutomationEngine {
             .ok();
 
         // Execute the action (with automatic token refresh on auth failure)
-        let action_result = self.execute_action_with_retry(
-            &provider,
-            &mut credentials,
-            &external_id,
-            &evaluation.action,
-            &state_before,
-            integration_id,
-        ).await;
+        let action_result = self
+            .execute_action_with_retry(
+                &provider,
+                &mut credentials,
+                &external_id,
+                &evaluation.action,
+                &state_before,
+                integration_id,
+            )
+            .await;
 
         match action_result {
             Ok(result) => {
@@ -159,11 +165,16 @@ impl AutomationEngine {
                     .ok();
 
                 // Keep the cached device state in step with what we just did
-                let is_on = result.new_state.as_ref().map(|s| s.is_on).or(match evaluation.action {
-                    RuleAction::TurnOn => Some(true),
-                    RuleAction::TurnOff => Some(false),
-                    RuleAction::Toggle => None,
-                });
+                let is_on =
+                    result
+                        .new_state
+                        .as_ref()
+                        .map(|s| s.is_on)
+                        .or(match evaluation.action {
+                            RuleAction::TurnOn => Some(true),
+                            RuleAction::TurnOff => Some(false),
+                            RuleAction::Toggle => None,
+                        });
                 if let (true, Some(is_on)) = (result.success, is_on) {
                     diesel::update(devices::table.filter(devices::id.eq(rule.device_id)))
                         .set(devices::is_on.eq(is_on))
@@ -202,30 +213,46 @@ impl AutomationEngine {
         integration_id: i32,
     ) -> Result<crate::integrations::DeviceActionResult, ProviderError> {
         // First attempt
-        let first_result = self.execute_single_action(provider, credentials, external_id, action, state_before).await;
+        let first_result = self
+            .execute_single_action(provider, credentials, external_id, action, state_before)
+            .await;
 
         match &first_result {
-            Err(ProviderError::AuthenticationFailed(_)) | Err(ProviderError::InvalidCredentials) => {
+            Err(ProviderError::AuthenticationFailed(_))
+            | Err(ProviderError::InvalidCredentials) => {
                 // Token might be expired - try to refresh
-                warn!("Authentication failed, attempting to refresh credentials for integration {}", integration_id);
+                warn!(
+                    "Authentication failed, attempting to refresh credentials for integration {}",
+                    integration_id
+                );
 
                 match provider.refresh_credentials(credentials).await {
                     Ok(new_credentials) => {
                         info!("Credentials refreshed successfully, updating database");
 
                         // Update credentials in database
-                        if let Err(e) = self.update_integration_credentials(integration_id, &new_credentials) {
+                        if let Err(e) =
+                            self.update_integration_credentials(integration_id, &new_credentials)
+                        {
                             error!("Failed to update credentials in database: {}", e);
                         }
 
                         // Update local credentials and retry
                         *credentials = new_credentials;
-                        self.execute_single_action(provider, credentials, external_id, action, state_before).await
+                        self.execute_single_action(
+                            provider,
+                            credentials,
+                            external_id,
+                            action,
+                            state_before,
+                        )
+                        .await
                     }
                     Err(e) => {
                         error!("Failed to refresh credentials: {}", e);
                         Err(ProviderError::AuthenticationFailed(format!(
-                            "Token expired and refresh failed: {}", e
+                            "Token expired and refresh failed: {}",
+                            e
                         )))
                     }
                 }
@@ -257,7 +284,11 @@ impl AutomationEngine {
     }
 
     /// Update integration credentials in the database
-    fn update_integration_credentials(&self, integration_id: i32, new_credentials: &JsonValue) -> Result<(), String> {
+    fn update_integration_credentials(
+        &self,
+        integration_id: i32,
+        new_credentials: &JsonValue,
+    ) -> Result<(), String> {
         let mut conn = self.pool.get().map_err(|e| e.to_string())?;
 
         let credentials_str = crate::services::credentials::encrypt(new_credentials);
@@ -459,10 +490,12 @@ impl AutomationEngine {
                 next_retry_at: Some(None),
             };
 
-            diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled_id)))
-                .set(&update)
-                .execute(&mut conn)
-                .ok();
+            diesel::update(
+                scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled_id)),
+            )
+            .set(&update)
+            .execute(&mut conn)
+            .ok();
         } else {
             // Get current retry count
             let current: Option<ScheduledExecution> = scheduled_executions::table
@@ -485,10 +518,13 @@ impl AutomationEngine {
                         next_retry_at: Some(None),
                     };
 
-                    diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled_id)))
-                        .set(&update)
-                        .execute(&mut conn)
-                        .ok();
+                    diesel::update(
+                        scheduled_executions::table
+                            .filter(scheduled_executions::id.eq(scheduled_id)),
+                    )
+                    .set(&update)
+                    .execute(&mut conn)
+                    .ok();
                 } else {
                     // Schedule retry in 1 minute
                     let next_retry = now + chrono::Duration::minutes(1);
@@ -501,10 +537,13 @@ impl AutomationEngine {
                         next_retry_at: Some(Some(next_retry)),
                     };
 
-                    diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled_id)))
-                        .set(&update)
-                        .execute(&mut conn)
-                        .ok();
+                    diesel::update(
+                        scheduled_executions::table
+                            .filter(scheduled_executions::id.eq(scheduled_id)),
+                    )
+                    .set(&update)
+                    .execute(&mut conn)
+                    .ok();
                 }
             }
         }
@@ -560,10 +599,12 @@ impl AutomationEngine {
                     next_retry_at: Some(None),
                 };
 
-                diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled.id)))
-                    .set(&update)
-                    .execute(&mut conn)
-                    .ok();
+                diesel::update(
+                    scheduled_executions::table.filter(scheduled_executions::id.eq(scheduled.id)),
+                )
+                .set(&update)
+                .execute(&mut conn)
+                .ok();
 
                 warn!(
                     "Scheduled execution {} for rule {} marked as missed - hour passed",
@@ -612,7 +653,10 @@ impl AutomationEngine {
         let mut conn = self.pool.get().ok()?;
         let current_hour = crate::time::current_hour();
 
-        let rule: AutomationRule = automation_rules::table.find(rule_id).first(&mut conn).ok()?;
+        let rule: AutomationRule = automation_rules::table
+            .find(rule_id)
+            .first(&mut conn)
+            .ok()?;
         if rule.action != "turn_on" {
             return None;
         }
@@ -642,7 +686,10 @@ impl AutomationEngine {
             return None;
         }
 
-        info!("Rule {} no longer applies, turning off device {}", rule.id, rule.device_id);
+        info!(
+            "Rule {} no longer applies, turning off device {}",
+            rule.id, rule.device_id
+        );
         let evaluation = RuleEvaluation {
             rule_id: rule.id,
             should_trigger: true,
@@ -704,12 +751,20 @@ impl AutomationEngine {
                 continue;
             }
 
-            warn!("Retrying turn-off of device {} (attempt {})", rule.device_id, tries + 1);
+            warn!(
+                "Retrying turn-off of device {} (attempt {})",
+                rule.device_id,
+                tries + 1
+            );
             let evaluation = RuleEvaluation {
                 rule_id: rule.id,
                 should_trigger: true,
                 action: RuleAction::TurnOff,
-                reason: format!("Retry of failed auto turn off ({}/{})", tries + 1, MAX_ATTEMPTS),
+                reason: format!(
+                    "Retry of failed auto turn off ({}/{})",
+                    tries + 1,
+                    MAX_ATTEMPTS
+                ),
             };
             let current_price = self.get_current_price(&crate::time::now_naive(), rule.user_id);
             let result = self.execute_rule(&rule, &evaluation, current_price).await;

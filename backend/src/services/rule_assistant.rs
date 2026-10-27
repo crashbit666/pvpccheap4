@@ -159,10 +159,15 @@ fn request_body(model: &str, text: &str, devices: &[DeviceInfo], now: &str, lang
 fn parse_response(body: &Value) -> Result<Draft, AssistantError> {
     let input = body["content"]
         .as_array()
-        .and_then(|blocks| blocks.iter().find(|b| b["type"] == "tool_use" && b["name"] == TOOL))
+        .and_then(|blocks| {
+            blocks
+                .iter()
+                .find(|b| b["type"] == "tool_use" && b["name"] == TOOL)
+        })
         .map(|b| b["input"].clone())
         .ok_or_else(|| AssistantError::Service("No rule in the answer".to_string()))?;
-    serde_json::from_value(input).map_err(|e| AssistantError::Service(format!("Unexpected rule: {}", e)))
+    serde_json::from_value(input)
+        .map_err(|e| AssistantError::Service(format!("Unexpected rule: {}", e)))
 }
 
 /// Asks the model for a rule matching `text`
@@ -195,7 +200,10 @@ pub async fn draft_rule(
         .await
         .map_err(|e| AssistantError::Service(e.without_url().to_string()))?;
     if !status.is_success() {
-        return Err(AssistantError::Service(format!("{}: {}", status, body["error"]["message"])));
+        return Err(AssistantError::Service(format!(
+            "{}: {}",
+            status, body["error"]["message"]
+        )));
     }
     parse_response(&body)
 }
@@ -205,12 +213,22 @@ mod tests {
     use super::*;
 
     fn devices() -> Vec<DeviceInfo> {
-        vec![DeviceInfo { id: 7, name: "Endoll patinet".to_string(), measures_power: false }]
+        vec![DeviceInfo {
+            id: 7,
+            name: "Endoll patinet".to_string(),
+            measures_power: false,
+        }]
     }
 
     #[test]
     fn test_request_lists_the_devices_and_forces_the_tool() {
-        let body = request_body("m", "carrega el patinet", &devices(), "dijous 22/10/2026 20:00", Lang::Es);
+        let body = request_body(
+            "m",
+            "carrega el patinet",
+            &devices(),
+            "dijous 22/10/2026 20:00",
+            Lang::Es,
+        );
         let system = body["system"].as_str().unwrap();
         assert!(system.contains(r#""id":7"#) && system.contains("Endoll patinet"));
         assert!(system.contains("22/10/2026"));
@@ -238,7 +256,10 @@ mod tests {
     #[test]
     fn test_parses_a_question() {
         let body = json!({"content": [{"type": "tool_use", "name": TOOL, "input": {"question": "Quin aparell?"}}]});
-        assert_eq!(parse_response(&body).unwrap().question.as_deref(), Some("Quin aparell?"));
+        assert_eq!(
+            parse_response(&body).unwrap().question.as_deref(),
+            Some("Quin aparell?")
+        );
         assert!(parse_response(&json!({"content": []})).is_err());
     }
 

@@ -1,6 +1,6 @@
 use diesel::pg::PgConnection;
 use diesel::r2d2::{self, ConnectionManager};
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 
 pub type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
 

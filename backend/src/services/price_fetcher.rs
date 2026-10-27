@@ -16,7 +16,7 @@ use crate::db::DbPool;
 use crate::models::Price;
 use crate::schema::prices;
 use crate::services::tariff::{combine, hours_between, spot_series, tolls_series};
-use crate::zones::{Market, Zone, ZONES};
+use crate::zones::{Market, ZONES, Zone};
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Europe::Madrid;
 use diesel::prelude::*;
@@ -86,19 +86,29 @@ pub struct PriceService {
 impl PriceService {
     pub fn new(pool: DbPool) -> Self {
         let token = |name| std::env::var(name).ok().filter(|t| !t.is_empty());
-        Self { pool, esios_token: token("ESIOS_TOKEN"), entsoe_token: token("ENTSOE_TOKEN") }
+        Self {
+            pool,
+            esios_token: token("ESIOS_TOKEN"),
+            entsoe_token: token("ENTSOE_TOKEN"),
+        }
     }
 
     /// Fetch every series of `date` and store them. The PVPC is what most
     /// users follow, so only its failure fails the sync; the other sources
     /// are logged and tried again on the next sync.
     pub async fn sync_prices_for_date(&self, date: NaiveDate) -> Result<usize, PriceFetchError> {
-        let token = self.esios_token.as_ref().ok_or(PriceFetchError::MissingToken)?;
+        let token = self
+            .esios_token
+            .as_ref()
+            .ok_or(PriceFetchError::MissingToken)?;
         let client = reqwest::Client::new();
         let mut prices = fetch_pvpc_prices(&client, date, token).await?;
 
         let mut others = vec![
-            ("Iberian market", fetch_esios_spot(&client, date, token).await),
+            (
+                "Iberian market",
+                fetch_esios_spot(&client, date, token).await,
+            ),
             ("tolls", fetch_tolls(&client, date).await),
         ];
         if let Some(token) = &self.entsoe_token {
@@ -131,7 +141,10 @@ impl PriceService {
 
     /// Store prices in the database (upsert)
     pub fn store_prices(&self, prices: &[PriceData]) -> Result<usize, PriceFetchError> {
-        let mut conn = self.pool.get().map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
 
         let mut count = 0;
         for p in prices {
@@ -154,7 +167,10 @@ impl PriceService {
                 .execute(&mut conn);
             match result {
                 Ok(_) => count += 1,
-                Err(e) => warn!("Failed to store price {} at {}: {}", p.series, p.timestamp, e),
+                Err(e) => warn!(
+                    "Failed to store price {} at {}: {}",
+                    p.series, p.timestamp, e
+                ),
             }
         }
 
@@ -168,7 +184,9 @@ impl PriceService {
         for zone in &ZONES {
             match zone.market {
                 Market::Spain { .. } => series.extend([zone.code.to_string(), tolls_series(zone)]),
-                Market::Entsoe { .. } if self.entsoe_token.is_some() => series.push(spot_series(zone)),
+                Market::Entsoe { .. } if self.entsoe_token.is_some() => {
+                    series.push(spot_series(zone))
+                }
                 Market::Entsoe { .. } => {}
             }
         }
@@ -177,14 +195,25 @@ impl PriceService {
 
     /// The series still missing hours of `date`
     pub fn missing_series(&self, date: NaiveDate) -> Result<Vec<String>, PriceFetchError> {
-        let mut conn = self.pool.get().map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
         let series = self.expected_series();
-        let (start, end) = (start_of(date), start_of(date + Duration::days(1)) + Duration::hours(1));
+        let (start, end) = (
+            start_of(date),
+            start_of(date + Duration::days(1)) + Duration::hours(1),
+        );
         let rows: Vec<(NaiveDateTime, String, f64, i16)> = prices::table
             .filter(prices::series.eq_any(&series))
             .filter(prices::timestamp.ge(start))
             .filter(prices::timestamp.lt(end))
-            .select((prices::timestamp, prices::series, prices::price, prices::minutes))
+            .select((
+                prices::timestamp,
+                prices::series,
+                prices::price,
+                prices::minutes,
+            ))
             .load(&mut conn)
             .map_err(|e| PriceFetchError::DatabaseError(e.to_string()))?;
 
@@ -217,7 +246,10 @@ fn is_canary(series: &str) -> bool {
 /// Engine-time span of a source day of the series
 fn day_span(series: &str, date: NaiveDate) -> (NaiveDateTime, NaiveDateTime) {
     let shift = Duration::hours(if is_canary(series) { 1 } else { 0 });
-    (start_of(date) + shift, start_of(date + Duration::days(1)) + shift)
+    (
+        start_of(date) + shift,
+        start_of(date + Duration::days(1)) + shift,
+    )
 }
 
 async fn esios_values(
@@ -227,7 +259,10 @@ async fn esios_values(
     geo_ids: &[i32],
     token: &str,
 ) -> Result<Vec<EsiosValue>, PriceFetchError> {
-    let geo_ids: String = geo_ids.iter().map(|id| format!("&geo_ids[]={}", id)).collect();
+    let geo_ids: String = geo_ids
+        .iter()
+        .map(|id| format!("&geo_ids[]={}", id))
+        .collect();
     let url = format!(
         "https://api.esios.ree.es/indicators/{}?start_date={}T00:00&end_date={}T23:59{}",
         indicator, date, date, geo_ids
@@ -240,9 +275,15 @@ async fn esios_values(
         .await
         .map_err(|e| PriceFetchError::NetworkError(e.to_string()))?;
     if !resp.status().is_success() {
-        return Err(PriceFetchError::NetworkError(format!("ESIOS API returned status {}", resp.status())));
+        return Err(PriceFetchError::NetworkError(format!(
+            "ESIOS API returned status {}",
+            resp.status()
+        )));
     }
-    let body: EsiosResponse = resp.json().await.map_err(|e| PriceFetchError::ParseError(e.to_string()))?;
+    let body: EsiosResponse = resp
+        .json()
+        .await
+        .map_err(|e| PriceFetchError::ParseError(e.to_string()))?;
     Ok(body.indicator.values)
 }
 
@@ -253,14 +294,23 @@ pub async fn fetch_pvpc_prices(
     token: &str,
 ) -> Result<Vec<PriceData>, PriceFetchError> {
     let geo_ids: Vec<i32> = crate::zones::geo_ids().collect();
-    Ok(parse_esios_values(esios_values(client, 1001, date, &geo_ids, token).await?))
+    Ok(parse_esios_values(
+        esios_values(client, 1001, date, &geo_ids, token).await?,
+    ))
 }
 
 /// The Iberian day-ahead market (ESIOS indicator 600), Spain's price
-async fn fetch_esios_spot(client: &reqwest::Client, date: NaiveDate, token: &str) -> Result<Vec<PriceData>, PriceFetchError> {
+async fn fetch_esios_spot(
+    client: &reqwest::Client,
+    date: NaiveDate,
+    token: &str,
+) -> Result<Vec<PriceData>, PriceFetchError> {
     let values = esios_values(client, 600, date, &[ESIOS_SPAIN], token).await?;
     let mut slots: Vec<(DateTime<Utc>, f64)> = Vec::new();
-    for v in values.into_iter().filter(|v| v.geo_id.is_none_or(|id| id == ESIOS_SPAIN)) {
+    for v in values
+        .into_iter()
+        .filter(|v| v.geo_id.is_none_or(|id| id == ESIOS_SPAIN))
+    {
         match DateTime::parse_from_rfc3339(&v.datetime) {
             Ok(t) => slots.push((t.with_timezone(&Utc), v.value)),
             Err(e) => error!("Bad ESIOS datetime '{}': {}", v.datetime, e),
@@ -287,9 +337,15 @@ async fn fetch_esios_spot(client: &reqwest::Client, date: NaiveDate, token: &str
 /// The length of each slot: the gap to the next one (the last repeats the
 /// one before; a lone slot is an hour)
 fn slot_minutes(times: &[DateTime<Utc>]) -> Vec<i16> {
-    let gaps: Vec<i16> = times.windows(2).map(|w| (w[1] - w[0]).num_minutes().clamp(1, 60) as i16).collect();
+    let gaps: Vec<i16> = times
+        .windows(2)
+        .map(|w| (w[1] - w[0]).num_minutes().clamp(1, 60) as i16)
+        .collect();
     let last = gaps.last().copied().unwrap_or(60);
-    gaps.into_iter().chain(std::iter::once(last)).take(times.len()).collect()
+    gaps.into_iter()
+        .chain(std::iter::once(last))
+        .take(times.len())
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -315,13 +371,29 @@ struct PvpcFileHour {
 /// Tolls and charges of 2.0TD by hour, from REE's daily PVPC file (it needs
 /// no token). They follow the tariff periods, weekends and national holidays,
 /// and REE updates them when the regulator changes them.
-async fn fetch_tolls(client: &reqwest::Client, date: NaiveDate) -> Result<Vec<PriceData>, PriceFetchError> {
-    let url = format!("https://api.esios.ree.es/archives/70/download_json?locale=es&date={}", date);
-    let resp = client.get(&url).send().await.map_err(|e| PriceFetchError::NetworkError(e.to_string()))?;
+async fn fetch_tolls(
+    client: &reqwest::Client,
+    date: NaiveDate,
+) -> Result<Vec<PriceData>, PriceFetchError> {
+    let url = format!(
+        "https://api.esios.ree.es/archives/70/download_json?locale=es&date={}",
+        date
+    );
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| PriceFetchError::NetworkError(e.to_string()))?;
     if !resp.status().is_success() {
-        return Err(PriceFetchError::NetworkError(format!("REE PVPC file returned status {}", resp.status())));
+        return Err(PriceFetchError::NetworkError(format!(
+            "REE PVPC file returned status {}",
+            resp.status()
+        )));
     }
-    let file: PvpcFile = resp.json().await.map_err(|e| PriceFetchError::ParseError(e.to_string()))?;
+    let file: PvpcFile = resp
+        .json()
+        .await
+        .map_err(|e| PriceFetchError::ParseError(e.to_string()))?;
     parse_tolls(file)
 }
 
@@ -329,9 +401,14 @@ fn parse_tolls(file: PvpcFile) -> Result<Vec<PriceData>, PriceFetchError> {
     let number = |s: &str| s.replace('.', "").replace(',', ".").parse::<f64>();
     let mut prices = Vec::new();
     for h in file.hours {
-        let bad = |what: &str| PriceFetchError::ParseError(format!("{} in '{} {}'", what, h.day, h.hour));
+        let bad =
+            |what: &str| PriceFetchError::ParseError(format!("{} in '{} {}'", what, h.day, h.hour));
         let day = NaiveDate::parse_from_str(&h.day, "%d/%m/%Y").map_err(|_| bad("Bad day"))?;
-        let hour: i64 = h.hour.get(..2).and_then(|s| s.parse().ok()).ok_or_else(|| bad("Bad hour"))?;
+        let hour: i64 = h
+            .hour
+            .get(..2)
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| bad("Bad hour"))?;
         let t = start_of(day) + Duration::hours(hour);
         let pcb = number(&h.tolls_pcb).map_err(|_| bad("Bad tolls"))? / 1000.0;
         let cym = number(&h.tolls_cym).map_err(|_| bad("Bad tolls"))? / 1000.0;
@@ -342,7 +419,13 @@ fn parse_tolls(file: PvpcFile) -> Result<Vec<PriceData>, PriceFetchError> {
                 _ if is_canary(&series) => (t + Duration::hours(1), pcb),
                 _ => (t, pcb),
             };
-            prices.push(PriceData { timestamp, price, series, minutes: 60, source: "ree" });
+            prices.push(PriceData {
+                timestamp,
+                price,
+                series,
+                minutes: 60,
+                source: "ree",
+            });
         }
     }
     Ok(merge_duplicate_slots(prices))
@@ -399,7 +482,13 @@ async fn fetch_entsoe(
         return Ok(vec![]);
     };
     let utc = |d: NaiveDate| {
-        Madrid.from_local_datetime(&start_of(d)).earliest().unwrap().with_timezone(&Utc).format("%Y%m%d%H%M").to_string()
+        Madrid
+            .from_local_datetime(&start_of(d))
+            .earliest()
+            .unwrap()
+            .with_timezone(&Utc)
+            .format("%Y%m%d%H%M")
+            .to_string()
     };
     let url = format!(
         "{}?securityToken={}&documentType=A44&in_Domain={}&out_Domain={}&periodStart={}&periodEnd={}",
@@ -416,18 +505,27 @@ async fn fetch_entsoe(
         .await
         .map_err(|e| PriceFetchError::NetworkError(e.without_url().to_string()))?;
     if !resp.status().is_success() {
-        return Err(PriceFetchError::NetworkError(format!("ENTSO-E returned status {}", resp.status())));
+        return Err(PriceFetchError::NetworkError(format!(
+            "ENTSO-E returned status {}",
+            resp.status()
+        )));
     }
-    let xml = resp.text().await.map_err(|e| PriceFetchError::NetworkError(e.without_url().to_string()))?;
+    let xml = resp
+        .text()
+        .await
+        .map_err(|e| PriceFetchError::NetworkError(e.without_url().to_string()))?;
     parse_entsoe(&xml, &spot_series(zone))
 }
 
 fn parse_entsoe(xml: &str, series: &str) -> Result<Vec<PriceData>, PriceFetchError> {
     // Without data ENTSO-E answers with an acknowledgement document instead
     if xml.contains("Acknowledgement_MarketDocument") {
-        return Err(PriceFetchError::ParseError("ENTSO-E has no prices for that day yet".to_string()));
+        return Err(PriceFetchError::ParseError(
+            "ENTSO-E has no prices for that day yet".to_string(),
+        ));
     }
-    let doc: EntsoeDocument = quick_xml::de::from_str(xml).map_err(|e| PriceFetchError::ParseError(e.to_string()))?;
+    let doc: EntsoeDocument =
+        quick_xml::de::from_str(xml).map_err(|e| PriceFetchError::ParseError(e.to_string()))?;
     let parse_time = |s: &str| {
         NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%MZ")
             .map(|t| t.and_utc())
@@ -436,7 +534,8 @@ fn parse_entsoe(xml: &str, series: &str) -> Result<Vec<PriceData>, PriceFetchErr
 
     let mut prices = Vec::new();
     for ts in doc.series {
-        if ts.contract.as_deref().is_some_and(|c| c != "A01") || ts.sequence.is_some_and(|s| s != 1) {
+        if ts.contract.as_deref().is_some_and(|c| c != "A01") || ts.sequence.is_some_and(|s| s != 1)
+        {
             continue;
         }
         for period in ts.periods {
@@ -444,9 +543,17 @@ fn parse_entsoe(xml: &str, series: &str) -> Result<Vec<PriceData>, PriceFetchErr
                 "PT15M" => 15,
                 "PT30M" => 30,
                 "PT60M" => 60,
-                other => return Err(PriceFetchError::ParseError(format!("Unknown resolution {}", other))),
+                other => {
+                    return Err(PriceFetchError::ParseError(format!(
+                        "Unknown resolution {}",
+                        other
+                    )));
+                }
             };
-            let (start, end) = (parse_time(&period.interval.start)?, parse_time(&period.interval.end)?);
+            let (start, end) = (
+                parse_time(&period.interval.start)?,
+                parse_time(&period.interval.end)?,
+            );
             let slots = ((end - start).num_minutes() / minutes as i64).max(0) as u32;
             let mut points = period.points;
             points.sort_by_key(|p| p.position);
@@ -483,10 +590,15 @@ fn parse_esios_values(values: Vec<EsiosValue>) -> Vec<PriceData> {
                 Some(id) => crate::zones::from_geo_id(id)?,
             };
             match parse_esios_value(v.value, &v.datetime) {
-                Ok(p) if is_canary(zone.code) => {
-                    Some(PriceData { timestamp: p.timestamp + Duration::hours(1), series: zone.code.to_string(), ..p })
-                }
-                Ok(p) => Some(PriceData { series: zone.code.to_string(), ..p }),
+                Ok(p) if is_canary(zone.code) => Some(PriceData {
+                    timestamp: p.timestamp + Duration::hours(1),
+                    series: zone.code.to_string(),
+                    ..p
+                }),
+                Ok(p) => Some(PriceData {
+                    series: zone.code.to_string(),
+                    ..p
+                }),
                 Err(e) => {
                     error!("{} ('{}')", e, v.datetime);
                     None
@@ -504,7 +616,10 @@ fn parse_esios_values(values: Vec<EsiosValue>) -> Vec<PriceData> {
 fn merge_duplicate_slots(prices: Vec<PriceData>) -> Vec<PriceData> {
     let mut merged: Vec<(PriceData, u32)> = Vec::with_capacity(prices.len());
     for p in prices {
-        match merged.iter_mut().find(|(m, _)| m.timestamp == p.timestamp && m.series == p.series) {
+        match merged
+            .iter_mut()
+            .find(|(m, _)| m.timestamp == p.timestamp && m.series == p.series)
+        {
             Some((m, n)) => {
                 m.price = (m.price * *n as f64 + p.price) / (*n + 1) as f64;
                 *n += 1;
@@ -517,7 +632,8 @@ fn merge_duplicate_slots(prices: Vec<PriceData>) -> Vec<PriceData> {
 
 /// Parse a single ESIOS PVPC value (€/MWh) into PriceData
 pub fn parse_esios_value(value: f64, datetime: &str) -> Result<PriceData, String> {
-    let dt = DateTime::parse_from_rfc3339(datetime).map_err(|e| format!("Failed to parse datetime: {}", e))?;
+    let dt = DateTime::parse_from_rfc3339(datetime)
+        .map_err(|e| format!("Failed to parse datetime: {}", e))?;
 
     Ok(PriceData {
         // Madrid wall time, whatever offset ESIOS uses
@@ -562,7 +678,11 @@ mod tests {
     }
 
     fn esios(value: f64, datetime: &str, geo_id: Option<i32>) -> EsiosValue {
-        EsiosValue { value, datetime: datetime.to_string(), geo_id }
+        EsiosValue {
+            value,
+            datetime: datetime.to_string(),
+            geo_id,
+        }
     }
 
     #[test]
@@ -614,8 +734,12 @@ mod tests {
 
     #[test]
     fn test_slot_minutes() {
-        let t = |m: i64| Utc.with_ymd_and_hms(2026, 10, 24, 10, 0, 0).unwrap() + Duration::minutes(m);
-        assert_eq!(slot_minutes(&[t(0), t(15), t(30), t(45)]), vec![15, 15, 15, 15]);
+        let t =
+            |m: i64| Utc.with_ymd_and_hms(2026, 10, 24, 10, 0, 0).unwrap() + Duration::minutes(m);
+        assert_eq!(
+            slot_minutes(&[t(0), t(15), t(30), t(45)]),
+            vec![15, 15, 15, 15]
+        );
         assert_eq!(slot_minutes(&[t(0), t(60)]), vec![60, 60]);
         assert_eq!(slot_minutes(&[t(0)]), vec![60]);
         assert!(slot_minutes(&[]).is_empty());
@@ -629,10 +753,18 @@ mod tests {
             tolls_pcb: pcb.into(),
             tolls_cym: cym.into(),
         };
-        let file = PvpcFile { hours: vec![hour("10-11", "97,55", "29,27"), hour("11-12", "97,55", "97,55")] };
+        let file = PvpcFile {
+            hours: vec![
+                hour("10-11", "97,55", "29,27"),
+                hour("11-12", "97,55", "97,55"),
+            ],
+        };
         let prices = parse_tolls(file).unwrap();
         let find = |series: &str, h: u32| {
-            prices.iter().find(|p| p.series == series && p.timestamp.hour() == h).map(|p| p.price)
+            prices
+                .iter()
+                .find(|p| p.series == series && p.timestamp.hour() == h)
+                .map(|p| p.price)
         };
         assert_eq!(find("tolls-peninsula", 10), Some(0.09755));
         assert_eq!(find("tolls-ceuta", 10), Some(0.02927));
@@ -671,9 +803,19 @@ mod tests {
 </Publication_MarketDocument>"#;
         let prices = parse_entsoe(xml, "spot-fi").unwrap();
         // 22:00 UTC is 00:00 in Madrid (CEST)
-        let got: Vec<(u32, u32, f64, i16)> =
-            prices.iter().map(|p| (p.timestamp.hour(), p.timestamp.minute(), p.price, p.minutes)).collect();
-        assert_eq!(got, vec![(0, 0, 0.04, 15), (0, 15, 0.04, 15), (0, 30, 0.0805, 15), (0, 45, 0.0805, 15)]);
+        let got: Vec<(u32, u32, f64, i16)> = prices
+            .iter()
+            .map(|p| (p.timestamp.hour(), p.timestamp.minute(), p.price, p.minutes))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (0, 0, 0.04, 15),
+                (0, 15, 0.04, 15),
+                (0, 30, 0.0805, 15),
+                (0, 45, 0.0805, 15)
+            ]
+        );
     }
 
     #[test]
@@ -698,7 +840,13 @@ mod tests {
         let client = reqwest::Client::new();
         let today = crate::time::today();
         let tolls = fetch_tolls(&client, today).await.unwrap();
-        assert_eq!(tolls.iter().filter(|p| p.series == "tolls-peninsula").count() as i64, hours_between(start_of(today), start_of(today + Duration::days(1))).count() as i64);
+        assert_eq!(
+            tolls
+                .iter()
+                .filter(|p| p.series == "tolls-peninsula")
+                .count() as i64,
+            hours_between(start_of(today), start_of(today + Duration::days(1))).count() as i64
+        );
         println!("tolls: {} rows", tolls.len());
         if let Ok(token) = std::env::var("ESIOS_TOKEN") {
             let spot = fetch_esios_spot(&client, today, &token).await.unwrap();
@@ -706,7 +854,9 @@ mod tests {
             assert!(spot.len() >= 23);
         }
         if let Ok(token) = std::env::var("ENTSOE_TOKEN") {
-            let fi = fetch_entsoe(&client, crate::zones::get("fi"), today, &token).await.unwrap();
+            let fi = fetch_entsoe(&client, crate::zones::get("fi"), today, &token)
+                .await
+                .unwrap();
             println!("spot-fi: {} rows of {} min", fi.len(), fi[0].minutes);
             assert!(fi.len() >= 23);
         }

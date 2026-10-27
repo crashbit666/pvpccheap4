@@ -69,7 +69,9 @@ fn is_public(ip: IpAddr) -> bool {
 
 /// Parses the URL the user typed: https, no user or path, a host
 fn parse_base_url(raw: &str, allow_private: bool) -> Result<Url, ProviderError> {
-    let invalid = |why: &str| ProviderError::AuthenticationFailed(format!("Invalid Home Assistant URL: {}", why));
+    let invalid = |why: &str| {
+        ProviderError::AuthenticationFailed(format!("Invalid Home Assistant URL: {}", why))
+    };
     let mut url = Url::parse(raw.trim()).map_err(|_| invalid("not a URL"))?;
     match url.scheme() {
         "https" => {}
@@ -91,14 +93,21 @@ fn parse_base_url(raw: &str, allow_private: bool) -> Result<Url, ProviderError> 
 /// Resolves the host once and checks the address, so the request goes to
 /// the address that was checked
 async fn resolve(url: &Url, allow_private: bool) -> Result<SocketAddr, ProviderError> {
-    let host = url.host_str().unwrap_or_default().trim_start_matches('[').trim_end_matches(']');
+    let host = url
+        .host_str()
+        .unwrap_or_default()
+        .trim_start_matches('[')
+        .trim_end_matches(']');
     let port = url.port_or_known_default().unwrap_or(443);
     let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host, port))
         .await
         .map_err(|_| ProviderError::ConnectionError(format!("Cannot resolve {}", host)))?
         .collect();
     if addrs.is_empty() {
-        return Err(ProviderError::ConnectionError(format!("Cannot resolve {}", host)));
+        return Err(ProviderError::ConnectionError(format!(
+            "Cannot resolve {}",
+            host
+        )));
     }
     if !allow_private && addrs.iter().any(|a| !is_public(a.ip())) {
         return Err(ProviderError::AuthenticationFailed(
@@ -110,11 +119,15 @@ async fn resolve(url: &Url, allow_private: bool) -> Result<SocketAddr, ProviderE
 
 /// Entity ids go into URLs and templates, so only the HA format is allowed
 fn valid_entity_id(entity_id: &str) -> bool {
-    let Some((domain, object)) = entity_id.split_once('.') else { return false };
+    let Some((domain, object)) = entity_id.split_once('.') else {
+        return false;
+    };
     !domain.is_empty()
         && !object.is_empty()
         && domain.chars().all(|c| c.is_ascii_lowercase() || c == '_')
-        && object.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        && object
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 /// Devices from GET /api/states: the switchable entities
@@ -176,7 +189,10 @@ struct Api {
 impl Api {
     async fn new(credentials: &Value) -> Result<Self, ProviderError> {
         let allow = allow_private();
-        let raw = credentials.get("url").and_then(Value::as_str).unwrap_or_default();
+        let raw = credentials
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         let token = credentials
             .get("token")
             .and_then(Value::as_str)
@@ -191,24 +207,42 @@ impl Api {
             .resolve(base.host_str().unwrap_or_default(), addr)
             .build()
             .map_err(|e| ProviderError::Unknown(e.to_string()))?;
-        Ok(Self { client, base, token: token.to_string() })
+        Ok(Self {
+            client,
+            base,
+            token: token.to_string(),
+        })
     }
 
     fn url(&self, path: &str) -> Result<Url, ProviderError> {
-        self.base.join(path).map_err(|e| ProviderError::Unknown(e.to_string()))
+        self.base
+            .join(path)
+            .map_err(|e| ProviderError::Unknown(e.to_string()))
     }
 
-    async fn send(&self, request: reqwest::RequestBuilder) -> Result<reqwest::Response, ProviderError> {
-        let response = request
-            .bearer_auth(&self.token)
-            .send()
-            .await
-            .map_err(|e| if e.is_timeout() { ProviderError::Timeout } else { ProviderError::ConnectionError(e.without_url().to_string()) })?;
+    async fn send(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> Result<reqwest::Response, ProviderError> {
+        let response = request.bearer_auth(&self.token).send().await.map_err(|e| {
+            if e.is_timeout() {
+                ProviderError::Timeout
+            } else {
+                ProviderError::ConnectionError(e.without_url().to_string())
+            }
+        })?;
         match response.status() {
             s if s.is_success() => Ok(response),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(ProviderError::InvalidCredentials),
-            StatusCode::NOT_FOUND => Err(ProviderError::DeviceNotFound("Not found in Home Assistant".to_string())),
-            s => Err(ProviderError::ConnectionError(format!("Home Assistant answered {}", s))),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                Err(ProviderError::InvalidCredentials)
+            }
+            StatusCode::NOT_FOUND => Err(ProviderError::DeviceNotFound(
+                "Not found in Home Assistant".to_string(),
+            )),
+            s => Err(ProviderError::ConnectionError(format!(
+                "Home Assistant answered {}",
+                s
+            ))),
         }
     }
 
@@ -221,7 +255,8 @@ impl Api {
     }
 
     async fn post(&self, path: &str, body: &Value) -> Result<reqwest::Response, ProviderError> {
-        self.send(self.client.post(self.url(path)?).json(body)).await
+        self.send(self.client.post(self.url(path)?).json(body))
+            .await
     }
 
     async fn render(&self, template: &str) -> Result<String, ProviderError> {
@@ -238,16 +273,31 @@ impl Api {
         }
         let domain = entity_id.split('.').next().unwrap_or_default();
         let service = if on { "turn_on" } else { "turn_off" };
-        match self.post(&format!("/api/services/{domain}/{service}"), &json!({ "entity_id": entity_id })).await {
+        match self
+            .post(
+                &format!("/api/services/{domain}/{service}"),
+                &json!({ "entity_id": entity_id }),
+            )
+            .await
+        {
             Ok(_) => Ok(DeviceActionResult {
                 success: true,
                 message: Some(format!("Device turned {}", if on { "on" } else { "off" })),
-                new_state: Some(DeviceState { is_on: on, brightness: None, temperature: None, power_consumption_watts: None }),
+                new_state: Some(DeviceState {
+                    is_on: on,
+                    brightness: None,
+                    temperature: None,
+                    power_consumption_watts: None,
+                }),
             }),
             Err(e @ ProviderError::InvalidCredentials) => Err(e),
             Err(e) => {
                 warn!("Home Assistant {} failed for {}: {}", service, entity_id, e);
-                Ok(DeviceActionResult { success: false, message: Some(e.to_string()), new_state: None })
+                Ok(DeviceActionResult {
+                    success: false,
+                    message: Some(e.to_string()),
+                    new_state: None,
+                })
             }
         }
     }
@@ -267,7 +317,9 @@ impl SmartHomeProvider for HomeAssistantProvider {
         let api = Api::new(credentials).await?;
         let answer = api.get("/api/").await?;
         if answer.get("message").is_none() {
-            return Err(ProviderError::ConnectionError("It does not look like Home Assistant".to_string()));
+            return Err(ProviderError::ConnectionError(
+                "It does not look like Home Assistant".to_string(),
+            ));
         }
         info!("Home Assistant login successful");
         Ok(json!({ "url": api.base.as_str().trim_end_matches('/'), "token": api.token }))
@@ -278,49 +330,95 @@ impl SmartHomeProvider for HomeAssistantProvider {
         Err(ProviderError::InvalidCredentials)
     }
 
-    async fn list_devices(&self, credentials: &Value) -> Result<Vec<DiscoveredDevice>, ProviderError> {
+    async fn list_devices(
+        &self,
+        credentials: &Value,
+    ) -> Result<Vec<DiscoveredDevice>, ProviderError> {
         let api = Api::new(credentials).await?;
         let devices = switchable_entities(&api.get("/api/states").await?);
         info!("Home Assistant found {} switchable entities", devices.len());
         Ok(devices)
     }
 
-    async fn get_device_state(&self, credentials: &Value, external_id: &str) -> Result<DeviceState, ProviderError> {
+    async fn get_device_state(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<DeviceState, ProviderError> {
         if !valid_entity_id(external_id) {
             return Err(ProviderError::DeviceNotFound(external_id.to_string()));
         }
         let api = Api::new(credentials).await?;
         let state = api.get(&format!("/api/states/{external_id}")).await?;
         match state.get("state").and_then(Value::as_str) {
-            Some("on") => Ok(DeviceState { is_on: true, brightness: None, temperature: None, power_consumption_watts: None }),
-            Some("off") => Ok(DeviceState { is_on: false, brightness: None, temperature: None, power_consumption_watts: None }),
+            Some("on") => Ok(DeviceState {
+                is_on: true,
+                brightness: None,
+                temperature: None,
+                power_consumption_watts: None,
+            }),
+            Some("off") => Ok(DeviceState {
+                is_on: false,
+                brightness: None,
+                temperature: None,
+                power_consumption_watts: None,
+            }),
             // unavailable / unknown: not "off", callers keep the cached state
-            other => Err(ProviderError::ConnectionError(format!("State is {}", other.unwrap_or("missing")))),
+            other => Err(ProviderError::ConnectionError(format!(
+                "State is {}",
+                other.unwrap_or("missing")
+            ))),
         }
     }
 
-    async fn turn_on(&self, credentials: &Value, external_id: &str) -> Result<DeviceActionResult, ProviderError> {
+    async fn turn_on(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<DeviceActionResult, ProviderError> {
         Api::new(credentials).await?.switch(external_id, true).await
     }
 
-    async fn turn_off(&self, credentials: &Value, external_id: &str) -> Result<DeviceActionResult, ProviderError> {
-        Api::new(credentials).await?.switch(external_id, false).await
+    async fn turn_off(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<DeviceActionResult, ProviderError> {
+        Api::new(credentials)
+            .await?
+            .switch(external_id, false)
+            .await
     }
 
-    async fn supports_power_reading(&self, credentials: &Value, external_id: &str) -> Result<bool, ProviderError> {
+    async fn supports_power_reading(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<bool, ProviderError> {
         if !valid_entity_id(external_id) {
             return Ok(false);
         }
-        let rendered = Api::new(credentials).await?.render(&power_template(external_id)).await?;
+        let rendered = Api::new(credentials)
+            .await?
+            .render(&power_template(external_id))
+            .await?;
         Ok(!rendered.trim().is_empty())
     }
 
-    async fn read_power(&self, credentials: &Value, external_id: &str) -> Result<f32, ProviderError> {
+    async fn read_power(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<f32, ProviderError> {
         if !valid_entity_id(external_id) {
             return Err(ProviderError::DeviceNotFound(external_id.to_string()));
         }
-        let rendered = Api::new(credentials).await?.render(&power_template(external_id)).await?;
-        parse_power(&rendered).ok_or_else(|| ProviderError::Unknown(format!("No power reading for {}", external_id)))
+        let rendered = Api::new(credentials)
+            .await?
+            .render(&power_template(external_id))
+            .await?;
+        parse_power(&rendered)
+            .ok_or_else(|| ProviderError::Unknown(format!("No power reading for {}", external_id)))
     }
 }
 
@@ -330,7 +428,12 @@ mod tests {
 
     #[test]
     fn test_base_url_rules() {
-        assert_eq!(parse_base_url("https://casa.ui.nabu.casa/lovelace/0?x=1", false).unwrap().as_str(), "https://casa.ui.nabu.casa/");
+        assert_eq!(
+            parse_base_url("https://casa.ui.nabu.casa/lovelace/0?x=1", false)
+                .unwrap()
+                .as_str(),
+            "https://casa.ui.nabu.casa/"
+        );
         assert!(parse_base_url("http://casa.example.com", false).is_err());
         assert!(parse_base_url("http://192.168.1.10:8123", true).is_ok());
         assert!(parse_base_url("https://user:pw@casa.example.com", false).is_err());
@@ -340,7 +443,19 @@ mod tests {
 
     #[test]
     fn test_private_addresses_are_not_public() {
-        for ip in ["127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1"] {
+        for ip in [
+            "127.0.0.1",
+            "10.1.2.3",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254",
+            "100.64.0.1",
+            "0.0.0.0",
+            "::1",
+            "fd00::1",
+            "fe80::1",
+            "::ffff:127.0.0.1",
+        ] {
             assert!(!is_public(ip.parse().unwrap()), "{ip} should be private");
         }
         for ip in ["8.8.8.8", "135.181.255.121", "2a01:4f9::1"] {
@@ -372,7 +487,10 @@ mod tests {
         ]);
         let devices = switchable_entities(&states);
         let ids: Vec<_> = devices.iter().map(|d| d.external_id.as_str()).collect();
-        assert_eq!(ids, ["switch.termo", "light.sala", "input_boolean.carregar"]);
+        assert_eq!(
+            ids,
+            ["switch.termo", "light.sala", "input_boolean.carregar"]
+        );
         assert_eq!(devices[0].name, "Termo");
         assert_eq!(devices[1].name, "light.sala");
         assert_eq!(devices[1].device_type, "light");
@@ -402,18 +520,35 @@ mod tests {
         assert!(devices.iter().any(|d| d.external_id == "switch.ac"));
 
         assert!(ha.turn_on(&creds, "switch.ac").await.unwrap().success);
-        assert!(ha.get_device_state(&creds, "switch.ac").await.unwrap().is_on);
+        assert!(
+            ha.get_device_state(&creds, "switch.ac")
+                .await
+                .unwrap()
+                .is_on
+        );
         assert!(ha.turn_off(&creds, "switch.ac").await.unwrap().success);
-        assert!(!ha.get_device_state(&creds, "switch.ac").await.unwrap().is_on);
+        assert!(
+            !ha.get_device_state(&creds, "switch.ac")
+                .await
+                .unwrap()
+                .is_on
+        );
 
         // The demo AC device has no power sensor of its own
-        assert!(!ha.supports_power_reading(&creds, "switch.ac").await.unwrap());
+        assert!(
+            !ha.supports_power_reading(&creds, "switch.ac")
+                .await
+                .unwrap()
+        );
         assert!(matches!(
             ha.get_device_state(&creds, "switch.does_not_exist").await,
             Err(ProviderError::DeviceNotFound(_))
         ));
         let bad = json!({ "url": creds["url"], "token": "wrong" });
-        assert!(matches!(ha.login(&bad).await, Err(ProviderError::InvalidCredentials)));
+        assert!(matches!(
+            ha.login(&bad).await,
+            Err(ProviderError::InvalidCredentials)
+        ));
     }
 
     #[test]

@@ -9,13 +9,16 @@ use crate::{
     db::DbPool,
     integrations::{ProviderRegistry, SmartHomeProvider},
     models::{AutomationRule, NewRuleExecution},
-    schema::{automation_rules, devices, power_readings, rule_executions, scheduled_executions, user_integrations},
+    schema::{
+        automation_rules, devices, power_readings, rule_executions, scheduled_executions,
+        user_integrations,
+    },
     services::{credentials, schedule_computation::ScheduleComputationService},
 };
 use chrono::{Duration, NaiveDateTime};
-use serde_json::{Value, json};
 use diesel::prelude::*;
 use log::{debug, info, warn};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 /// Readings older than this are deleted
@@ -37,10 +40,14 @@ fn idle_threshold(peak: f32) -> f32 {
 
 /// True when the last two readings (newest first) are low and close together
 fn has_finished(readings: &[(NaiveDateTime, f32)]) -> bool {
-    let [(last_at, last), (prev_at, prev), ..] = readings else { return false };
+    let [(last_at, last), (prev_at, prev), ..] = readings else {
+        return false;
+    };
     let peak = readings.iter().map(|(_, w)| *w).fold(0.0, f32::max);
     let threshold = idle_threshold(peak);
-    *last_at - *prev_at <= Duration::minutes(DONE_GAP_MINUTES) && *last < threshold && *prev < threshold
+    *last_at - *prev_at <= Duration::minutes(DONE_GAP_MINUTES)
+        && *last < threshold
+        && *prev < threshold
 }
 
 /// Minutes between two readings (the cron job)
@@ -96,7 +103,9 @@ pub fn learn_usage(readings: &[(NaiveDateTime, f32)]) -> Usage {
         let gap_ok = last_at.is_some_and(|last| at - last <= Duration::minutes(DONE_GAP_MINUTES));
 
         if watts >= idle_threshold(peak) {
-            if active == 0 && finished_at.is_some_and(|done| at - done <= Duration::minutes(RESTART_MINUTES)) {
+            if active == 0
+                && finished_at.is_some_and(|done| at - done <= Duration::minutes(RESTART_MINUTES))
+            {
                 usage.restarts += 1;
             }
             active += SAMPLE_MINUTES;
@@ -134,7 +143,9 @@ pub fn device_usage(pool: &DbPool, device_id: i32) -> Result<Usage, String> {
     let mut conn = pool.get().map_err(|e| e.to_string())?;
     let readings: Vec<(NaiveDateTime, f32)> = power_readings::table
         .filter(power_readings::device_id.eq(device_id))
-        .filter(power_readings::measured_at.ge(crate::time::now_naive() - Duration::days(USAGE_DAYS)))
+        .filter(
+            power_readings::measured_at.ge(crate::time::now_naive() - Duration::days(USAGE_DAYS)),
+        )
         .order(power_readings::measured_at.asc())
         .select((power_readings::measured_at, power_readings::watts))
         .load(&mut conn)
@@ -154,9 +165,9 @@ pub async fn sample_power(pool: &DbPool, registry: Arc<ProviderRegistry>) {
             .inner_join(user_integrations::table)
             .filter(user_integrations::is_active.eq(true))
             .filter(
-                devices::measures_power
-                    .is_null()
-                    .or(devices::measures_power.eq(true).and(devices::is_on.eq(true))),
+                devices::measures_power.is_null().or(devices::measures_power
+                    .eq(true)
+                    .and(devices::is_on.eq(true))),
             )
             .select((
                 devices::id,
@@ -177,8 +188,12 @@ pub async fn sample_power(pool: &DbPool, registry: Arc<ProviderRegistry>) {
     };
 
     for (device_id, external_id, is_on, measures, provider_name, stored) in candidates {
-        let Some(provider) = registry.get(&provider_name) else { continue };
-        let Ok(creds) = credentials::decrypt(&stored) else { continue };
+        let Some(provider) = registry.get(&provider_name) else {
+            continue;
+        };
+        let Ok(creds) = credentials::decrypt(&stored) else {
+            continue;
+        };
 
         let measures = match measures {
             Some(m) => m,
@@ -194,7 +209,10 @@ pub async fn sample_power(pool: &DbPool, registry: Arc<ProviderRegistry>) {
                 }
                 // Unreachable now (offline, expired session): ask next time
                 Err(e) => {
-                    debug!("Could not ask device {} for its abilities: {}", device_id, e);
+                    debug!(
+                        "Could not ask device {} for its abilities: {}",
+                        device_id, e
+                    );
                     continue;
                 }
             },
@@ -223,7 +241,9 @@ pub async fn sample_power(pool: &DbPool, registry: Arc<ProviderRegistry>) {
 
 /// Rules of the device with "stop_when_done" that switched it on this hour
 fn rules_stopping_when_done(pool: &DbPool, device_id: i32) -> Vec<AutomationRule> {
-    let Ok(mut conn) = pool.get() else { return vec![] };
+    let Ok(mut conn) = pool.get() else {
+        return vec![];
+    };
     automation_rules::table
         .inner_join(scheduled_executions::table)
         .filter(automation_rules::device_id.eq(device_id))
@@ -269,11 +289,17 @@ async fn stop_if_finished(
         Ok(result) if result.success => {}
         // Still on: the next reading tries again
         Ok(result) => {
-            warn!("Device {} finished but could not be turned off: {:?}", device_id, result.message);
+            warn!(
+                "Device {} finished but could not be turned off: {:?}",
+                device_id, result.message
+            );
             return;
         }
         Err(e) => {
-            warn!("Device {} finished but could not be turned off: {}", device_id, e);
+            warn!(
+                "Device {} finished but could not be turned off: {}",
+                device_id, e
+            );
             return;
         }
     }
@@ -285,11 +311,19 @@ async fn stop_if_finished(
         .execute(&mut conn);
     let schedules = ScheduleComputationService::new(pool.clone());
     for rule in rules {
-        let left = schedules.finish_window(rule.id, crate::time::current_hour()).unwrap_or_else(|e| {
-            warn!("Failed to mark the hours of rule {} as done: {}", rule.id, e);
-            0
-        });
-        info!("Rule {}: appliance finished, {} hours not needed", rule.id, left);
+        let left = schedules
+            .finish_window(rule.id, crate::time::current_hour())
+            .unwrap_or_else(|e| {
+                warn!(
+                    "Failed to mark the hours of rule {} as done: {}",
+                    rule.id, e
+                );
+                0
+            });
+        info!(
+            "Rule {}: appliance finished, {} hours not needed",
+            rule.id, left
+        );
         let _ = diesel::insert_into(rule_executions::table)
             .values(&NewRuleExecution {
                 rule_id: rule.id,
@@ -298,7 +332,9 @@ async fn stop_if_finished(
                 error_message: None,
                 price_at_execution: None,
                 device_state_before: Some(json!({ "is_on": true, "watts": watts })),
-                device_state_after: Some(json!({ "is_on": false, "finished": true, "hours_left": left })),
+                device_state_after: Some(
+                    json!({ "is_on": false, "finished": true, "hours_left": left }),
+                ),
             })
             .execute(&mut conn);
     }
@@ -318,13 +354,22 @@ mod tests {
     use super::*;
 
     fn at(minute: i64) -> NaiveDateTime {
-        chrono::NaiveDate::from_ymd_opt(2026, 10, 22).unwrap().and_hms_opt(2, 0, 0).unwrap() + Duration::minutes(minute)
+        chrono::NaiveDate::from_ymd_opt(2026, 10, 22)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            + Duration::minutes(minute)
     }
 
     #[test]
     fn test_charger_that_drops_has_finished() {
         // Newest first: 130 W while charging, then 2 W when full
-        let readings = [(at(52), 2.0), (at(47), 2.5), (at(42), 60.0), (at(37), 130.0)];
+        let readings = [
+            (at(52), 2.0),
+            (at(47), 2.5),
+            (at(42), 60.0),
+            (at(37), 130.0),
+        ];
         assert!(has_finished(&readings));
     }
 
@@ -338,17 +383,33 @@ mod tests {
     #[test]
     fn test_readings_far_apart_are_not_enough() {
         // A gap (failed readings, or yesterday's last one) is not "in a row"
-        assert!(!has_finished(&[(at(52), 1.0), (at(22), 1.0), (at(17), 130.0)]));
+        assert!(!has_finished(&[
+            (at(52), 1.0),
+            (at(22), 1.0),
+            (at(17), 130.0)
+        ]));
     }
 
     #[test]
     fn test_threshold_follows_the_appliance() {
         // A 2 kW heater at 40 W is still on (threshold capped at 30 W)...
-        assert!(!has_finished(&[(at(52), 40.0), (at(47), 40.0), (at(42), 2000.0)]));
+        assert!(!has_finished(&[
+            (at(52), 40.0),
+            (at(47), 40.0),
+            (at(42), 2000.0)
+        ]));
         // ...and at 0 W it is done
-        assert!(has_finished(&[(at(52), 0.0), (at(47), 0.0), (at(42), 2000.0)]));
+        assert!(has_finished(&[
+            (at(52), 0.0),
+            (at(47), 0.0),
+            (at(42), 2000.0)
+        ]));
         // A small charger tapering at 5 W of a 60 W peak is not done (3 W)
-        assert!(!has_finished(&[(at(52), 5.0), (at(47), 5.0), (at(42), 60.0)]));
+        assert!(!has_finished(&[
+            (at(52), 5.0),
+            (at(47), 5.0),
+            (at(42), 60.0)
+        ]));
     }
 
     /// One run per night at 02:00: `minutes` drawing 130 W, then 2 W readings
@@ -387,7 +448,13 @@ mod tests {
         let mut readings: Vec<_> = (0..12).map(|i| (at(i * 5), 130.0)).collect();
         readings.extend((0..6).map(|i| (at(180 + i * 5), 130.0)));
         readings.extend([(at(210), 2.0), (at(215), 2.0)]);
-        let runs: Vec<_> = (1..4).flat_map(|d| readings.iter().map(move |&(t, w)| (t + Duration::days(d), w))).collect();
+        let runs: Vec<_> = (1..4)
+            .flat_map(|d| {
+                readings
+                    .iter()
+                    .map(move |&(t, w)| (t + Duration::days(d), w))
+            })
+            .collect();
         let usage = learn_usage(&runs);
         assert_eq!(usage.finished_runs, 3);
         assert_eq!(usage.typical_minutes, Some(90));
@@ -407,7 +474,9 @@ mod tests {
     #[test]
     fn test_thermostat_gets_no_suggestion() {
         // A heater: 20 min on, 15 min off, all night
-        let readings: Vec<_> = (0..60).map(|i| (at(i * 5), if i % 7 < 4 { 1500.0 } else { 0.0 })).collect();
+        let readings: Vec<_> = (0..60)
+            .map(|i| (at(i * 5), if i % 7 < 4 { 1500.0 } else { 0.0 }))
+            .collect();
         let usage = learn_usage(&readings);
         assert!(usage.restarts >= 2);
         assert_eq!(usage.suggested_hours, None);

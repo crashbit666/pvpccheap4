@@ -23,7 +23,9 @@ pub struct TokenQuery {
 
 /// ?lang= from the link, or the browser's language
 fn page_lang(req: &HttpRequest, lang: &Option<String>) -> Lang {
-    lang.as_deref().and_then(Lang::from_code).unwrap_or_else(|| Lang::of(req))
+    lang.as_deref()
+        .and_then(Lang::from_code)
+        .unwrap_or_else(|| Lang::of(req))
 }
 
 /// The token is in the URL: no referrer, no cache, no indexing
@@ -45,32 +47,50 @@ fn link_not_valid(lang: Lang) -> &'static str {
 }
 
 #[get("/verificar-correu")]
-pub async fn verify_email(req: HttpRequest, pool: web::Data<DbPool>, query: web::Query<TokenQuery>) -> impl Responder {
+pub async fn verify_email(
+    req: HttpRequest,
+    pool: web::Data<DbPool>,
+    query: web::Query<TokenQuery>,
+) -> impl Responder {
     let lang = page_lang(&req, &query.lang);
-    let title = lang.pick("Verificar el correu", "Verificar el correo", "Verify your email");
+    let title = lang.pick(
+        "Verificar el correu",
+        "Verificar el correo",
+        "Verify your email",
+    );
     let Ok(mut conn) = pool.get() else {
         return HttpResponse::InternalServerError().finish();
     };
-    let Some((user_id, email)) = user_tokens::consume(&mut conn, user_tokens::VERIFY_EMAIL, &query.token) else {
+    let Some((user_id, email)) =
+        user_tokens::consume(&mut conn, user_tokens::VERIFY_EMAIL, &query.token)
+    else {
         return page(lang, title, link_not_valid(lang));
     };
     // Only if it is still the account's address (it may have changed since)
-    let updated = diesel::update(
-        users::table.find(user_id).filter(users::email.eq(&email)),
-    )
-    .set(users::email_verified.eq(true))
-    .execute(&mut conn)
-    .unwrap_or(0);
+    let updated = diesel::update(users::table.find(user_id).filter(users::email.eq(&email)))
+        .set(users::email_verified.eq(true))
+        .execute(&mut conn)
+        .unwrap_or(0);
     if updated == 0 {
         return page(lang, title, link_not_valid(lang));
     }
     let email = escape(&email);
     let body = match lang {
-        Lang::Ca => format!("<h1>Correu verificat</h1><p>Si mai oblides la contrasenya, t'enviarem l'enllaç per canviar-la a <strong>{email}</strong>.</p>"),
-        Lang::Es => format!("<h1>Correo verificado</h1><p>Si alguna vez olvidas la contraseña, te enviaremos el enlace para cambiarla a <strong>{email}</strong>.</p>"),
-        Lang::En => format!("<h1>Email verified</h1><p>If you ever forget your password, we'll send the link to change it to <strong>{email}</strong>.</p>"),
+        Lang::Ca => format!(
+            "<h1>Correu verificat</h1><p>Si mai oblides la contrasenya, t'enviarem l'enllaç per canviar-la a <strong>{email}</strong>.</p>"
+        ),
+        Lang::Es => format!(
+            "<h1>Correo verificado</h1><p>Si alguna vez olvidas la contraseña, te enviaremos el enlace para cambiarla a <strong>{email}</strong>.</p>"
+        ),
+        Lang::En => format!(
+            "<h1>Email verified</h1><p>If you ever forget your password, we'll send the link to change it to <strong>{email}</strong>.</p>"
+        ),
     };
-    page(lang, lang.pick("Correu verificat", "Correo verificado", "Email verified"), &body)
+    page(
+        lang,
+        lang.pick("Correu verificat", "Correo verificado", "Email verified"),
+        &body,
+    )
 }
 
 fn new_password_title(lang: Lang) -> &'static str {
@@ -110,7 +130,9 @@ fn reset_form(lang: Lang, token: &str, error: Option<&str>) -> String {
 <button type="submit">{button}</button>
 </form>"#,
         title = new_password_title(lang),
-        error = error.map(|e| format!("<p class=\"error\">{}</p>", escape(e))).unwrap_or_default(),
+        error = error
+            .map(|e| format!("<p class=\"error\">{}</p>", escape(e)))
+            .unwrap_or_default(),
         token = escape(token),
         code = lang.code(),
         min = super::auth::MIN_PASSWORD_LEN,
@@ -130,7 +152,11 @@ pub async fn reset_password_form(
     if user_tokens::peek(&mut conn, user_tokens::RESET_PASSWORD, &query.token).is_none() {
         return page(lang, new_password_title(lang), link_not_valid(lang));
     }
-    page(lang, new_password_title(lang), &reset_form(lang, &query.token, None))
+    page(
+        lang,
+        new_password_title(lang),
+        &reset_form(lang, &query.token, None),
+    )
 }
 
 #[derive(Deserialize)]
@@ -143,7 +169,11 @@ pub struct ResetForm {
 }
 
 #[post("/restablir-contrasenya")]
-pub async fn reset_password(req: HttpRequest, pool: web::Data<DbPool>, form: web::Form<ResetForm>) -> impl Responder {
+pub async fn reset_password(
+    req: HttpRequest,
+    pool: web::Data<DbPool>,
+    form: web::Form<ResetForm>,
+) -> impl Responder {
     let lang = page_lang(&req, &form.lang);
     let title = new_password_title(lang);
     let Ok(mut conn) = pool.get() else {
@@ -179,7 +209,9 @@ pub async fn reset_password(req: HttpRequest, pool: web::Data<DbPool>, form: web
     let Ok(hashed) = auth::hash_password(&form.password) else {
         return HttpResponse::InternalServerError().finish();
     };
-    let Some((user_id, _)) = user_tokens::consume(&mut conn, user_tokens::RESET_PASSWORD, &form.token) else {
+    let Some((user_id, _)) =
+        user_tokens::consume(&mut conn, user_tokens::RESET_PASSWORD, &form.token)
+    else {
         return page(lang, title, link_not_valid(lang));
     };
     // Bumping the version logs out every session

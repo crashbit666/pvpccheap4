@@ -22,7 +22,10 @@ pub fn user_has_premium(conn: &mut PgConnection, user_id: i32) -> bool {
 }
 
 /// Sets premium_until to the latest end of the user's paid subscriptions
-pub fn refresh_premium_until(conn: &mut PgConnection, user_id: i32) -> QueryResult<Option<NaiveDateTime>> {
+pub fn refresh_premium_until(
+    conn: &mut PgConnection,
+    user_id: i32,
+) -> QueryResult<Option<NaiveDateTime>> {
     let until: Option<NaiveDateTime> = subscriptions::table
         .filter(subscriptions::user_id.eq(user_id))
         .select(diesel::dsl::max(subscriptions::expires_at))
@@ -56,10 +59,19 @@ mod tests {
 
     #[test]
     fn test_has_premium() {
-        let now = chrono::NaiveDate::from_ymd_opt(2026, 10, 23).unwrap().and_hms_opt(12, 0, 0).unwrap();
+        let now = chrono::NaiveDate::from_ymd_opt(2026, 10, 23)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
         assert!(!has_premium(&user(false, None), now));
         assert!(has_premium(&user(true, None), now));
-        assert!(has_premium(&user(false, Some(now + chrono::Duration::days(3))), now));
-        assert!(!has_premium(&user(false, Some(now - chrono::Duration::days(1))), now));
+        assert!(has_premium(
+            &user(false, Some(now + chrono::Duration::days(3))),
+            now
+        ));
+        assert!(!has_premium(
+            &user(false, Some(now - chrono::Duration::days(1))),
+            now
+        ));
     }
 }

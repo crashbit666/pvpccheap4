@@ -1,7 +1,7 @@
 use crate::{
     db::DbPool,
-    lang::Lang,
     integrations::ProviderRegistry,
+    lang::Lang,
     models::{AutomationRule, NewAutomationRule, RuleExecution},
     schema::{automation_rules, devices, rule_executions, user_integrations},
     services::{
@@ -9,14 +9,14 @@ use crate::{
         automation_engine::AutomationEngine,
         premium,
         rule_assistant::{self, AssistantError, DailyLimit, DeviceInfo, Draft},
-        schedule_computation::{parse_time_of_day, window_specs, ScheduleComputationService},
+        schedule_computation::{ScheduleComputationService, parse_time_of_day, window_specs},
     },
 };
-use std::sync::Arc;
-use actix_web::{delete, get, post, put, web, HttpRequest, HttpResponse, Responder};
+use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, post, put, web};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use std::sync::Arc;
 
 /// Check the config keys the schedule computation reads, so a typo is rejected
 /// instead of being silently replaced by a default (e.g. the whole day).
@@ -33,15 +33,17 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
     }
 
     if let Some(threshold) = config.get("price_threshold")
-        && !threshold.is_number() {
-            return Err("price_threshold must be a number (€/kWh)".to_string());
-        }
+        && !threshold.is_number()
+    {
+        return Err("price_threshold must be a number (€/kWh)".to_string());
+    }
 
     for key in ["time_range_start", "time_range_end"] {
         if let Some(value) = config.get(key)
-            && value.as_str().and_then(parse_time_of_day).is_none() {
-                return Err(format!("{} must be a time in HH:MM format", key));
-            }
+            && value.as_str().and_then(parse_time_of_day).is_none()
+        {
+            return Err(format!("{} must be a time in HH:MM format", key));
+        }
     }
 
     if rule_type == "cheapest_hours"
@@ -51,9 +53,10 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
     }
 
     if let Some(stop) = config.get("stop_when_done")
-        && !stop.is_boolean() {
-            return Err("stop_when_done must be true or false".to_string());
-        }
+        && !stop.is_boolean()
+    {
+        return Err("stop_when_done must be true or false".to_string());
+    }
 
     // A one-off rule; "once_date" is set by the server when it is armed
     if let Some(once) = config.get("once") {
@@ -65,9 +68,13 @@ fn validate_rule_config(rule_type: &str, config: &JsonValue) -> Result<(), Strin
         }
     }
     if let Some(date) = config.get("once_date")
-        && date.as_str().and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()).is_none() {
-            return Err("once_date must be a date in YYYY-MM-DD format".to_string());
-        }
+        && date
+            .as_str()
+            .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+            .is_none()
+    {
+        return Err("once_date must be a date in YYYY-MM-DD format".to_string());
+    }
 
     validate_goal(rule_type, config)?;
     validate_windows(config)
@@ -79,9 +86,17 @@ fn validate_goal(rule_type: &str, config: &JsonValue) -> Result<(), String> {
     match config.get("goal").map(|g| g.as_str()) {
         None => Ok(()),
         Some(Some("deadline")) => {
-            let windows = config.get("windows").and_then(|w| w.as_array()).map_or(0, |w| w.len());
-            if rule_type != "cheapest_hours" || windows != 1 || config.get("cheapest_hours").is_none() {
-                return Err("a deadline rule needs cheapest_hours and exactly one window".to_string());
+            let windows = config
+                .get("windows")
+                .and_then(|w| w.as_array())
+                .map_or(0, |w| w.len());
+            if rule_type != "cheapest_hours"
+                || windows != 1
+                || config.get("cheapest_hours").is_none()
+            {
+                return Err(
+                    "a deadline rule needs cheapest_hours and exactly one window".to_string(),
+                );
             }
             Ok(())
         }
@@ -94,9 +109,10 @@ fn validate_windows(config: &JsonValue) -> Result<(), String> {
     const MAX_WINDOWS: usize = 8;
 
     if let Some(distribution) = config.get("distribution")
-        && !matches!(distribution.as_str(), Some("total") | Some("per_window")) {
-            return Err("distribution must be \"total\" or \"per_window\"".to_string());
-        }
+        && !matches!(distribution.as_str(), Some("total") | Some("per_window"))
+    {
+        return Err("distribution must be \"total\" or \"per_window\"".to_string());
+    }
 
     let Some(list) = config.get("windows") else {
         return Ok(());
@@ -109,14 +125,26 @@ fn validate_windows(config: &JsonValue) -> Result<(), String> {
     }
     for (i, w) in list.iter().enumerate() {
         for key in ["start", "end"] {
-            if w.get(key).and_then(|v| v.as_str()).and_then(parse_time_of_day).is_none() {
-                return Err(format!("Window {}: {} must be a time in HH:MM format", i + 1, key));
+            if w.get(key)
+                .and_then(|v| v.as_str())
+                .and_then(parse_time_of_day)
+                .is_none()
+            {
+                return Err(format!(
+                    "Window {}: {} must be a time in HH:MM format",
+                    i + 1,
+                    key
+                ));
             }
         }
         if let Some(hours) = w.get("hours")
-            && !matches!(hours.as_i64(), Some(1..=24)) {
-                return Err(format!("Window {}: hours must be an integer between 1 and 24", i + 1));
-            }
+            && !matches!(hours.as_i64(), Some(1..=24))
+        {
+            return Err(format!(
+                "Window {}: hours must be an integer between 1 and 24",
+                i + 1
+            ));
+        }
     }
 
     let specs = window_specs(config);
@@ -128,15 +156,14 @@ fn validate_windows(config: &JsonValue) -> Result<(), String> {
             return Err(format!("Window {} overlaps another window", i + 1));
         }
         hours.iter().for_each(|h| used[*h as usize] = true);
-        if per_window
-            && let Some(n) = spec.hours.filter(|n| *n > hours.len()) {
-                return Err(format!(
-                    "Window {} lasts {} h and cannot hold {} h",
-                    i + 1,
-                    hours.len(),
-                    n
-                ));
-            }
+        if per_window && let Some(n) = spec.hours.filter(|n| *n > hours.len()) {
+            return Err(format!(
+                "Window {} lasts {} h and cannot hold {} h",
+                i + 1,
+                hours.len(),
+                n
+            ));
+        }
     }
 
     Ok(())
@@ -164,15 +191,22 @@ pub(crate) async fn release_devices(
 
 /// Turn off a rule's device if the rule switched it on for the current hour,
 /// used when the rule stops applying (disabled or about to be deleted).
-async fn release_device(pool: &web::Data<DbPool>, registry: &web::Data<ProviderRegistry>, rule_id: i32) {
-    let engine = AutomationEngine::new(pool.get_ref().clone(), Arc::new(registry.get_ref().clone()));
+async fn release_device(
+    pool: &web::Data<DbPool>,
+    registry: &web::Data<ProviderRegistry>,
+    rule_id: i32,
+) {
+    let engine =
+        AutomationEngine::new(pool.get_ref().clone(), Arc::new(registry.get_ref().clone()));
     if let Some(result) = engine.release_device_for_rule(rule_id).await
-        && !result.success {
-            log::warn!(
-                "Could not turn off device of rule {}: {:?}",
-                rule_id, result.error_message
-            );
-        }
+        && !result.success
+    {
+        log::warn!(
+            "Could not turn off device of rule {}: {:?}",
+            rule_id,
+            result.error_message
+        );
+    }
 }
 
 // ============================================================================
@@ -349,7 +383,12 @@ pub async fn create_rule(
     };
 
     // Validate rule_type
-    let valid_types = ["price_threshold", "cheapest_hours", "time_schedule", "manual"];
+    let valid_types = [
+        "price_threshold",
+        "cheapest_hours",
+        "time_schedule",
+        "manual",
+    ];
     if !valid_types.contains(&body.rule_type.as_str()) {
         return HttpResponse::BadRequest().body(format!(
             "Invalid rule_type. Must be one of: {:?}",
@@ -424,12 +463,13 @@ pub async fn create_rule(
             }
 
             // With "once_date" filled in
-            let rule = automation_rules::table.find(rule.id).first::<AutomationRule>(&mut conn).unwrap_or(rule);
+            let rule = automation_rules::table
+                .find(rule.id)
+                .first::<AutomationRule>(&mut conn)
+                .unwrap_or(rule);
             HttpResponse::Created().json(rule)
         }
-        Err(e) => {
-            HttpResponse::InternalServerError().body(format!("Failed to create rule: {}", e))
-        }
+        Err(e) => HttpResponse::InternalServerError().body(format!("Failed to create rule: {}", e)),
     }
 }
 
@@ -467,7 +507,9 @@ fn check_draft(draft: &Draft, devices: &[DeviceInfo]) -> Result<(), String> {
     }
     let config = draft.config.as_ref().ok_or("no config")?;
     validate_rule_config(rule_type, config)?;
-    if config.get("stop_when_done").and_then(|s| s.as_bool()) == Some(true) && !device.measures_power {
+    if config.get("stop_when_done").and_then(|s| s.as_bool()) == Some(true)
+        && !device.measures_power
+    {
         return Err("stop_when_done on a plug that does not measure".to_string());
     }
     Ok(())
@@ -499,7 +541,8 @@ pub async fn draft_rule(
             return HttpResponse::InternalServerError().body("Database connection error");
         };
         if !premium::user_has_premium(&mut conn, user_id) {
-            return HttpResponse::PaymentRequired().body("Rules written in plain words need the paid plan");
+            return HttpResponse::PaymentRequired()
+                .body("Rules written in plain words need the paid plan");
         }
         let local_now = crate::zones::of_user(&mut conn, user_id).now();
         let devices = devices::table
@@ -510,7 +553,11 @@ pub async fn draft_rule(
             .load::<(i32, String, Option<bool>)>(&mut conn)
             .unwrap_or_default()
             .into_iter()
-            .map(|(id, name, measures)| DeviceInfo { id, name, measures_power: measures == Some(true) })
+            .map(|(id, name, measures)| DeviceInfo {
+                id,
+                name,
+                measures_power: measures == Some(true),
+            })
             .collect();
         (devices, local_now)
     };
@@ -518,7 +565,8 @@ pub async fn draft_rule(
         return HttpResponse::BadRequest().body("No devices");
     }
     if !rule_assistant::is_configured() {
-        return HttpResponse::ServiceUnavailable().body("Rules written in plain words are not available");
+        return HttpResponse::ServiceUnavailable()
+            .body("Rules written in plain words are not available");
     }
     if !limit.take(user_id, crate::time::today()) {
         return HttpResponse::TooManyRequests().body("Daily limit reached");
@@ -528,7 +576,8 @@ pub async fn draft_rule(
     let draft = match rule_assistant::draft_rule(text, &devices, lang, local_now).await {
         Ok(draft) => draft,
         Err(AssistantError::NotConfigured) => {
-            return HttpResponse::ServiceUnavailable().body("Rules written in plain words are not available")
+            return HttpResponse::ServiceUnavailable()
+                .body("Rules written in plain words are not available");
         }
         Err(AssistantError::Service(e)) => {
             log::warn!("Rule draft failed for user {}: {}", user_id, e);
@@ -536,11 +585,17 @@ pub async fn draft_rule(
         }
     };
     if draft.question.is_some() {
-        return HttpResponse::Ok().json(Draft { question: draft.question, ..Default::default() });
+        return HttpResponse::Ok().json(Draft {
+            question: draft.question,
+            ..Default::default()
+        });
     }
     if let Err(e) = check_draft(&draft, &devices) {
         log::info!("Rule draft for user {} not valid: {}", user_id, e);
-        return HttpResponse::Ok().json(Draft { question: Some(draft_not_valid(lang).to_string()), ..Default::default() });
+        return HttpResponse::Ok().json(Draft {
+            question: Some(draft_not_valid(lang).to_string()),
+            ..Default::default()
+        });
     }
     HttpResponse::Ok().json(draft)
 }
@@ -578,7 +633,12 @@ pub async fn update_rule(
 
     // Validate rule_type if provided
     if let Some(ref rule_type) = body.rule_type {
-        let valid_types = ["price_threshold", "cheapest_hours", "time_schedule", "manual"];
+        let valid_types = [
+            "price_threshold",
+            "cheapest_hours",
+            "time_schedule",
+            "manual",
+        ];
         if !valid_types.contains(&rule_type.as_str()) {
             return HttpResponse::BadRequest().body("Invalid rule_type");
         }
@@ -661,9 +721,10 @@ pub async fn update_rule(
         let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
         // Edited or enabled again: a one-off rule applies to the next window
         if (body.config.is_some() || body.is_enabled == Some(true))
-            && let Err(e) = schedule_service.arm_once(rule_id) {
-                log::warn!("Failed to arm one-off rule {}: {}", rule_id, e);
-            }
+            && let Err(e) = schedule_service.arm_once(rule_id)
+        {
+            log::warn!("Failed to arm one-off rule {}: {}", rule_id, e);
+        }
         if let Err(e) = schedule_service.refresh_rule(rule_id) {
             log::warn!("Failed to recompute schedule for rule {}: {}", rule_id, e);
         }
@@ -770,12 +831,15 @@ pub async fn toggle_rule(
 
     // Recompute schedules: enabled rules get their hours, disabled ones lose the pending ones
     let schedule_service = ScheduleComputationService::new(pool.get_ref().clone());
-    if new_status
-        && let Err(e) = schedule_service.arm_once(rule_id) {
-            log::warn!("Failed to arm one-off rule {}: {}", rule_id, e);
-        }
+    if new_status && let Err(e) = schedule_service.arm_once(rule_id) {
+        log::warn!("Failed to arm one-off rule {}: {}", rule_id, e);
+    }
     if let Err(e) = schedule_service.refresh_rule(rule_id) {
-        log::warn!("Failed to recompute schedule for toggled rule {}: {}", rule_id, e);
+        log::warn!(
+            "Failed to recompute schedule for toggled rule {}: {}",
+            rule_id,
+            e
+        );
     }
 
     if !new_status {
@@ -898,18 +962,38 @@ mod tests {
     #[test]
     fn test_validate_once() {
         let ok = |t, c| validate_rule_config(t, &c).is_ok();
-        assert!(ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "once": true})));
-        assert!(ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "once": true, "once_date": "2026-10-23"})));
-        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "once": "yes"})));
-        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "once_date": "demà"})));
+        assert!(ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4, "once": true})
+        ));
+        assert!(ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4, "once": true, "once_date": "2026-10-23"})
+        ));
+        assert!(!ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4, "once": "yes"})
+        ));
+        assert!(!ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4, "once_date": "demà"})
+        ));
         assert!(!ok("manual", serde_json::json!({"once": true})));
     }
 
     #[test]
     fn test_check_draft() {
         let devices = vec![
-            DeviceInfo { id: 1, name: "Patinet".to_string(), measures_power: false },
-            DeviceInfo { id: 2, name: "Termo".to_string(), measures_power: true },
+            DeviceInfo {
+                id: 1,
+                name: "Patinet".to_string(),
+                measures_power: false,
+            },
+            DeviceInfo {
+                id: 2,
+                name: "Termo".to_string(),
+                measures_power: true,
+            },
         ];
         let draft = |device: i32, rule_type: &str, config: JsonValue| Draft {
             device_id: Some(device),
@@ -919,21 +1003,47 @@ mod tests {
             ..Default::default()
         };
         let ok = |d: Draft| check_draft(&d, &devices).is_ok();
-        assert!(ok(draft(1, "cheapest_hours", serde_json::json!({"cheapest_hours": 4}))));
-        assert!(ok(draft(2, "cheapest_hours", serde_json::json!({"cheapest_hours": 2, "stop_when_done": true}))));
+        assert!(ok(draft(
+            1,
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4})
+        )));
+        assert!(ok(draft(
+            2,
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 2, "stop_when_done": true})
+        )));
         // Someone else's device, a plug that does not measure, a bad config, manual
-        assert!(!ok(draft(9, "cheapest_hours", serde_json::json!({"cheapest_hours": 4}))));
-        assert!(!ok(draft(1, "cheapest_hours", serde_json::json!({"cheapest_hours": 4, "stop_when_done": true}))));
-        assert!(!ok(draft(1, "cheapest_hours", serde_json::json!({"cheapest_hours": 40}))));
+        assert!(!ok(draft(
+            9,
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4})
+        )));
+        assert!(!ok(draft(
+            1,
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4, "stop_when_done": true})
+        )));
+        assert!(!ok(draft(
+            1,
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 40})
+        )));
         assert!(!ok(draft(1, "manual", serde_json::json!({}))));
     }
 
     #[test]
     fn test_validate_stop_when_done() {
         let ok = |c| validate_rule_config("cheapest_hours", &c).is_ok();
-        assert!(ok(serde_json::json!({"cheapest_hours": 4, "stop_when_done": true})));
-        assert!(ok(serde_json::json!({"cheapest_hours": 4, "stop_when_done": false})));
-        assert!(!ok(serde_json::json!({"cheapest_hours": 4, "stop_when_done": "yes"})));
+        assert!(ok(
+            serde_json::json!({"cheapest_hours": 4, "stop_when_done": true})
+        ));
+        assert!(ok(
+            serde_json::json!({"cheapest_hours": 4, "stop_when_done": false})
+        ));
+        assert!(!ok(
+            serde_json::json!({"cheapest_hours": 4, "stop_when_done": "yes"})
+        ));
     }
 
     #[test]
@@ -945,55 +1055,119 @@ mod tests {
             serde_json::json!({"cheapest_hours": 4, "windows": window, "distribution": "total", "goal": "deadline"})
         ));
         // Needs exactly one window and a number of hours
-        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "goal": "deadline"})));
-        assert!(!ok("cheapest_hours", serde_json::json!({"windows": window, "goal": "deadline"})));
+        assert!(!ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4, "goal": "deadline"})
+        ));
+        assert!(!ok(
+            "cheapest_hours",
+            serde_json::json!({"windows": window, "goal": "deadline"})
+        ));
         assert!(!ok(
             "cheapest_hours",
             serde_json::json!({"cheapest_hours": 2, "goal": "deadline",
                 "windows": [{"start": "08:00", "end": "10:00"}, {"start": "20:00", "end": "22:00"}]})
         ));
-        assert!(!ok("time_schedule", serde_json::json!({"windows": window, "goal": "deadline"})));
-        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 4, "windows": window, "goal": "other"})));
+        assert!(!ok(
+            "time_schedule",
+            serde_json::json!({"windows": window, "goal": "deadline"})
+        ));
+        assert!(!ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 4, "windows": window, "goal": "other"})
+        ));
     }
 
     #[test]
     fn test_validate_rule_config() {
         let ok = |t: &str, c: JsonValue| validate_rule_config(t, &c).is_ok();
 
-        assert!(ok("cheapest_hours", serde_json::json!({"cheapest_hours": 6})));
+        assert!(ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 6})
+        ));
         assert!(ok(
             "cheapest_hours",
             serde_json::json!({"cheapest_hours": 6, "time_range_start": "19:00", "time_range_end": "07:00"})
         ));
-        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 0})));
-        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": "6"})));
-        assert!(!ok("cheapest_hours", serde_json::json!({"cheapest_hours": 6, "time_range_start": "19:00"})));
-        assert!(!ok("time_schedule", serde_json::json!({"time_range_start": "7h30"})));
-        assert!(ok("price_threshold", serde_json::json!({"price_threshold": 0.12})));
-        assert!(!ok("price_threshold", serde_json::json!({"price_threshold": "0,12"})));
+        assert!(!ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 0})
+        ));
+        assert!(!ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": "6"})
+        ));
+        assert!(!ok(
+            "cheapest_hours",
+            serde_json::json!({"cheapest_hours": 6, "time_range_start": "19:00"})
+        ));
+        assert!(!ok(
+            "time_schedule",
+            serde_json::json!({"time_range_start": "7h30"})
+        ));
+        assert!(ok(
+            "price_threshold",
+            serde_json::json!({"price_threshold": 0.12})
+        ));
+        assert!(!ok(
+            "price_threshold",
+            serde_json::json!({"price_threshold": "0,12"})
+        ));
         assert!(ok("manual", serde_json::json!({})));
 
-        let windows = |w: JsonValue, distribution: &str| {
-            serde_json::json!({"cheapest_hours": 3, "windows": w, "distribution": distribution})
-        };
-        assert!(ok("cheapest_hours", windows(serde_json::json!([
-            {"start": "14:00", "end": "16:00", "hours": 1},
-            {"start": "20:00", "end": "06:00", "hours": 4}
-        ]), "per_window")));
+        let windows = |w: JsonValue, distribution: &str| serde_json::json!({"cheapest_hours": 3, "windows": w, "distribution": distribution});
+        assert!(ok(
+            "cheapest_hours",
+            windows(
+                serde_json::json!([
+                    {"start": "14:00", "end": "16:00", "hours": 1},
+                    {"start": "20:00", "end": "06:00", "hours": 4}
+                ]),
+                "per_window"
+            )
+        ));
         // Overlap (15:00 in both)
-        assert!(!ok("cheapest_hours", windows(serde_json::json!([
-            {"start": "14:00", "end": "16:00"}, {"start": "15:00", "end": "18:00"}
-        ]), "total")));
+        assert!(!ok(
+            "cheapest_hours",
+            windows(
+                serde_json::json!([
+                    {"start": "14:00", "end": "16:00"}, {"start": "15:00", "end": "18:00"}
+                ]),
+                "total"
+            )
+        ));
         // Overlap across midnight
-        assert!(!ok("cheapest_hours", windows(serde_json::json!([
-            {"start": "22:00", "end": "02:00"}, {"start": "01:00", "end": "03:00"}
-        ]), "total")));
+        assert!(!ok(
+            "cheapest_hours",
+            windows(
+                serde_json::json!([
+                    {"start": "22:00", "end": "02:00"}, {"start": "01:00", "end": "03:00"}
+                ]),
+                "total"
+            )
+        ));
         // 3 h do not fit in a 2 h window
-        assert!(!ok("cheapest_hours", windows(serde_json::json!([
-            {"start": "14:00", "end": "16:00", "hours": 3}
-        ]), "per_window")));
-        assert!(!ok("cheapest_hours", windows(serde_json::json!([{"start": "14h", "end": "16:00"}]), "total")));
-        assert!(!ok("cheapest_hours", windows(serde_json::json!([]), "random")));
+        assert!(!ok(
+            "cheapest_hours",
+            windows(
+                serde_json::json!([
+                    {"start": "14:00", "end": "16:00", "hours": 3}
+                ]),
+                "per_window"
+            )
+        ));
+        assert!(!ok(
+            "cheapest_hours",
+            windows(
+                serde_json::json!([{"start": "14h", "end": "16:00"}]),
+                "total"
+            )
+        ));
+        assert!(!ok(
+            "cheapest_hours",
+            windows(serde_json::json!([]), "random")
+        ));
         assert!(!ok("manual", serde_json::json!([])));
     }
 }

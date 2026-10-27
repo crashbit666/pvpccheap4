@@ -24,7 +24,8 @@ struct ServiceAccount {
 
 fn service_account() -> Result<ServiceAccount, String> {
     use base64::Engine;
-    let encoded = std::env::var("GOOGLE_PLAY_SERVICE_ACCOUNT").map_err(|_| "Google Play is not configured".to_string())?;
+    let encoded = std::env::var("GOOGLE_PLAY_SERVICE_ACCOUNT")
+        .map_err(|_| "Google Play is not configured".to_string())?;
     let json = base64::engine::general_purpose::STANDARD
         .decode(encoded.trim())
         .map_err(|e| format!("The service account is not valid base64: {}", e))?;
@@ -44,9 +45,10 @@ async fn access_token() -> Result<String, String> {
     static CACHE: Mutex<Option<(String, i64)>> = Mutex::new(None);
     let now = Utc::now().timestamp();
     if let Some((token, expires)) = CACHE.lock().unwrap_or_else(|e| e.into_inner()).clone()
-        && expires - 60 > now {
-            return Ok(token);
-        }
+        && expires - 60 > now
+    {
+        return Ok(token);
+    }
 
     let account = service_account()?;
     let claims = serde_json::json!({
@@ -58,8 +60,12 @@ async fn access_token() -> Result<String, String> {
     });
     let key = jsonwebtoken::EncodingKey::from_rsa_pem(account.private_key.as_bytes())
         .map_err(|e| format!("Invalid service account key: {}", e))?;
-    let assertion = jsonwebtoken::encode(&jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256), &claims, &key)
-        .map_err(|e| e.to_string())?;
+    let assertion = jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256),
+        &claims,
+        &key,
+    )
+    .map_err(|e| e.to_string())?;
 
     let response: Value = reqwest::Client::new()
         .post(&account.token_uri)
@@ -76,7 +82,10 @@ async fn access_token() -> Result<String, String> {
         .json()
         .await
         .map_err(|e| e.to_string())?;
-    let token = response["access_token"].as_str().ok_or("Google did not give an access token")?.to_string();
+    let token = response["access_token"]
+        .as_str()
+        .ok_or("Google did not give an access token")?
+        .to_string();
     let expires = now + response["expires_in"].as_i64().unwrap_or(3600);
     *CACHE.lock().unwrap_or_else(|e| e.into_inner()) = Some((token.clone(), expires));
     Ok(token)
@@ -100,7 +109,9 @@ impl Subscription {
     pub fn is_paid(&self) -> bool {
         matches!(
             self.state.as_str(),
-            "SUBSCRIPTION_STATE_ACTIVE" | "SUBSCRIPTION_STATE_IN_GRACE_PERIOD" | "SUBSCRIPTION_STATE_CANCELED"
+            "SUBSCRIPTION_STATE_ACTIVE"
+                | "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"
+                | "SUBSCRIPTION_STATE_CANCELED"
         )
     }
 }
@@ -127,7 +138,9 @@ pub fn parse_subscription(body: &Value) -> Result<Subscription, String> {
     let item = body["lineItems"]
         .as_array()
         .and_then(|items| {
-            items.iter().max_by_key(|i| i["expiryTime"].as_str().unwrap_or_default().to_string())
+            items
+                .iter()
+                .max_by_key(|i| i["expiryTime"].as_str().unwrap_or_default().to_string())
         })
         .ok_or("The subscription has no line items")?;
     let expiry = item["expiryTime"].as_str().ok_or("No expiry time")?;
@@ -137,7 +150,10 @@ pub fn parse_subscription(body: &Value) -> Result<Subscription, String> {
         .naive_local();
     Ok(Subscription {
         product_id: item["productId"].as_str().unwrap_or_default().to_string(),
-        state: body["subscriptionState"].as_str().unwrap_or("SUBSCRIPTION_STATE_UNSPECIFIED").to_string(),
+        state: body["subscriptionState"]
+            .as_str()
+            .unwrap_or("SUBSCRIPTION_STATE_UNSPECIFIED")
+            .to_string(),
         expires_at,
         needs_acknowledge: body["acknowledgementState"] == "ACKNOWLEDGEMENT_STATE_PENDING",
         account_tag: body["externalAccountIdentifiers"]["obfuscatedExternalAccountId"]
@@ -162,7 +178,10 @@ pub async fn get_subscription(purchase_token: &str) -> Result<Subscription, Stri
     let status = response.status();
     let body: Value = response.json().await.map_err(|e| e.to_string())?;
     if !status.is_success() {
-        return Err(format!("Google Play answered {}: {}", status, body["error"]["message"]));
+        return Err(format!(
+            "Google Play answered {}: {}",
+            status, body["error"]["message"]
+        ));
     }
     parse_subscription(&body)
 }
@@ -186,7 +205,10 @@ pub async fn acknowledge(product_id: &str, purchase_token: &str) -> Result<(), S
     if response.status().is_success() {
         Ok(())
     } else {
-        Err(format!("Google Play answered {} to the acknowledge", response.status()))
+        Err(format!(
+            "Google Play answered {} to the acknowledge",
+            response.status()
+        ))
     }
 }
 
@@ -222,7 +244,11 @@ mod tests {
 
     #[test]
     fn test_expired_or_on_hold_is_not_paid() {
-        for state in ["SUBSCRIPTION_STATE_EXPIRED", "SUBSCRIPTION_STATE_ON_HOLD", "SUBSCRIPTION_STATE_PAUSED"] {
+        for state in [
+            "SUBSCRIPTION_STATE_EXPIRED",
+            "SUBSCRIPTION_STATE_ON_HOLD",
+            "SUBSCRIPTION_STATE_PAUSED",
+        ] {
             let body = serde_json::json!({
                 "subscriptionState": state,
                 "lineItems": [{"productId": "premium", "expiryTime": "2026-11-23T10:00:00Z"}]

@@ -4,11 +4,14 @@
 //! different smart home providers (Meross, Tuya, Shelly, etc.)
 
 use log::{debug, error, info, warn};
-use rumqttc::{AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, NetworkOptions, Packet, QoS, Transport};
+use rumqttc::{
+    AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, NetworkOptions, Packet, QoS,
+    Transport,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{broadcast, oneshot, Mutex};
+use tokio::sync::{Mutex, broadcast, oneshot};
 use tokio::time::timeout;
 use tokio_rustls::rustls::ClientConfig;
 
@@ -126,8 +129,12 @@ impl MqttConnection {
                 for err in &cert_result.errors {
                     warn!("Error loading native cert: {}", err);
                 }
-                let (added, _ignored) = root_cert_store.add_parsable_certificates(cert_result.certs);
-                info!("Loaded {} native root certificates for WebSocket TLS", added);
+                let (added, _ignored) =
+                    root_cert_store.add_parsable_certificates(cert_result.certs);
+                info!(
+                    "Loaded {} native root certificates for WebSocket TLS",
+                    added
+                );
 
                 let client_config = ClientConfig::builder()
                     .with_root_certificates(root_cert_store)
@@ -265,7 +272,8 @@ impl MqttConnection {
                         // Match either by topic containing filter, or payload containing filter (for Meross message_id)
                         if topic.contains(&req.topic_filter)
                             || payload_str.contains(&req.topic_filter)
-                            || req.topic_filter == "*" {
+                            || req.topic_filter == "*"
+                        {
                             debug!("MQTT message matched filter: {}", req.topic_filter);
                             matched_idx = Some(idx);
                             break;
@@ -277,7 +285,10 @@ impl MqttConnection {
                         let msg = MqttMessage { topic, payload };
                         let _ = req.response_tx.send(msg);
                     } else {
-                        debug!("MQTT message not matched, payload preview: {:.200}", payload_str);
+                        debug!(
+                            "MQTT message not matched, payload preview: {:.200}",
+                            payload_str
+                        );
                     }
                 }
                 Ok(Event::Incoming(Packet::ConnAck(connack))) => {
@@ -289,7 +300,8 @@ impl MqttConnection {
                         }
                     } else {
                         if let Some(tx) = conn_signal.take() {
-                            let _ = tx.send(Err(format!("Connection rejected: {:?}", connack.code)));
+                            let _ =
+                                tx.send(Err(format!("Connection rejected: {:?}", connack.code)));
                         }
                         break;
                     }
@@ -347,9 +359,13 @@ impl MqttConnection {
     }
 
     /// Publish JSON payload
-    pub async fn publish_json<T: Serialize>(&self, topic: &str, payload: &T) -> Result<(), MqttError> {
-        let json = serde_json::to_vec(payload)
-            .map_err(|e| MqttError::PublishFailed(e.to_string()))?;
+    pub async fn publish_json<T: Serialize>(
+        &self,
+        topic: &str,
+        payload: &T,
+    ) -> Result<(), MqttError> {
+        let json =
+            serde_json::to_vec(payload).map_err(|e| MqttError::PublishFailed(e.to_string()))?;
         self.publish(topic, &json).await
     }
 
@@ -407,12 +423,15 @@ impl MqttConnection {
         response_topic_filter: &str,
         timeout_secs: u64,
     ) -> Result<Resp, MqttError> {
-        let json = serde_json::to_vec(payload)
-            .map_err(|e| MqttError::PublishFailed(e.to_string()))?;
+        let json =
+            serde_json::to_vec(payload).map_err(|e| MqttError::PublishFailed(e.to_string()))?;
 
-        let response = self.request(publish_topic, &json, response_topic_filter, timeout_secs).await?;
+        let response = self
+            .request(publish_topic, &json, response_topic_filter, timeout_secs)
+            .await?;
 
-        response.parse_json()
+        response
+            .parse_json()
             .map_err(|e| MqttError::InvalidResponse(e.to_string()))
     }
 

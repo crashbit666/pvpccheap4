@@ -22,7 +22,8 @@ const PREFIX: &str = "enc:v1:";
 const NONCE_LEN: usize = 12;
 
 fn parse_key(hex_key: &str) -> Result<Key<Aes256Gcm>, String> {
-    let bytes = hex::decode(hex_key.trim()).map_err(|_| "CREDENTIALS_KEY must be hex".to_string())?;
+    let bytes =
+        hex::decode(hex_key.trim()).map_err(|_| "CREDENTIALS_KEY must be hex".to_string())?;
     Key::<Aes256Gcm>::try_from(bytes.as_slice())
         .map_err(|_| "CREDENTIALS_KEY must be 32 bytes (64 hex chars)".to_string())
 }
@@ -63,7 +64,9 @@ pub fn decrypt(stored: &str) -> Result<Value, String> {
         // Legacy plain JSON row
         return serde_json::from_str(stored).map_err(|e| format!("invalid credentials: {}", e));
     };
-    let blob = STANDARD.decode(encoded).map_err(|_| "invalid credentials encoding".to_string())?;
+    let blob = STANDARD
+        .decode(encoded)
+        .map_err(|_| "invalid credentials encoding".to_string())?;
     if blob.len() <= NONCE_LEN {
         return Err("invalid credentials length".to_string());
     }
@@ -126,7 +129,9 @@ mod tests {
     #[test]
     fn test_tampered_value_is_rejected() {
         let stored = encrypt(&json!({"password": "secret"}));
-        let mut blob = STANDARD.decode(stored.strip_prefix(PREFIX).unwrap()).unwrap();
+        let mut blob = STANDARD
+            .decode(stored.strip_prefix(PREFIX).unwrap())
+            .unwrap();
         let last = blob.len() - 1;
         blob[last] ^= 1;
         assert!(decrypt(&format!("{}{}", PREFIX, STANDARD.encode(blob))).is_err());

@@ -29,7 +29,9 @@ use backend::services::schedule_computation::ScheduleComputationService;
 /// between runs (Meross: one MQTT connection per account)
 fn registry() -> Arc<ProviderRegistry> {
     static REGISTRY: OnceLock<Arc<ProviderRegistry>> = OnceLock::new();
-    REGISTRY.get_or_init(|| Arc::new(ProviderRegistry::new())).clone()
+    REGISTRY
+        .get_or_init(|| Arc::new(ProviderRegistry::new()))
+        .clone()
 }
 
 #[tokio::main]
@@ -57,7 +59,9 @@ async fn main() {
     sync_prices_startup(pool.clone()).await;
 
     // Create scheduler
-    let mut sched = JobScheduler::new().await.expect("Failed to create scheduler");
+    let mut sched = JobScheduler::new()
+        .await
+        .expect("Failed to create scheduler");
 
     // Schedule sync-prices at 20:30 every day (Madrid timezone)
     // Cron: "0 30 20 * * *" = second 0, minute 30, hour 20, every day
@@ -98,10 +102,7 @@ async fn main() {
         })
     })
     .expect("Failed to create retry job");
-    sched
-        .add(retry_job)
-        .await
-        .expect("Failed to add retry job");
+    sched.add(retry_job).await.expect("Failed to add retry job");
 
     // Read the power of the plugs that are on every 5 minutes, off the :00
     // so it does not compete with the hourly actions
@@ -122,7 +123,10 @@ async fn main() {
         })
     })
     .expect("Failed to create mail key job");
-    sched.add(mail_job).await.expect("Failed to add mail key job");
+    sched
+        .add(mail_job)
+        .await
+        .expect("Failed to add mail key job");
 
     // Renewals, cancellations and refunds of store subscriptions
     let pool_subs = pool.clone();
@@ -133,7 +137,10 @@ async fn main() {
         })
     })
     .expect("Failed to create subscriptions job");
-    sched.add(subs_job).await.expect("Failed to add subscriptions job");
+    sched
+        .add(subs_job)
+        .await
+        .expect("Failed to add subscriptions job");
 
     // Subscriptions ending right now, in case a Google Play notification was lost
     let pool_due = pool.clone();
@@ -144,7 +151,10 @@ async fn main() {
         })
     })
     .expect("Failed to create due subscriptions job");
-    sched.add(due_subs_job).await.expect("Failed to add due subscriptions job");
+    sched
+        .add(due_subs_job)
+        .await
+        .expect("Failed to add due subscriptions job");
 
     // Providers without an official API (Meross): warn when they stop working
     let pool_health = pool.clone();
@@ -155,7 +165,10 @@ async fn main() {
         })
     })
     .expect("Failed to create provider health job");
-    sched.add(health_job).await.expect("Failed to add provider health job");
+    sched
+        .add(health_job)
+        .await
+        .expect("Failed to add provider health job");
 
     // Start the scheduler
     sched.start().await.expect("Failed to start scheduler");
@@ -288,7 +301,10 @@ async fn sync_prices_daily(pool: Arc<DbPool>) {
                 match service.missing_series(tomorrow) {
                     Ok(missing) if missing.is_empty() => success = true,
                     Ok(missing) => {
-                        log::warn!("Prices for tomorrow still missing in {:?}, will retry...", missing);
+                        log::warn!(
+                            "Prices for tomorrow still missing in {:?}, will retry...",
+                            missing
+                        );
                         attempt += 1;
                     }
                     Err(e) => {
@@ -394,7 +410,10 @@ async fn check_mail_key() {
     }
     match mailer::check_key().await {
         Ok(()) => log::info!("Brevo API key works"),
-        Err(e) => log::error!("Brevo API key does not work, account emails will fail: {}", e),
+        Err(e) => log::error!(
+            "Brevo API key does not work, account emails will fail: {}",
+            e
+        ),
     }
 }
 

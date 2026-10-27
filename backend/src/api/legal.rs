@@ -55,14 +55,23 @@ fn render(lang: Lang, title: &str, body: &str, email: Option<&str>) -> String {
     // The body goes in last, so nothing inside it is taken for a placeholder
     LAYOUT
         .replace("{{LANG}}", lang.code())
-        .replace("{{NAV_PRIVACY}}", lang.pick("Privacitat", "Privacidad", "Privacy"))
-        .replace("{{NAV_TERMS}}", lang.pick("Condicions", "Condiciones", "Terms"))
+        .replace(
+            "{{NAV_PRIVACY}}",
+            lang.pick("Privacitat", "Privacidad", "Privacy"),
+        )
+        .replace(
+            "{{NAV_TERMS}}",
+            lang.pick("Condicions", "Condiciones", "Terms"),
+        )
         .replace(
             "{{NAV_DELETE}}",
             lang.pick("Esborrar el compte", "Borrar la cuenta", "Delete account"),
         )
         .replace("{{TITLE}}", title)
-        .replace("{{BODY}}", &body.replace("{{CONTACT}}", &contact(lang, email)))
+        .replace(
+            "{{BODY}}",
+            &body.replace("{{CONTACT}}", &contact(lang, email)),
+        )
 }
 
 /// A page with the site layout in the given language
@@ -91,14 +100,22 @@ fn page(req: &HttpRequest, titles: [&str; 3], bodies: &[&'static str; 3]) -> Htt
 pub async fn privacy(req: HttpRequest) -> impl Responder {
     page(
         &req,
-        ["Política de privacitat", "Política de privacidad", "Privacy policy"],
+        [
+            "Política de privacitat",
+            "Política de privacidad",
+            "Privacy policy",
+        ],
         &PRIVACY,
     )
 }
 
 #[get("/condicions")]
 pub async fn terms(req: HttpRequest) -> impl Responder {
-    page(&req, ["Condicions d'ús", "Condiciones de uso", "Terms of use"], &TERMS)
+    page(
+        &req,
+        ["Condicions d'ús", "Condiciones de uso", "Terms of use"],
+        &TERMS,
+    )
 }
 
 #[get("/esborrar-compte")]
@@ -157,7 +174,10 @@ mod tests {
 
     async fn get(uri: &str, accept_language: Option<&str>) -> String {
         let app = atest::init_service(
-            App::new().service(privacy).service(terms).service(delete_account),
+            App::new()
+                .service(privacy)
+                .service(terms)
+                .service(delete_account),
         )
         .await;
         let mut req = atest::TestRequest::get().uri(uri);

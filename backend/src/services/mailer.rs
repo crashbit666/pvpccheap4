@@ -10,7 +10,10 @@ use std::time::Duration;
 const API_URL: &str = "https://api.brevo.com/v3/smtp/email";
 
 fn env(name: &str) -> Option<String> {
-    std::env::var(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+    std::env::var(name)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 pub fn is_configured() -> bool {
@@ -19,7 +22,13 @@ pub fn is_configured() -> bool {
 
 /// "https://pvpccheap.crashbit.cat" + path
 pub fn public_link(path: &str) -> Option<String> {
-    env("PUBLIC_URL").map(|base| format!("{}/{}", base.trim_end_matches('/'), path.trim_start_matches('/')))
+    env("PUBLIC_URL").map(|base| {
+        format!(
+            "{}/{}",
+            base.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        )
+    })
 }
 
 /// Uses the key without sending anything (yesterday's statistics). Brevo

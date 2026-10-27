@@ -40,7 +40,11 @@ pub fn store_subscription(
     }
     // An unpaid subscription counts as already over
     let now = crate::time::now_naive();
-    let expires_at = if sub.is_paid() { sub.expires_at } else { sub.expires_at.min(now) };
+    let expires_at = if sub.is_paid() {
+        sub.expires_at
+    } else {
+        sub.expires_at.min(now)
+    };
     diesel::insert_into(subscriptions::table)
         .values((
             subscriptions::user_id.eq(user_id),
@@ -91,7 +95,11 @@ pub async fn google_purchase(
         }
     };
     // The app tags the purchase with the account that made it
-    if sub.account_tag.as_deref().is_some_and(|tag| tag != google_play::account_tag(user_id)) {
+    if sub
+        .account_tag
+        .as_deref()
+        .is_some_and(|tag| tag != google_play::account_tag(user_id))
+    {
         return HttpResponse::Conflict().body("This purchase belongs to another account");
     }
 
@@ -103,12 +111,24 @@ pub async fn google_purchase(
             return HttpResponse::Conflict().body(e);
         }
     }
-    if sub.needs_acknowledge && sub.is_paid()
-        && let Err(e) = google_play::acknowledge(&sub.product_id, token).await {
-            // The app acknowledges too; Google refunds only after 3 days
-            log::warn!("Could not acknowledge the purchase of user {}: {}", user_id, e);
-        }
-    log::info!("User {} bought {} ({}) until {}", user_id, sub.product_id, sub.state, sub.expires_at);
+    if sub.needs_acknowledge
+        && sub.is_paid()
+        && let Err(e) = google_play::acknowledge(&sub.product_id, token).await
+    {
+        // The app acknowledges too; Google refunds only after 3 days
+        log::warn!(
+            "Could not acknowledge the purchase of user {}: {}",
+            user_id,
+            e
+        );
+    }
+    log::info!(
+        "User {} bought {} ({}) until {}",
+        user_id,
+        sub.product_id,
+        sub.state,
+        sub.expires_at
+    );
 
     let Ok(mut conn) = pool.get() else {
         return HttpResponse::InternalServerError().body("Database connection error");
@@ -121,9 +141,17 @@ pub async fn google_purchase(
 
 /// Asks Google about one purchase and stores it. With no user_id, the user
 /// comes from the account tag the app set when buying.
-async fn refresh_from_google(pool: &DbPool, user_id: Option<i32>, token: &str) -> Result<(), String> {
+async fn refresh_from_google(
+    pool: &DbPool,
+    user_id: Option<i32>,
+    token: &str,
+) -> Result<(), String> {
     let sub = google_play::get_subscription(token).await?;
-    let user_id = match user_id.or_else(|| sub.account_tag.as_deref().and_then(google_play::user_of_tag)) {
+    let user_id = match user_id.or_else(|| {
+        sub.account_tag
+            .as_deref()
+            .and_then(google_play::user_of_tag)
+    }) {
         Some(id) => id,
         None => {
             log::warn!("A Google Play purchase has no account; the app will send it");
@@ -139,16 +167,30 @@ async fn refresh_from_google(pool: &DbPool, user_id: Option<i32>, token: &str) -
         .get_result(&mut conn)
         .map_err(|e| e.to_string())?;
         if !exists {
-            log::warn!("A Google Play purchase names user {}, who does not exist", user_id);
+            log::warn!(
+                "A Google Play purchase names user {}, who does not exist",
+                user_id
+            );
             return Ok(());
         }
         store_subscription(&mut conn, user_id, token, &sub)?;
     }
-    if sub.needs_acknowledge && sub.is_paid()
-        && let Err(e) = google_play::acknowledge(&sub.product_id, token).await {
-            log::warn!("Could not acknowledge the purchase of user {}: {}", user_id, e);
-        }
-    log::info!("Subscription of user {} is {} until {}", user_id, sub.state, sub.expires_at);
+    if sub.needs_acknowledge
+        && sub.is_paid()
+        && let Err(e) = google_play::acknowledge(&sub.product_id, token).await
+    {
+        log::warn!(
+            "Could not acknowledge the purchase of user {}: {}",
+            user_id,
+            e
+        );
+    }
+    log::info!(
+        "Subscription of user {} is {} until {}",
+        user_id,
+        sub.state,
+        sub.expires_at
+    );
     Ok(())
 }
 
@@ -225,7 +267,12 @@ pub async fn google_notification(
 /// Whether to ask Google again about a subscription now. Renewals happen at
 /// expires_at, so one about to end is asked every few minutes until Google
 /// renews or ends it; later, less often. EXPIRED is final.
-fn recheck_due(state: &str, expires_at: NaiveDateTime, updated_at: NaiveDateTime, now: NaiveDateTime) -> bool {
+fn recheck_due(
+    state: &str,
+    expires_at: NaiveDateTime,
+    updated_at: NaiveDateTime,
+    now: NaiveDateTime,
+) -> bool {
     use chrono::Duration;
     if state == "SUBSCRIPTION_STATE_EXPIRED" || expires_at > now + Duration::minutes(5) {
         return false;
@@ -266,13 +313,19 @@ pub async fn recheck_due_subscriptions(pool: &DbPool) {
             .load(&mut conn)
             .unwrap_or_default();
         rows.into_iter()
-            .filter(|(_, _, state, expires_at, updated_at)| recheck_due(state, *expires_at, *updated_at, now))
+            .filter(|(_, _, state, expires_at, updated_at)| {
+                recheck_due(state, *expires_at, *updated_at, now)
+            })
             .map(|(user_id, token, ..)| (user_id, token))
             .collect()
     };
     for (user_id, token) in due {
         if let Err(e) = refresh_from_google(pool, Some(user_id), &token).await {
-            log::warn!("Could not recheck a subscription of user {}: {}", user_id, e);
+            log::warn!(
+                "Could not recheck a subscription of user {}: {}",
+                user_id,
+                e
+            );
         }
     }
 }
@@ -302,7 +355,11 @@ pub async fn recheck_subscriptions(pool: &DbPool) {
                     log::warn!("Could not update a subscription of user {}: {}", user_id, e);
                 }
             }
-            Err(e) => log::warn!("Could not recheck a subscription of user {}: {}", user_id, e),
+            Err(e) => log::warn!(
+                "Could not recheck a subscription of user {}: {}",
+                user_id,
+                e
+            ),
         }
     }
 }
@@ -313,7 +370,10 @@ mod tests {
     use chrono::Duration;
 
     fn at(h: u32, m: u32) -> NaiveDateTime {
-        chrono::NaiveDate::from_ymd_opt(2026, 10, 23).unwrap().and_hms_opt(h, m, 0).unwrap()
+        chrono::NaiveDate::from_ymd_opt(2026, 10, 23)
+            .unwrap()
+            .and_hms_opt(h, m, 0)
+            .unwrap()
     }
 
     #[test]
@@ -321,28 +381,66 @@ mod tests {
         let now = at(12, 0);
         let active = "SUBSCRIPTION_STATE_ACTIVE";
         // Far from the end: the notifications and the daily check cover it
-        assert!(!recheck_due(active, now + Duration::days(20), now - Duration::days(1), now));
+        assert!(!recheck_due(
+            active,
+            now + Duration::days(20),
+            now - Duration::days(1),
+            now
+        ));
         // Ends in 3 minutes, checked 10 minutes ago
-        assert!(recheck_due(active, now + Duration::minutes(3), now - Duration::minutes(10), now));
+        assert!(recheck_due(
+            active,
+            now + Duration::minutes(3),
+            now - Duration::minutes(10),
+            now
+        ));
         // Just checked
-        assert!(!recheck_due(active, now - Duration::minutes(1), now - Duration::minutes(2), now));
+        assert!(!recheck_due(
+            active,
+            now - Duration::minutes(1),
+            now - Duration::minutes(2),
+            now
+        ));
         // Ended 5 hours ago: once an hour
-        assert!(!recheck_due(active, now - Duration::hours(5), now - Duration::minutes(30), now));
-        assert!(recheck_due(active, now - Duration::hours(5), now - Duration::minutes(61), now));
+        assert!(!recheck_due(
+            active,
+            now - Duration::hours(5),
+            now - Duration::minutes(30),
+            now
+        ));
+        assert!(recheck_due(
+            active,
+            now - Duration::hours(5),
+            now - Duration::minutes(61),
+            now
+        ));
         // Final, or too old
-        assert!(!recheck_due("SUBSCRIPTION_STATE_EXPIRED", now - Duration::minutes(1), now - Duration::hours(1), now));
-        assert!(!recheck_due(active, now - Duration::days(8), now - Duration::days(1), now));
+        assert!(!recheck_due(
+            "SUBSCRIPTION_STATE_EXPIRED",
+            now - Duration::minutes(1),
+            now - Duration::hours(1),
+            now
+        ));
+        assert!(!recheck_due(
+            active,
+            now - Duration::days(8),
+            now - Duration::days(1),
+            now
+        ));
     }
 
     #[test]
     fn test_notification_token() {
         use base64::Engine;
-        let push = |json: &str| {
-            serde_json::json!({"message": {"data": base64::engine::general_purpose::STANDARD.encode(json)}})
-        };
-        let body = push(r#"{"version":"1.0","packageName":"p","subscriptionNotification":{"notificationType":2,"purchaseToken":"abc","subscriptionId":"premium"}}"#);
+        let push = |json: &str| serde_json::json!({"message": {"data": base64::engine::general_purpose::STANDARD.encode(json)}});
+        let body = push(
+            r#"{"version":"1.0","packageName":"p","subscriptionNotification":{"notificationType":2,"purchaseToken":"abc","subscriptionId":"premium"}}"#,
+        );
         assert_eq!(notification_token(&body).unwrap(), Some("abc".to_string()));
-        assert_eq!(notification_token(&push(r#"{"testNotification":{"version":"1.0"}}"#)).unwrap(), None);
+        assert_eq!(
+            notification_token(&push(r#"{"testNotification":{"version":"1.0"}}"#)).unwrap(),
+            None
+        );
         assert!(notification_token(&serde_json::json!({})).is_err());
     }
 }

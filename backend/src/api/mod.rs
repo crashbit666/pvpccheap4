@@ -35,9 +35,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     );
 
     // Store purchases of the paid plan (protected)
-    cfg.service(web::scope("/api/billing")
+    cfg.service(
+        web::scope("/api/billing")
             .service(billing::google_purchase)
-            .service(billing::google_notification));
+            .service(billing::google_notification),
+    );
 
     // Failed device actions (protected)
     cfg.service(web::scope("/api/alerts").service(alerts::list_alerts));
@@ -80,10 +82,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     );
 
     // Schedule routes (protected)
-    cfg.service(
-        web::scope("/api/schedules")
-            .service(schedules::get_schedule),
-    );
+    cfg.service(web::scope("/api/schedules").service(schedules::get_schedule));
 
     // Price routes (reads are public, /sync requires auth)
     cfg.service(

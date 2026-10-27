@@ -44,7 +44,11 @@ impl ScheduleComputationService {
         for rule in &rules {
             total += self.refresh_rule_instances(&mut conn, rule);
         }
-        info!("Schedules refreshed: {} pending hours for {} rules", total, rules.len());
+        info!(
+            "Schedules refreshed: {} pending hours for {} rules",
+            total,
+            rules.len()
+        );
         Ok(total)
     }
 
@@ -83,10 +87,17 @@ impl ScheduleComputationService {
             .filter(scheduled_executions::rule_id.eq(rule_id))
             .filter(scheduled_executions::status.eq(ExecutionStatus::Pending.as_str()))
             .filter(scheduled_executions::scheduled_hour.gt(hour))
-            .select((scheduled_executions::id, scheduled_executions::scheduled_hour))
+            .select((
+                scheduled_executions::id,
+                scheduled_executions::scheduled_hour,
+            ))
             .load(&mut conn)
             .map_err(|e| e.to_string())?;
-        let ids: Vec<i32> = pending.into_iter().filter(|(_, h)| group.contains(h)).map(|(id, _)| id).collect();
+        let ids: Vec<i32> = pending
+            .into_iter()
+            .filter(|(_, h)| group.contains(h))
+            .map(|(id, _)| id)
+            .collect();
         diesel::update(scheduled_executions::table.filter(scheduled_executions::id.eq_any(&ids)))
             .set(scheduled_executions::status.eq(ExecutionStatus::Done.as_str()))
             .execute(&mut conn)
@@ -149,7 +160,10 @@ impl ScheduleComputationService {
         for date in [today - Duration::days(1), today, today + Duration::days(1)] {
             match self.recompute_rule_instance(conn, rule, &tariff, date) {
                 Ok(n) => total += n,
-                Err(e) => error!("Failed to compute schedule for rule {} on {}: {}", rule.id, date, e),
+                Err(e) => error!(
+                    "Failed to compute schedule for rule {} on {}: {}",
+                    rule.id, date, e
+                ),
             }
         }
         total
@@ -204,9 +218,11 @@ impl ScheduleComputationService {
             .partition(|(_, _, status)| status == ExecutionStatus::Pending.as_str());
 
         let pending_ids: Vec<i32> = pending.iter().map(|(id, _, _)| *id).collect();
-        diesel::delete(scheduled_executions::table.filter(scheduled_executions::id.eq_any(pending_ids)))
-            .execute(conn)
-            .map_err(|e| e.to_string())?;
+        diesel::delete(
+            scheduled_executions::table.filter(scheduled_executions::id.eq_any(pending_ids)),
+        )
+        .execute(conn)
+        .map_err(|e| e.to_string())?;
 
         if !rule.is_enabled {
             return Ok(0);
@@ -221,7 +237,9 @@ impl ScheduleComputationService {
         let is_free = |h: &NaiveDateTime| !handled_hours.contains(h);
         let current_hour = crate::time::current_hour();
         let load = |conn: &mut PgConnection, start: NaiveDateTime, end: NaiveDateTime| {
-            tariff.hourly(conn, start.max(current_hour), end).map_err(|e| e.to_string())
+            tariff
+                .hourly(conn, start.max(current_hour), end)
+                .map_err(|e| e.to_string())
         };
 
         let picks: Vec<NaiveDateTime> = match rule.rule_type.as_str() {
@@ -242,10 +260,18 @@ impl ScheduleComputationService {
                 let hours_needed = group.hours.unwrap_or(0).saturating_sub(acted);
                 let mut candidates: Vec<HourPrice> = Vec::new();
                 for &(start, end) in &group.windows {
-                    candidates.extend(load(conn, start, end)?.into_iter().filter(|p| is_free(&p.hour)));
+                    candidates.extend(
+                        load(conn, start, end)?
+                            .into_iter()
+                            .filter(|p| is_free(&p.hour)),
+                    );
                 }
                 candidates.sort_by(|a, b| a.price.total_cmp(&b.price).then(a.hour.cmp(&b.hour)));
-                candidates.into_iter().take(hours_needed).map(|p| p.hour).collect()
+                candidates
+                    .into_iter()
+                    .take(hours_needed)
+                    .map(|p| p.hour)
+                    .collect()
             }
             "price_threshold" => {
                 let threshold = rule
@@ -289,7 +315,10 @@ impl ScheduleComputationService {
             };
             if let Err(e) = diesel::insert_into(scheduled_executions::table)
                 .values(&new_execution)
-                .on_conflict((scheduled_executions::rule_id, scheduled_executions::scheduled_hour))
+                .on_conflict((
+                    scheduled_executions::rule_id,
+                    scheduled_executions::scheduled_hour,
+                ))
                 .do_nothing()
                 .execute(conn)
             {
@@ -397,7 +426,11 @@ pub fn window_specs(config: &serde_json::Value) -> Vec<WindowSpec> {
             .collect();
     }
     match (window_start_hour(config), window_end_hour(config)) {
-        (Some(start), Some(end)) => vec![WindowSpec { start, end, hours: None }],
+        (Some(start), Some(end)) => vec![WindowSpec {
+            start,
+            end,
+            hours: None,
+        }],
         _ => vec![],
     }
 }
@@ -418,7 +451,9 @@ struct WindowGroup {
 
 impl WindowGroup {
     fn contains(&self, hour: &NaiveDateTime) -> bool {
-        self.windows.iter().any(|(start, end)| start <= hour && hour < end)
+        self.windows
+            .iter()
+            .any(|(start, end)| start <= hour && hour < end)
     }
 }
 
@@ -437,7 +472,11 @@ fn instance_groups(rule: &AutomationRule, date: NaiveDate, zone: &Zone) -> Vec<W
     windows_of_instance(rule, date)
         .into_iter()
         .map(|g| WindowGroup {
-            windows: g.windows.into_iter().map(|(s, e)| (zone.to_engine(s), zone.to_engine(e))).collect(),
+            windows: g
+                .windows
+                .into_iter()
+                .map(|(s, e)| (zone.to_engine(s), zone.to_engine(e)))
+                .collect(),
             hours: g.hours,
         })
         .collect()
@@ -445,7 +484,8 @@ fn instance_groups(rule: &AutomationRule, date: NaiveDate, zone: &Zone) -> Vec<W
 
 /// The window groups of the instance for `date` in local time, ignoring "once"
 fn windows_of_instance(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGroup> {
-    let at = |d: NaiveDate, hour: u32| d.and_hms_opt(0, 0, 0).unwrap() + Duration::hours(hour as i64);
+    let at =
+        |d: NaiveDate, hour: u32| d.and_hms_opt(0, 0, 0).unwrap() + Duration::hours(hour as i64);
     let span = |w: &WindowSpec| {
         if w.start < w.end {
             (at(date, w.start), at(date, w.end))
@@ -453,7 +493,11 @@ fn windows_of_instance(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGrou
             (at(date - Duration::days(1), w.start), at(date, w.end))
         }
     };
-    let whole_day = WindowSpec { start: 0, end: 24, hours: None };
+    let whole_day = WindowSpec {
+        start: 0,
+        end: 24,
+        hours: None,
+    };
 
     let mut specs = window_specs(&rule.config);
     match rule.rule_type.as_str() {
@@ -465,10 +509,16 @@ fn windows_of_instance(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGrou
             if is_per_window(&rule.config) {
                 specs
                     .iter()
-                    .map(|w| WindowGroup { windows: vec![span(w)], hours: Some(w.hours.unwrap_or(total)) })
+                    .map(|w| WindowGroup {
+                        windows: vec![span(w)],
+                        hours: Some(w.hours.unwrap_or(total)),
+                    })
                     .collect()
             } else {
-                vec![WindowGroup { windows: specs.iter().map(span).collect(), hours: Some(total) }]
+                vec![WindowGroup {
+                    windows: specs.iter().map(span).collect(),
+                    hours: Some(total),
+                }]
             }
         }
         "time_schedule" => {
@@ -482,10 +532,16 @@ fn windows_of_instance(rule: &AutomationRule, date: NaiveDate) -> Vec<WindowGrou
             }
             specs
                 .iter()
-                .map(|w| WindowGroup { windows: vec![span(w)], hours: None })
+                .map(|w| WindowGroup {
+                    windows: vec![span(w)],
+                    hours: None,
+                })
                 .collect()
         }
-        "price_threshold" => vec![WindowGroup { windows: vec![span(&whole_day)], hours: None }],
+        "price_threshold" => vec![WindowGroup {
+            windows: vec![span(&whole_day)],
+            hours: None,
+        }],
         _ => vec![],
     }
 }
@@ -500,12 +556,19 @@ fn once_date(config: &serde_json::Value) -> Option<NaiveDate> {
     if !is_once(config) {
         return None;
     }
-    config.get("once_date")?.as_str().and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+    config
+        .get("once_date")?
+        .as_str()
+        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
 }
 
 /// Where the instance of `date` ends (its last window's end)
 fn instance_end(rule: &AutomationRule, date: NaiveDate) -> Option<NaiveDateTime> {
-    windows_of_instance(rule, date).into_iter().flat_map(|g| g.windows).map(|w| w.1).max()
+    windows_of_instance(rule, date)
+        .into_iter()
+        .flat_map(|g| g.windows)
+        .map(|w| w.1)
+        .max()
 }
 
 /// The first instance whose windows have not all ended at `now`
@@ -518,7 +581,8 @@ fn next_instance_date(rule: &AutomationRule, now: NaiveDateTime) -> Option<Naive
 
 /// A one-off rule whose window is over
 fn once_finished(rule: &AutomationRule, now: NaiveDateTime) -> bool {
-    once_date(&rule.config).is_some_and(|date| instance_end(rule, date).is_none_or(|end| end <= now))
+    once_date(&rule.config)
+        .is_some_and(|date| instance_end(rule, date).is_none_or(|end| end <= now))
 }
 
 /// Parse a rule config time ("HH:MM") into (hour, minute), rejecting out-of-range values.
@@ -587,11 +651,20 @@ mod tests {
     #[test]
     fn test_once_rule_picks_the_next_window() {
         let window = json!([{"start": "22:00", "end": "08:00"}]);
-        let r = rule("cheapest_hours", json!({"cheapest_hours": 4, "windows": window, "once": true}));
+        let r = rule(
+            "cheapest_hours",
+            json!({"cheapest_hours": 4, "windows": window, "once": true}),
+        );
         // At 21:00 on the 19th, last night's window is over: tonight's ends on the 20th
-        assert_eq!(next_instance_date(&r, dt(19, 21)), NaiveDate::from_ymd_opt(2026, 10, 20));
+        assert_eq!(
+            next_instance_date(&r, dt(19, 21)),
+            NaiveDate::from_ymd_opt(2026, 10, 20)
+        );
         // At 03:00 the night is still on
-        assert_eq!(next_instance_date(&r, dt(19, 3)), NaiveDate::from_ymd_opt(2026, 10, 19));
+        assert_eq!(
+            next_instance_date(&r, dt(19, 3)),
+            NaiveDate::from_ymd_opt(2026, 10, 19)
+        );
         // Not armed: no hours at all
         assert!(groups(r).is_empty());
     }
@@ -604,21 +677,37 @@ mod tests {
             json!({"cheapest_hours": 4, "windows": window, "once": true, "once_date": "2026-10-19"}),
         );
         assert_eq!(groups(r.clone()).len(), 1);
-        assert!(instance_groups(&r, NaiveDate::from_ymd_opt(2026, 10, 20).unwrap(), peninsula()).is_empty());
+        assert!(
+            instance_groups(
+                &r,
+                NaiveDate::from_ymd_opt(2026, 10, 20).unwrap(),
+                peninsula()
+            )
+            .is_empty()
+        );
         assert!(!once_finished(&r, dt(19, 7)));
         assert!(once_finished(&r, dt(19, 8)));
         // A daily rule never finishes
-        let daily = rule("cheapest_hours", json!({"cheapest_hours": 4, "windows": window}));
+        let daily = rule(
+            "cheapest_hours",
+            json!({"cheapest_hours": 4, "windows": window}),
+        );
         assert!(!once_finished(&daily, dt(25, 8)));
     }
 
     fn dt(d: u32, h: u32) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(2026, 10, d).unwrap().and_hms_opt(h, 0, 0).unwrap()
+        NaiveDate::from_ymd_opt(2026, 10, d)
+            .unwrap()
+            .and_hms_opt(h, 0, 0)
+            .unwrap()
     }
 
     fn groups(r: AutomationRule) -> Vec<(Vec<(NaiveDateTime, NaiveDateTime)>, Option<usize>)> {
         let date = NaiveDate::from_ymd_opt(2026, 10, 19).unwrap();
-        instance_groups(&r, date, peninsula()).into_iter().map(|g| (g.windows, g.hours)).collect()
+        instance_groups(&r, date, peninsula())
+            .into_iter()
+            .map(|g| (g.windows, g.hours))
+            .collect()
     }
 
     fn peninsula() -> &'static Zone {
@@ -628,9 +717,15 @@ mod tests {
     #[test]
     fn test_instance_groups_follow_local_time() {
         // 22:00-08:00 in the Canaries is 23:00-09:00 in Madrid
-        let r = rule("cheapest_hours", json!({"cheapest_hours": 4, "windows": [{"start": "22:00", "end": "08:00"}]}));
+        let r = rule(
+            "cheapest_hours",
+            json!({"cheapest_hours": 4, "windows": [{"start": "22:00", "end": "08:00"}]}),
+        );
         let date = NaiveDate::from_ymd_opt(2026, 10, 19).unwrap();
-        let windows: Vec<_> = instance_groups(&r, date, crate::zones::get("canarias")).into_iter().flat_map(|g| g.windows).collect();
+        let windows: Vec<_> = instance_groups(&r, date, crate::zones::get("canarias"))
+            .into_iter()
+            .flat_map(|g| g.windows)
+            .collect();
         assert_eq!(windows, vec![(dt(18, 23), dt(19, 9))]);
     }
 
@@ -641,11 +736,17 @@ mod tests {
             vec![(vec![(dt(19, 0), dt(20, 0))], Some(6))]
         );
         assert_eq!(
-            groups(rule("cheapest_hours", json!({"cheapest_hours": 6, "time_range_start": "19:00", "time_range_end": "07:00"}))),
+            groups(rule(
+                "cheapest_hours",
+                json!({"cheapest_hours": 6, "time_range_start": "19:00", "time_range_end": "07:00"})
+            )),
             vec![(vec![(dt(18, 19), dt(19, 7))], Some(6))]
         );
         assert_eq!(
-            groups(rule("time_schedule", json!({"time_range_start": "22:00", "time_range_end": "23:59"}))),
+            groups(rule(
+                "time_schedule",
+                json!({"time_range_start": "22:00", "time_range_end": "23:59"})
+            )),
             vec![(vec![(dt(19, 22), dt(20, 0))], None)]
         );
         assert_eq!(
@@ -663,12 +764,21 @@ mod tests {
         ]);
         // Total: one budget across both windows
         assert_eq!(
-            groups(rule("cheapest_hours", json!({"cheapest_hours": 3, "windows": windows, "distribution": "total"}))),
-            vec![(vec![(dt(19, 14), dt(19, 16)), (dt(18, 20), dt(19, 6))], Some(3))]
+            groups(rule(
+                "cheapest_hours",
+                json!({"cheapest_hours": 3, "windows": windows, "distribution": "total"})
+            )),
+            vec![(
+                vec![(dt(19, 14), dt(19, 16)), (dt(18, 20), dt(19, 6))],
+                Some(3)
+            )]
         );
         // Per window: each window with its own budget
         assert_eq!(
-            groups(rule("cheapest_hours", json!({"cheapest_hours": 3, "windows": windows, "distribution": "per_window"}))),
+            groups(rule(
+                "cheapest_hours",
+                json!({"cheapest_hours": 3, "windows": windows, "distribution": "per_window"})
+            )),
             vec![
                 (vec![(dt(19, 14), dt(19, 16))], Some(1)),
                 (vec![(dt(18, 20), dt(19, 6))], Some(4))
@@ -686,7 +796,11 @@ mod tests {
 
     #[test]
     fn test_window_hours_of_day() {
-        let w = |start, end| WindowSpec { start, end, hours: None };
+        let w = |start, end| WindowSpec {
+            start,
+            end,
+            hours: None,
+        };
         assert_eq!(w(14, 16).hours_of_day(), vec![14, 15]);
         assert_eq!(w(22, 2).hours_of_day(), vec![22, 23, 0, 1]);
         assert_eq!(w(0, 0).hours_of_day().len(), 24);
@@ -694,7 +808,13 @@ mod tests {
 
     #[test]
     fn test_window_start_hour() {
-        assert_eq!(window_start_hour(&json!({ "time_range_start": "19:00" })), Some(19));
-        assert_eq!(window_start_hour(&json!({ "time_range_start": "19:45" })), Some(19));
+        assert_eq!(
+            window_start_hour(&json!({ "time_range_start": "19:00" })),
+            Some(19)
+        );
+        assert_eq!(
+            window_start_hour(&json!({ "time_range_start": "19:45" })),
+            Some(19)
+        );
     }
 }

@@ -5,7 +5,7 @@ use crate::{
     schema::{devices, user_integrations},
     services::{auth::Claims, credentials, power_monitor},
 };
-use actix_web::{delete, get, post, web, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, delete, get, post, web};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -153,7 +153,10 @@ pub async fn list_devices(
                     continue;
                 }
 
-                let is_on = match provider.get_device_state(&session, &device.external_id).await {
+                let is_on = match provider
+                    .get_device_state(&session, &device.external_id)
+                    .await
+                {
                     Ok(state) => {
                         // Update cached state in database
                         let _ = diesel::update(devices::table.filter(devices::id.eq(device.id)))
@@ -242,7 +245,7 @@ pub async fn sync_devices(
         Some(p) => p,
         None => {
             return HttpResponse::BadRequest()
-                .body(format!("Unknown provider: {}", integration.provider_name))
+                .body(format!("Unknown provider: {}", integration.provider_name));
         }
     };
 
@@ -259,12 +262,14 @@ pub async fn sync_devices(
         Err(e) => {
             log::warn!(
                 "Fresh login failed for integration {}: {}, using stored session",
-                integration.id, e
+                integration.id,
+                e
             );
             match provider.login(&credentials).await {
                 Ok(s) => s,
                 Err(e) => {
-                    return HttpResponse::BadRequest().body(format!("Failed to authenticate: {}", e))
+                    return HttpResponse::BadRequest()
+                        .body(format!("Failed to authenticate: {}", e));
                 }
             }
         }
@@ -279,11 +284,9 @@ pub async fn sync_devices(
         session.get("key").is_some(),
         session.get("mqtt_domain").is_some()
     );
-    match diesel::update(
-        user_integrations::table.filter(user_integrations::id.eq(integration.id)),
-    )
-    .set(user_integrations::credentials_json.eq(&updated_credentials))
-    .execute(&mut conn)
+    match diesel::update(user_integrations::table.filter(user_integrations::id.eq(integration.id)))
+        .set(user_integrations::credentials_json.eq(&updated_credentials))
+        .execute(&mut conn)
     {
         Ok(rows) => log::info!("Updated {} rows with new credentials", rows),
         Err(e) => log::error!("Failed to update credentials with session data: {}", e),
@@ -294,7 +297,7 @@ pub async fn sync_devices(
         Ok(d) => d,
         Err(e) => {
             return HttpResponse::InternalServerError()
-                .body(format!("Failed to list devices: {}", e))
+                .body(format!("Failed to list devices: {}", e));
         }
     };
 
@@ -392,9 +395,7 @@ pub async fn control_device(
 
     let session = match provider.login(&credentials).await {
         Ok(s) => s,
-        Err(e) => {
-            return HttpResponse::BadRequest().body(format!("Authentication failed: {}", e))
-        }
+        Err(e) => return HttpResponse::BadRequest().body(format!("Authentication failed: {}", e)),
     };
 
     // Execute action
@@ -418,16 +419,26 @@ pub async fn control_device(
     let mut result = run(session.clone()).await;
 
     // Stale token or key: log in again, store the new session and retry once
-    if let Err(ProviderError::AuthenticationFailed(_) | ProviderError::InvalidCredentials) = result {
-        log::warn!("Authentication failed for integration {}, refreshing credentials", integration.id);
+    if let Err(ProviderError::AuthenticationFailed(_) | ProviderError::InvalidCredentials) = result
+    {
+        log::warn!(
+            "Authentication failed for integration {}, refreshing credentials",
+            integration.id
+        );
         match provider.refresh_credentials(&session).await {
             Ok(new_session) => {
-                let _ = diesel::update(user_integrations::table.filter(user_integrations::id.eq(integration.id)))
-                    .set(user_integrations::credentials_json.eq(credentials::encrypt(&new_session)))
-                    .execute(&mut conn);
+                let _ = diesel::update(
+                    user_integrations::table.filter(user_integrations::id.eq(integration.id)),
+                )
+                .set(user_integrations::credentials_json.eq(credentials::encrypt(&new_session)))
+                .execute(&mut conn);
                 result = run(new_session).await;
             }
-            Err(e) => log::error!("Failed to refresh credentials for integration {}: {}", integration.id, e),
+            Err(e) => log::error!(
+                "Failed to refresh credentials for integration {}: {}",
+                integration.id,
+                e
+            ),
         }
     }
 
@@ -435,7 +446,11 @@ pub async fn control_device(
         Ok(action_result) => {
             // Update cached is_on state in database if action was successful
             if action_result.success {
-                let is_on = action_result.new_state.as_ref().map(|s| s.is_on).unwrap_or(turn_on);
+                let is_on = action_result
+                    .new_state
+                    .as_ref()
+                    .map(|s| s.is_on)
+                    .unwrap_or(turn_on);
                 let _ = diesel::update(devices::table.filter(devices::id.eq(device_id)))
                     .set(devices::is_on.eq(is_on))
                     .execute(&mut conn);
@@ -490,12 +505,13 @@ pub async fn get_device_state(
 
     let session = match provider.login(&credentials).await {
         Ok(s) => s,
-        Err(e) => {
-            return HttpResponse::BadRequest().body(format!("Authentication failed: {}", e))
-        }
+        Err(e) => return HttpResponse::BadRequest().body(format!("Authentication failed: {}", e)),
     };
 
-    match provider.get_device_state(&session, &device.external_id).await {
+    match provider
+        .get_device_state(&session, &device.external_id)
+        .await
+    {
         Ok(state) => HttpResponse::Ok().json(state),
         Err(e) => HttpResponse::InternalServerError().body(format!("Failed to get state: {}", e)),
     }
@@ -504,7 +520,11 @@ pub async fn get_device_state(
 /// How long the appliance runs before it finishes, learnt from the power
 /// its plug measured, and the hours a rule should give it
 #[get("/{device_id}/usage")]
-pub async fn get_device_usage(pool: web::Data<DbPool>, claims: Claims, path: web::Path<i32>) -> impl Responder {
+pub async fn get_device_usage(
+    pool: web::Data<DbPool>,
+    claims: Claims,
+    path: web::Path<i32>,
+) -> impl Responder {
     let device_id = path.into_inner();
     let Ok(user_id) = claims.sub.parse::<i32>() else {
         return HttpResponse::BadRequest().body("Invalid user ID");

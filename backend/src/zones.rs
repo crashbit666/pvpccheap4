@@ -35,11 +35,29 @@ pub struct Zone {
 }
 
 const fn spain(code: &'static str, name: &'static str, geo_id: i32, tz: Tz) -> Zone {
-    Zone { code, name, country: "ES", tz, market: Market::Spain { geo_id } }
+    Zone {
+        code,
+        name,
+        country: "ES",
+        tz,
+        market: Market::Spain { geo_id },
+    }
 }
 
-const fn entsoe(code: &'static str, name: &'static str, country: &'static str, eic: &'static str, tz: Tz) -> Zone {
-    Zone { code, name, country, tz, market: Market::Entsoe { eic } }
+const fn entsoe(
+    code: &'static str,
+    name: &'static str,
+    country: &'static str,
+    eic: &'static str,
+    tz: Tz,
+) -> Zone {
+    Zone {
+        code,
+        name,
+        country,
+        tz,
+        market: Market::Entsoe { eic },
+    }
 }
 
 pub const ZONES: [Zone; 21] = [
@@ -49,22 +67,94 @@ pub const ZONES: [Zone; 21] = [
     spain("ceuta", "Ceuta", 8744, Tz::Africa__Ceuta),
     spain("melilla", "Melilla", 8745, Tz::Africa__Ceuta),
     // Euro countries whose day-ahead price ENTSO-E publishes
-    entsoe("pt", "Portugal", "PT", "10YPT-REN------W", Tz::Europe__Lisbon),
+    entsoe(
+        "pt",
+        "Portugal",
+        "PT",
+        "10YPT-REN------W",
+        Tz::Europe__Lisbon,
+    ),
     entsoe("fr", "France", "FR", "10YFR-RTE------C", Tz::Europe__Paris),
-    entsoe("de", "Deutschland / Luxembourg", "DE", "10Y1001A1001A82H", Tz::Europe__Berlin),
-    entsoe("at", "Österreich", "AT", "10YAT-APG------L", Tz::Europe__Vienna),
-    entsoe("be", "Belgique / België", "BE", "10YBE----------2", Tz::Europe__Brussels),
-    entsoe("nl", "Nederland", "NL", "10YNL----------L", Tz::Europe__Amsterdam),
-    entsoe("ie", "Ireland", "IE", "10Y1001A1001A59C", Tz::Europe__Dublin),
-    entsoe("fi", "Suomi", "FI", "10YFI-1--------U", Tz::Europe__Helsinki),
+    entsoe(
+        "de",
+        "Deutschland / Luxembourg",
+        "DE",
+        "10Y1001A1001A82H",
+        Tz::Europe__Berlin,
+    ),
+    entsoe(
+        "at",
+        "Österreich",
+        "AT",
+        "10YAT-APG------L",
+        Tz::Europe__Vienna,
+    ),
+    entsoe(
+        "be",
+        "Belgique / België",
+        "BE",
+        "10YBE----------2",
+        Tz::Europe__Brussels,
+    ),
+    entsoe(
+        "nl",
+        "Nederland",
+        "NL",
+        "10YNL----------L",
+        Tz::Europe__Amsterdam,
+    ),
+    entsoe(
+        "ie",
+        "Ireland",
+        "IE",
+        "10Y1001A1001A59C",
+        Tz::Europe__Dublin,
+    ),
+    entsoe(
+        "fi",
+        "Suomi",
+        "FI",
+        "10YFI-1--------U",
+        Tz::Europe__Helsinki,
+    ),
     entsoe("ee", "Eesti", "EE", "10Y1001A1001A39I", Tz::Europe__Tallinn),
     entsoe("lv", "Latvija", "LV", "10YLV-1001A00074", Tz::Europe__Riga),
-    entsoe("lt", "Lietuva", "LT", "10YLT-1001A0008Q", Tz::Europe__Vilnius),
-    entsoe("sk", "Slovensko", "SK", "10YSK-SEPS-----K", Tz::Europe__Bratislava),
-    entsoe("si", "Slovenija", "SI", "10YSI-ELES-----O", Tz::Europe__Ljubljana),
-    entsoe("hr", "Hrvatska", "HR", "10YHR-HEP------M", Tz::Europe__Zagreb),
+    entsoe(
+        "lt",
+        "Lietuva",
+        "LT",
+        "10YLT-1001A0008Q",
+        Tz::Europe__Vilnius,
+    ),
+    entsoe(
+        "sk",
+        "Slovensko",
+        "SK",
+        "10YSK-SEPS-----K",
+        Tz::Europe__Bratislava,
+    ),
+    entsoe(
+        "si",
+        "Slovenija",
+        "SI",
+        "10YSI-ELES-----O",
+        Tz::Europe__Ljubljana,
+    ),
+    entsoe(
+        "hr",
+        "Hrvatska",
+        "HR",
+        "10YHR-HEP------M",
+        Tz::Europe__Zagreb,
+    ),
     entsoe("gr", "Elláda", "GR", "10YGR-HTSO-----Y", Tz::Europe__Athens),
-    entsoe("bg", "Bulgaria", "BG", "10YCA-BULGARIA-R", Tz::Europe__Sofia),
+    entsoe(
+        "bg",
+        "Bulgaria",
+        "BG",
+        "10YCA-BULGARIA-R",
+        Tz::Europe__Sofia,
+    ),
 ];
 
 pub fn find(code: &str) -> Option<&'static Zone> {
@@ -163,23 +253,44 @@ mod tests {
     /// changes of 2026 (29 March and 25 October, 01:00 UTC)
     #[test]
     fn test_offset_never_changes() {
-        let instants = [(1, 15, 12), (3, 29, 0), (3, 29, 2), (7, 15, 12), (10, 25, 0), (10, 25, 2)];
+        let instants = [
+            (1, 15, 12),
+            (3, 29, 0),
+            (3, 29, 2),
+            (7, 15, 12),
+            (10, 25, 0),
+            (10, 25, 2),
+        ];
         for zone in ZONES {
             let offsets: Vec<i32> = instants
                 .iter()
                 .map(|&(m, d, h)| {
-                    let at = NaiveDate::from_ymd_opt(2026, m, d).unwrap().and_hms_opt(h, 0, 0).unwrap();
-                    zone.tz.offset_from_utc_datetime(&at).fix().local_minus_utc()
+                    let at = NaiveDate::from_ymd_opt(2026, m, d)
+                        .unwrap()
+                        .and_hms_opt(h, 0, 0)
+                        .unwrap();
+                    zone.tz
+                        .offset_from_utc_datetime(&at)
+                        .fix()
+                        .local_minus_utc()
                         - Madrid.offset_from_utc_datetime(&at).fix().local_minus_utc()
                 })
                 .collect();
-            assert!(offsets.iter().all(|o| *o == offsets[0] && o % 3600 == 0), "{}: {:?}", zone.code, offsets);
+            assert!(
+                offsets.iter().all(|o| *o == offsets[0] && o % 3600 == 0),
+                "{}: {:?}",
+                zone.code,
+                offsets
+            );
         }
     }
 
     #[test]
     fn test_local_time() {
-        let t = NaiveDate::from_ymd_opt(2026, 10, 24).unwrap().and_hms_opt(15, 0, 0).unwrap();
+        let t = NaiveDate::from_ymd_opt(2026, 10, 24)
+            .unwrap()
+            .and_hms_opt(15, 0, 0)
+            .unwrap();
         let canarias = get("canarias");
         assert_eq!(canarias.to_local(t).format("%H").to_string(), "14");
         assert_eq!(canarias.to_engine(canarias.to_local(t)), t);

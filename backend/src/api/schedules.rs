@@ -4,7 +4,7 @@ use crate::{
     schema::{automation_rules, devices, scheduled_executions},
     services::{auth::Claims, schedule_computation::ScheduleComputationService, tariff::Tariff},
 };
-use actix_web::{get, web, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get, web};
 use chrono::{NaiveDate, Timelike};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -64,7 +64,9 @@ pub async fn get_schedule(
     let date = match &query.date {
         Some(d) => match NaiveDate::parse_from_str(d, "%Y-%m-%d") {
             Ok(date) => date,
-            Err(_) => return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD"),
+            Err(_) => {
+                return HttpResponse::BadRequest().body("Invalid date format. Use YYYY-MM-DD");
+            }
         },
         None => tariff.zone.now().date(),
     };
@@ -78,31 +80,30 @@ pub async fn get_schedule(
     let (start_of_day, end_of_day) = tariff.local_day(date);
 
     // Join scheduled_executions with automation_rules and devices to get all needed info
-    let executions: Vec<(ScheduledExecution, String, String, i32, String)> = match scheduled_executions::table
-        .inner_join(automation_rules::table.on(
-            scheduled_executions::rule_id.eq(automation_rules::id)
-        ))
-        .inner_join(devices::table.on(
-            automation_rules::device_id.eq(devices::id)
-        ))
-        .filter(automation_rules::user_id.eq(user_id))
-        .filter(scheduled_executions::scheduled_hour.ge(start_of_day))
-        .filter(scheduled_executions::scheduled_hour.lt(end_of_day))
-        .select((
-            ScheduledExecution::as_select(),
-            automation_rules::name,
-            devices::name,
-            devices::id,
-            automation_rules::action,
-        ))
-        .load(&mut conn)
-    {
-        Ok(e) => e,
-        Err(e) => {
-            log::error!("Error fetching scheduled executions: {}", e);
-            return HttpResponse::InternalServerError().body("Error fetching schedule");
-        }
-    };
+    let executions: Vec<(ScheduledExecution, String, String, i32, String)> =
+        match scheduled_executions::table
+            .inner_join(
+                automation_rules::table.on(scheduled_executions::rule_id.eq(automation_rules::id)),
+            )
+            .inner_join(devices::table.on(automation_rules::device_id.eq(devices::id)))
+            .filter(automation_rules::user_id.eq(user_id))
+            .filter(scheduled_executions::scheduled_hour.ge(start_of_day))
+            .filter(scheduled_executions::scheduled_hour.lt(end_of_day))
+            .select((
+                ScheduledExecution::as_select(),
+                automation_rules::name,
+                devices::name,
+                devices::id,
+                automation_rules::action,
+            ))
+            .load(&mut conn)
+        {
+            Ok(e) => e,
+            Err(e) => {
+                log::error!("Error fetching scheduled executions: {}", e);
+                return HttpResponse::InternalServerError().body("Error fetching schedule");
+            }
+        };
 
     let prices = tariff.day(&mut conn, date).unwrap_or_default();
 
@@ -110,7 +111,10 @@ pub async fn get_schedule(
         .into_iter()
         .map(|(exec, rule_name, device_name, device_id, action)| {
             let hour = tariff.zone.to_local(exec.scheduled_hour).hour();
-            let price_at_hour = prices.iter().find(|p| p.hour == exec.scheduled_hour).map(|p| p.price);
+            let price_at_hour = prices
+                .iter()
+                .find(|p| p.hour == exec.scheduled_hour)
+                .map(|p| p.price);
 
             // Map database status to API status
             let status = match exec.status.as_str() {

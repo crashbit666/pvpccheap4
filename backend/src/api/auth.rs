@@ -1,10 +1,10 @@
 use crate::{
     db::DbPool,
     integrations::ProviderRegistry,
+    lang::Lang,
     models::{ExecutionStatus, User},
     schema::{automation_rules, devices, scheduled_executions, user_integrations, users},
     services::auth::{self, Claims},
-    lang::Lang,
     services::{
         mailer,
         schedule_computation::ScheduleComputationService,
@@ -27,22 +27,28 @@ pub struct AuthRequest {
 
 /// Enough to catch typos; the verification email does the rest
 fn valid_email(email: &str) -> bool {
-    let Some((local, domain)) = email.split_once('@') else { return false };
+    let Some((local, domain)) = email.split_once('@') else {
+        return false;
+    };
     email.len() <= 254
         && !local.is_empty()
         && domain.contains('.')
         && !domain.starts_with('.')
         && !domain.ends_with('.')
-        && !email.chars().any(|c| c.is_whitespace() || c == '<' || c == '>')
+        && !email
+            .chars()
+            .any(|c| c.is_whitespace() || c == '<' || c == '>')
         && !domain.contains('@')
 }
 
 /// Whether another account already uses this address
 fn email_taken(conn: &mut PgConnection, email: &str, except_user: Option<i32>) -> bool {
     users::table
-        .filter(diesel::dsl::sql::<diesel::sql_types::Bool>("lower(email) = lower(")
-            .bind::<diesel::sql_types::Text, _>(email)
-            .sql(")"))
+        .filter(
+            diesel::dsl::sql::<diesel::sql_types::Bool>("lower(email) = lower(")
+                .bind::<diesel::sql_types::Text, _>(email)
+                .sql(")"),
+        )
         .filter(users::id.ne(except_user.unwrap_or(-1)))
         .select(users::id)
         .first::<i32>(conn)
@@ -57,9 +63,17 @@ async fn send_verification(pool: &DbPool, user_id: i32, email: &str, lang: Lang)
         return false;
     }
     let token = {
-        let Ok(mut conn) = pool.get() else { return false };
+        let Ok(mut conn) = pool.get() else {
+            return false;
+        };
         let _ = user_tokens::invalidate(&mut conn, user_id, user_tokens::VERIFY_EMAIL);
-        match user_tokens::create(&mut conn, user_id, user_tokens::VERIFY_EMAIL, email, chrono::Duration::days(2)) {
+        match user_tokens::create(
+            &mut conn,
+            user_id,
+            user_tokens::VERIFY_EMAIL,
+            email,
+            chrono::Duration::days(2),
+        ) {
             Ok(t) => t,
             Err(e) => {
                 log::warn!("Could not create a verification token: {}", e);
@@ -67,14 +81,22 @@ async fn send_verification(pool: &DbPool, user_id: i32, email: &str, lang: Lang)
             }
         }
     };
-    let Some(link) = mailer::public_link(&format!("verificar-correu?token={}&lang={}", token, lang.code())) else {
+    let Some(link) = mailer::public_link(&format!(
+        "verificar-correu?token={}&lang={}",
+        token,
+        lang.code()
+    )) else {
         return false;
     };
     let (subject, text) = verification_email(lang, &link);
     match mailer::send(email, subject, &text).await {
         Ok(()) => true,
         Err(e) => {
-            log::warn!("Could not send the verification email of user {}: {}", user_id, e);
+            log::warn!(
+                "Could not send the verification email of user {}: {}",
+                user_id,
+                e
+            );
             false
         }
     }
@@ -147,15 +169,25 @@ fn password_too_short(password: &str) -> bool {
 }
 
 #[post("/register")]
-pub async fn register(req: HttpRequest, pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> impl Responder {
+pub async fn register(
+    req: HttpRequest,
+    pool: web::Data<DbPool>,
+    item: web::Json<AuthRequest>,
+) -> impl Responder {
     if item.username.trim().is_empty() {
         return HttpResponse::BadRequest().body("Username is required");
     }
     if password_too_short(&item.password) {
-        return HttpResponse::BadRequest()
-            .body(format!("Password must have at least {} characters", MIN_PASSWORD_LEN));
+        return HttpResponse::BadRequest().body(format!(
+            "Password must have at least {} characters",
+            MIN_PASSWORD_LEN
+        ));
     }
-    let email = item.email.as_deref().map(str::trim).filter(|e| !e.is_empty());
+    let email = item
+        .email
+        .as_deref()
+        .map(str::trim)
+        .filter(|e| !e.is_empty());
     if email.is_some_and(|e| !valid_email(e)) {
         return HttpResponse::BadRequest().body("Invalid email");
     }
@@ -206,9 +238,11 @@ pub async fn login(pool: web::Data<DbPool>, item: web::Json<AuthRequest>) -> imp
             }
             users::table
                 .filter(users::email_verified.eq(true))
-                .filter(diesel::dsl::sql::<diesel::sql_types::Bool>("lower(email) = lower(")
-                    .bind::<diesel::sql_types::Text, _>(login)
-                    .sql(")"))
+                .filter(
+                    diesel::dsl::sql::<diesel::sql_types::Bool>("lower(email) = lower(")
+                        .bind::<diesel::sql_types::Text, _>(login)
+                        .sql(")"),
+                )
                 .first::<User>(&mut conn)
         });
 
@@ -293,9 +327,13 @@ pub async fn change_email(
         if email_taken(&mut conn, email, Some(user.id)) {
             return HttpResponse::Conflict().body("Email already in use");
         }
-        let same = user.email.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(email));
+        let same = user
+            .email
+            .as_deref()
+            .is_some_and(|e| e.eq_ignore_ascii_case(email));
         if same && user.email_verified {
-            return HttpResponse::Ok().json(serde_json::json!({"email": email, "email_verified": true, "sent": false}));
+            return HttpResponse::Ok()
+                .json(serde_json::json!({"email": email, "email_verified": true, "sent": false}));
         }
         if !same
             && diesel::update(users::table.find(user.id))
@@ -308,7 +346,8 @@ pub async fn change_email(
         user
     };
     let sent = send_verification(&pool, user.id, email, Lang::of(&req)).await;
-    HttpResponse::Ok().json(serde_json::json!({"email": email, "email_verified": false, "sent": sent}))
+    HttpResponse::Ok()
+        .json(serde_json::json!({"email": email, "email_verified": false, "sent": sent}))
 }
 
 #[derive(Deserialize)]
@@ -324,7 +363,11 @@ pub struct ChangeZoneRequest {
 /// Where the user lives and the tariff they pay: what the rules follow. The
 /// rules are rescheduled with it (a zone in another time zone moves them).
 #[put("/zone")]
-pub async fn change_zone(pool: web::Data<DbPool>, claims: Claims, item: web::Json<ChangeZoneRequest>) -> impl Responder {
+pub async fn change_zone(
+    pool: web::Data<DbPool>,
+    claims: Claims,
+    item: web::Json<ChangeZoneRequest>,
+) -> impl Responder {
     let Some(zone) = crate::zones::find(&item.zone) else {
         return HttpResponse::BadRequest().body("Unknown zone");
     };
@@ -344,7 +387,8 @@ pub async fn change_zone(pool: web::Data<DbPool>, claims: Claims, item: web::Jso
         };
         let margin = item.tariff_margin.unwrap_or(current.margin);
         let Some(tariff) = Tariff::new(zone, kind, margin) else {
-            return HttpResponse::BadRequest().body("Tariff not available in this zone, or margin out of range");
+            return HttpResponse::BadRequest()
+                .body("Tariff not available in this zone, or margin out of range");
         };
         let saved = diesel::update(users::table.find(user_id))
             .set((
@@ -370,14 +414,22 @@ pub async fn change_zone(pool: web::Data<DbPool>, claims: Claims, item: web::Jso
         )
         .execute(&mut conn);
         if let Err(e) = dropped {
-            log::warn!("Failed to drop the pending hours of user {}: {}", user_id, e);
+            log::warn!(
+                "Failed to drop the pending hours of user {}: {}",
+                user_id,
+                e
+            );
         }
         rule_ids
     };
     let schedules = ScheduleComputationService::new(pool.get_ref().clone());
     for rule_id in rule_ids {
         if let Err(e) = schedules.refresh_rule(rule_id) {
-            log::warn!("Failed to reschedule rule {} after a zone change: {}", rule_id, e);
+            log::warn!(
+                "Failed to reschedule rule {} after a zone change: {}",
+                rule_id,
+                e
+            );
         }
     }
     let Ok(mut conn) = pool.get() else {
@@ -414,12 +466,16 @@ pub async fn forgot_password(
         return answer;
     }
     let token = {
-        let Ok(mut conn) = pool.get() else { return answer };
+        let Ok(mut conn) = pool.get() else {
+            return answer;
+        };
         let user: Option<User> = users::table
             .filter(users::email_verified.eq(true))
-            .filter(diesel::dsl::sql::<diesel::sql_types::Bool>("lower(email) = lower(")
-                .bind::<diesel::sql_types::Text, _>(&email)
-                .sql(")"))
+            .filter(
+                diesel::dsl::sql::<diesel::sql_types::Bool>("lower(email) = lower(")
+                    .bind::<diesel::sql_types::Text, _>(&email)
+                    .sql(")"),
+            )
             .first(&mut conn)
             .ok();
         let Some(user) = user else { return answer };
@@ -431,7 +487,13 @@ pub async fn forgot_password(
             return answer;
         }
         let _ = user_tokens::invalidate(&mut conn, user.id, user_tokens::RESET_PASSWORD);
-        match user_tokens::create(&mut conn, user.id, user_tokens::RESET_PASSWORD, &email, chrono::Duration::hours(1)) {
+        match user_tokens::create(
+            &mut conn,
+            user.id,
+            user_tokens::RESET_PASSWORD,
+            &email,
+            chrono::Duration::hours(1),
+        ) {
             Ok(t) => (user, t),
             Err(e) => {
                 log::warn!("Could not create a reset token: {}", e);
@@ -440,7 +502,11 @@ pub async fn forgot_password(
         }
     };
     let (user, token) = token;
-    let Some(link) = mailer::public_link(&format!("restablir-contrasenya?token={}&lang={}", token, lang.code())) else {
+    let Some(link) = mailer::public_link(&format!(
+        "restablir-contrasenya?token={}&lang={}",
+        token,
+        lang.code()
+    )) else {
         return answer;
     };
     let (subject, text) = reset_email(lang, &user.username, &link);
@@ -483,8 +549,10 @@ pub async fn change_password(
     item: web::Json<ChangePasswordRequest>,
 ) -> impl Responder {
     if password_too_short(&item.new_password) {
-        return HttpResponse::BadRequest()
-            .body(format!("Password must have at least {} characters", MIN_PASSWORD_LEN));
+        return HttpResponse::BadRequest().body(format!(
+            "Password must have at least {} characters",
+            MIN_PASSWORD_LEN
+        ));
     }
     let Ok(mut conn) = pool.get() else {
         return HttpResponse::InternalServerError().body("Database connection error");
@@ -499,7 +567,10 @@ pub async fn change_password(
     // Bumping the version logs out every session; this one gets a new token
     let version = user.token_version + 1;
     if diesel::update(users::table.find(user.id))
-        .set((users::password_hash.eq(hashed), users::token_version.eq(version)))
+        .set((
+            users::password_hash.eq(hashed),
+            users::token_version.eq(version),
+        ))
         .execute(&mut conn)
         .is_err()
     {
@@ -634,7 +705,17 @@ mod email_tests {
     fn test_valid_email() {
         assert!(valid_email("anna@example.cat"));
         assert!(valid_email("a.b+c@sub.example.com"));
-        for bad in ["", "anna", "anna@", "@example.cat", "anna@example", "an na@example.cat", "a@b@c.cat", "a@.cat", "a@cat."] {
+        for bad in [
+            "",
+            "anna",
+            "anna@",
+            "@example.cat",
+            "anna@example",
+            "an na@example.cat",
+            "a@b@c.cat",
+            "a@.cat",
+            "a@cat.",
+        ] {
             assert!(!valid_email(bad), "{bad}");
         }
     }

@@ -42,11 +42,17 @@ impl Default for ShellyProvider {
 /// "shelly-103-eu.shelly.cloud", with or without https:// and a trailing /.
 /// Only Shelly's own servers: the server calls this host with the key.
 fn parse_server(raw: &str) -> Option<String> {
-    let host = raw.trim().trim_start_matches("https://").trim_end_matches('/').to_ascii_lowercase();
+    let host = raw
+        .trim()
+        .trim_start_matches("https://")
+        .trim_end_matches('/')
+        .to_ascii_lowercase();
     let name = host.strip_suffix(".shelly.cloud")?;
     let valid = name.starts_with("shelly-")
         && name.len() > "shelly-".len()
-        && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        && name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
     valid.then_some(host)
 }
 
@@ -60,13 +66,18 @@ fn parse_device_id(raw: &str) -> Option<String> {
 fn parse_device_ids(raw: &Value) -> Result<Vec<String>, ProviderError> {
     let items: Vec<String> = match raw {
         Value::String(s) => s.split([',', ' ', '\n', ';']).map(str::to_string).collect(),
-        Value::Array(list) => list.iter().filter_map(Value::as_str).map(str::to_string).collect(),
+        Value::Array(list) => list
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect(),
         _ => Vec::new(),
     };
     let mut ids = Vec::new();
     for item in items.iter().map(|s| s.trim()).filter(|s| !s.is_empty()) {
-        let id = parse_device_id(item)
-            .ok_or_else(|| ProviderError::AuthenticationFailed(format!("Invalid Shelly device id: {}", item)))?;
+        let id = parse_device_id(item).ok_or_else(|| {
+            ProviderError::AuthenticationFailed(format!("Invalid Shelly device id: {}", item))
+        })?;
         if !ids.contains(&id) {
             ids.push(id);
         }
@@ -103,7 +114,11 @@ impl Channel {
             None => (Kind::Switch, external_id),
         };
         let (id, channel) = rest.rsplit_once('_')?;
-        Some(Self { id: parse_device_id(id)?, channel: channel.parse().ok()?, kind })
+        Some(Self {
+            id: parse_device_id(id)?,
+            channel: channel.parse().ok()?,
+            kind,
+        })
     }
 }
 
@@ -116,17 +131,31 @@ fn device_name(device: &Value) -> Option<String> {
     let name = if is_gen1(device) {
         settings.get("name")
     } else {
-        settings.get("sys").and_then(|s| s.get("device")).and_then(|d| d.get("name"))
+        settings
+            .get("sys")
+            .and_then(|s| s.get("device"))
+            .and_then(|d| d.get("name"))
     };
-    name.and_then(Value::as_str).map(str::trim).filter(|n| !n.is_empty()).map(str::to_string)
+    name.and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .map(str::to_string)
 }
 
 /// The status of one channel: (on, watts if the channel measures them)
 fn channel_status(device: &Value, ch: &Channel) -> Option<(bool, Option<f32>)> {
     let status = device.get("status")?;
     if is_gen1(device) {
-        let list = if ch.kind == Kind::Light { "lights" } else { "relays" };
-        let on = status.get(list)?.get(ch.channel as usize)?.get("ison")?.as_bool()?;
+        let list = if ch.kind == Kind::Light {
+            "lights"
+        } else {
+            "relays"
+        };
+        let on = status
+            .get(list)?
+            .get(ch.channel as usize)?
+            .get("ison")?
+            .as_bool()?;
         // A plain Shelly 1 reports a meter that is always 0
         let measures = device.get("code").and_then(Value::as_str) != Some("SHSW-1");
         let watts = status
@@ -137,7 +166,11 @@ fn channel_status(device: &Value, ch: &Channel) -> Option<(bool, Option<f32>)> {
             .filter(|_| measures);
         Some((on, watts.map(|w| w as f32)))
     } else {
-        let prefix = if ch.kind == Kind::Light { "light" } else { "switch" };
+        let prefix = if ch.kind == Kind::Light {
+            "light"
+        } else {
+            "switch"
+        };
         let component = status.get(format!("{}:{}", prefix, ch.channel))?;
         let on = component.get("output")?.as_bool()?;
         let watts = component.get("apower").and_then(Value::as_f64);
@@ -147,21 +180,31 @@ fn channel_status(device: &Value, ch: &Channel) -> Option<(bool, Option<f32>)> {
 
 /// The switchable channels of a device from a v2 status call
 fn device_channels(device: &Value) -> Vec<(Channel, String)> {
-    let Some(id) = device.get("id").and_then(Value::as_str).and_then(parse_device_id) else {
+    let Some(id) = device
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(parse_device_id)
+    else {
         return Vec::new();
     };
     let Some(status) = device.get("status").and_then(Value::as_object) else {
         return Vec::new();
     };
     let base = device_name(device).unwrap_or_else(|| {
-        let code = device.get("code").and_then(Value::as_str).unwrap_or("Shelly");
+        let code = device
+            .get("code")
+            .and_then(Value::as_str)
+            .unwrap_or("Shelly");
         format!("{} {}", code, id)
     });
 
     let mut channels: Vec<(Channel, Option<String>)> = Vec::new();
     if is_gen1(device) {
         for (list, kind) in [("relays", Kind::Switch), ("lights", Kind::Light)] {
-            let count = status.get(list).and_then(Value::as_array).map_or(0, Vec::len);
+            let count = status
+                .get(list)
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len);
             for n in 0..count {
                 let name = device
                     .get("settings")
@@ -170,12 +213,21 @@ fn device_channels(device: &Value) -> Vec<(Channel, String)> {
                     .and_then(|c| c.get("name"))
                     .and_then(Value::as_str)
                     .map(str::to_string);
-                channels.push((Channel { id: id.clone(), channel: n as u32, kind }, name));
+                channels.push((
+                    Channel {
+                        id: id.clone(),
+                        channel: n as u32,
+                        kind,
+                    },
+                    name,
+                ));
             }
         }
     } else {
         for key in status.keys() {
-            let Some((prefix, n)) = key.split_once(':') else { continue };
+            let Some((prefix, n)) = key.split_once(':') else {
+                continue;
+            };
             let kind = match prefix {
                 "switch" => Kind::Switch,
                 "light" => Kind::Light,
@@ -188,7 +240,14 @@ fn device_channels(device: &Value) -> Vec<(Channel, String)> {
                 .and_then(|c| c.get("name"))
                 .and_then(Value::as_str)
                 .map(str::to_string);
-            channels.push((Channel { id: id.clone(), channel: n, kind }, name));
+            channels.push((
+                Channel {
+                    id: id.clone(),
+                    channel: n,
+                    kind,
+                },
+                name,
+            ));
         }
         channels.sort_by_key(|(c, _)| (c.kind == Kind::Light, c.channel));
     }
@@ -240,7 +299,9 @@ impl Api {
             .get("server")
             .and_then(Value::as_str)
             .and_then(parse_server)
-            .ok_or_else(|| ProviderError::AuthenticationFailed("Invalid Shelly server".to_string()))?;
+            .ok_or_else(|| {
+                ProviderError::AuthenticationFailed("Invalid Shelly server".to_string())
+            })?;
         let auth_key = credentials
             .get("auth_key")
             .and_then(Value::as_str)
@@ -249,14 +310,21 @@ impl Api {
             .ok_or_else(|| ProviderError::AuthenticationFailed("No Shelly key".to_string()))?;
         let device_ids = parse_device_ids(credentials.get("device_ids").unwrap_or(&Value::Null))?;
         if device_ids.is_empty() {
-            return Err(ProviderError::AuthenticationFailed("No Shelly device ids".to_string()));
+            return Err(ProviderError::AuthenticationFailed(
+                "No Shelly device ids".to_string(),
+            ));
         }
         let client = Client::builder()
             .redirect(Policy::none())
             .timeout(Duration::from_secs(10))
             .build()
             .map_err(|e| ProviderError::Unknown(e.to_string()))?;
-        Ok(Self { client, server, auth_key: auth_key.to_string(), device_ids })
+        Ok(Self {
+            client,
+            server,
+            auth_key: auth_key.to_string(),
+            device_ids,
+        })
     }
 
     fn credentials(&self) -> Value {
@@ -265,17 +333,25 @@ impl Api {
 
     /// Sends a request, waiting for its turn and retrying once when the cloud
     /// says it is too soon
-    async fn send(&self, build: impl Fn() -> reqwest::RequestBuilder) -> Result<reqwest::Response, ProviderError> {
+    async fn send(
+        &self,
+        build: impl Fn() -> reqwest::RequestBuilder,
+    ) -> Result<reqwest::Response, ProviderError> {
         for attempt in 0..2 {
             wait_turn(&self.auth_key).await;
-            let response = build()
-                .send()
-                .await
-                .map_err(|e| if e.is_timeout() { ProviderError::Timeout } else { ProviderError::ConnectionError(e.without_url().to_string()) })?;
+            let response = build().send().await.map_err(|e| {
+                if e.is_timeout() {
+                    ProviderError::Timeout
+                } else {
+                    ProviderError::ConnectionError(e.without_url().to_string())
+                }
+            })?;
             match response.status() {
                 StatusCode::TOO_MANY_REQUESTS if attempt == 0 => continue,
                 StatusCode::TOO_MANY_REQUESTS => return Err(ProviderError::RateLimited),
-                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => return Err(ProviderError::InvalidCredentials),
+                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                    return Err(ProviderError::InvalidCredentials);
+                }
                 s if s.is_success() => return Ok(response),
                 s => {
                     let body: Value = response.json().await.unwrap_or(Value::Null);
@@ -284,9 +360,13 @@ impl Api {
                         "DEVICE_NOT_FOUND" | "INSTANCE_NOT_FOUND" | "DEVICE_INVALID_CHANNEL" => {
                             ProviderError::DeviceNotFound(error.to_string())
                         }
-                        "DEVICE_OFFLINE" => ProviderError::ConnectionError("The device is offline".to_string()),
+                        "DEVICE_OFFLINE" => {
+                            ProviderError::ConnectionError("The device is offline".to_string())
+                        }
                         "" => ProviderError::ConnectionError(format!("Shelly answered {}", s)),
-                        other => ProviderError::ConnectionError(format!("Shelly answered {}", other)),
+                        other => {
+                            ProviderError::ConnectionError(format!("Shelly answered {}", other))
+                        }
                     });
                 }
             }
@@ -295,11 +375,21 @@ impl Api {
     }
 
     fn v2(&self, path: &str) -> String {
-        format!("https://{}/v2/devices/api/{}?auth_key={}", self.server, path, urlencoding::encode(&self.auth_key))
+        format!(
+            "https://{}/v2/devices/api/{}?auth_key={}",
+            self.server,
+            path,
+            urlencoding::encode(&self.auth_key)
+        )
     }
 
     /// v2 state of up to ten devices
-    async fn get(&self, ids: &[String], select: &[&str], pick: Option<Value>) -> Result<Vec<Value>, ProviderError> {
+    async fn get(
+        &self,
+        ids: &[String],
+        select: &[&str],
+        pick: Option<Value>,
+    ) -> Result<Vec<Value>, ProviderError> {
         let mut body = json!({ "ids": ids, "select": select });
         if let Some(pick) = pick {
             body["pick"] = pick;
@@ -321,25 +411,50 @@ impl Api {
             .next()
             .ok_or_else(|| ProviderError::DeviceNotFound(ch.external_id()))?;
         if device.get("online").and_then(Value::as_i64) == Some(0) {
-            return Err(ProviderError::ConnectionError("The device is offline".to_string()));
+            return Err(ProviderError::ConnectionError(
+                "The device is offline".to_string(),
+            ));
         }
         channel_status(&device, ch).ok_or_else(|| ProviderError::DeviceNotFound(ch.external_id()))
     }
 
-    async fn switch(&self, external_id: &str, on: bool) -> Result<DeviceActionResult, ProviderError> {
-        let ch = Channel::parse(external_id).ok_or_else(|| ProviderError::DeviceNotFound(external_id.to_string()))?;
-        let url = self.v2(if ch.kind == Kind::Light { "set/light" } else { "set/switch" });
+    async fn switch(
+        &self,
+        external_id: &str,
+        on: bool,
+    ) -> Result<DeviceActionResult, ProviderError> {
+        let ch = Channel::parse(external_id)
+            .ok_or_else(|| ProviderError::DeviceNotFound(external_id.to_string()))?;
+        let url = self.v2(if ch.kind == Kind::Light {
+            "set/light"
+        } else {
+            "set/switch"
+        });
         let body = json!({ "id": ch.id, "channel": ch.channel, "on": on });
         match self.send(|| self.client.post(&url).json(&body)).await {
             Ok(_) => Ok(DeviceActionResult {
                 success: true,
                 message: Some(format!("Device turned {}", if on { "on" } else { "off" })),
-                new_state: Some(DeviceState { is_on: on, brightness: None, temperature: None, power_consumption_watts: None }),
+                new_state: Some(DeviceState {
+                    is_on: on,
+                    brightness: None,
+                    temperature: None,
+                    power_consumption_watts: None,
+                }),
             }),
             Err(e @ ProviderError::InvalidCredentials) => Err(e),
             Err(e) => {
-                warn!("Shelly switch {} failed for {}: {}", if on { "on" } else { "off" }, external_id, e);
-                Ok(DeviceActionResult { success: false, message: Some(e.to_string()), new_state: None })
+                warn!(
+                    "Shelly switch {} failed for {}: {}",
+                    if on { "on" } else { "off" },
+                    external_id,
+                    e
+                );
+                Ok(DeviceActionResult {
+                    success: false,
+                    message: Some(e.to_string()),
+                    new_state: None,
+                })
             }
         }
     }
@@ -361,10 +476,15 @@ impl SmartHomeProvider for ShellyProvider {
         let api = Api::new(credentials)?;
         let mut found = 0;
         for chunk in api.device_ids.chunks(IDS_PER_CALL) {
-            found += api.get(chunk, &["status"], Some(json!({ "status": ["sys"] }))).await?.len();
+            found += api
+                .get(chunk, &["status"], Some(json!({ "status": ["sys"] })))
+                .await?
+                .len();
         }
         if found < api.device_ids.len() {
-            return Err(ProviderError::AuthenticationFailed("Shelly does not know some device ids".to_string()));
+            return Err(ProviderError::AuthenticationFailed(
+                "Shelly does not know some device ids".to_string(),
+            ));
         }
         info!("Shelly login successful");
         Ok(api.credentials())
@@ -375,7 +495,10 @@ impl SmartHomeProvider for ShellyProvider {
         Err(ProviderError::InvalidCredentials)
     }
 
-    async fn list_devices(&self, credentials: &Value) -> Result<Vec<DiscoveredDevice>, ProviderError> {
+    async fn list_devices(
+        &self,
+        credentials: &Value,
+    ) -> Result<Vec<DiscoveredDevice>, ProviderError> {
         let api = Api::new(credentials)?;
         let mut devices = Vec::new();
         for chunk in api.device_ids.chunks(IDS_PER_CALL) {
@@ -384,36 +507,74 @@ impl SmartHomeProvider for ShellyProvider {
                     devices.push(DiscoveredDevice {
                         external_id: ch.external_id(),
                         name,
-                        device_type: if ch.kind == Kind::Light { "light" } else { "switch" }.to_string(),
+                        device_type: if ch.kind == Kind::Light {
+                            "light"
+                        } else {
+                            "switch"
+                        }
+                        .to_string(),
                     });
                 }
             }
         }
-        info!("Shelly found {} channels in {} devices", devices.len(), api.device_ids.len());
+        info!(
+            "Shelly found {} channels in {} devices",
+            devices.len(),
+            api.device_ids.len()
+        );
         Ok(devices)
     }
 
-    async fn get_device_state(&self, credentials: &Value, external_id: &str) -> Result<DeviceState, ProviderError> {
-        let ch = Channel::parse(external_id).ok_or_else(|| ProviderError::DeviceNotFound(external_id.to_string()))?;
+    async fn get_device_state(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<DeviceState, ProviderError> {
+        let ch = Channel::parse(external_id)
+            .ok_or_else(|| ProviderError::DeviceNotFound(external_id.to_string()))?;
         let (is_on, watts) = Api::new(credentials)?.channel(&ch).await?;
-        Ok(DeviceState { is_on, brightness: None, temperature: None, power_consumption_watts: watts })
+        Ok(DeviceState {
+            is_on,
+            brightness: None,
+            temperature: None,
+            power_consumption_watts: watts,
+        })
     }
 
-    async fn turn_on(&self, credentials: &Value, external_id: &str) -> Result<DeviceActionResult, ProviderError> {
+    async fn turn_on(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<DeviceActionResult, ProviderError> {
         Api::new(credentials)?.switch(external_id, true).await
     }
 
-    async fn turn_off(&self, credentials: &Value, external_id: &str) -> Result<DeviceActionResult, ProviderError> {
+    async fn turn_off(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<DeviceActionResult, ProviderError> {
         Api::new(credentials)?.switch(external_id, false).await
     }
 
-    async fn supports_power_reading(&self, credentials: &Value, external_id: &str) -> Result<bool, ProviderError> {
-        let Some(ch) = Channel::parse(external_id) else { return Ok(false) };
+    async fn supports_power_reading(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<bool, ProviderError> {
+        let Some(ch) = Channel::parse(external_id) else {
+            return Ok(false);
+        };
         Ok(Api::new(credentials)?.channel(&ch).await?.1.is_some())
     }
 
-    async fn read_power(&self, credentials: &Value, external_id: &str) -> Result<f32, ProviderError> {
-        let ch = Channel::parse(external_id).ok_or_else(|| ProviderError::DeviceNotFound(external_id.to_string()))?;
+    async fn read_power(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<f32, ProviderError> {
+        let ch = Channel::parse(external_id)
+            .ok_or_else(|| ProviderError::DeviceNotFound(external_id.to_string()))?;
         Api::new(credentials)?
             .channel(&ch)
             .await?
@@ -428,8 +589,14 @@ mod tests {
 
     #[test]
     fn test_server_is_a_shelly_host() {
-        assert_eq!(parse_server("shelly-103-eu.shelly.cloud").as_deref(), Some("shelly-103-eu.shelly.cloud"));
-        assert_eq!(parse_server(" https://Shelly-7-EU.shelly.cloud/ ").as_deref(), Some("shelly-7-eu.shelly.cloud"));
+        assert_eq!(
+            parse_server("shelly-103-eu.shelly.cloud").as_deref(),
+            Some("shelly-103-eu.shelly.cloud")
+        );
+        assert_eq!(
+            parse_server(" https://Shelly-7-EU.shelly.cloud/ ").as_deref(),
+            Some("shelly-7-eu.shelly.cloud")
+        );
         assert!(parse_server("evil.com/shelly-1.shelly.cloud").is_none());
         assert!(parse_server("shelly-1.shelly.cloud.evil.com").is_none());
         assert!(parse_server("shelly-1-eu.shelly.cloud:8080").is_none());
@@ -440,7 +607,10 @@ mod tests {
 
     #[test]
     fn test_device_ids() {
-        assert_eq!(parse_device_ids(&json!("B48A0A1CD978, e8db84d2a1b3 b48a0a1cd978")).unwrap(), ["b48a0a1cd978", "e8db84d2a1b3"]);
+        assert_eq!(
+            parse_device_ids(&json!("B48A0A1CD978, e8db84d2a1b3 b48a0a1cd978")).unwrap(),
+            ["b48a0a1cd978", "e8db84d2a1b3"]
+        );
         assert!(parse_device_ids(&json!("")).unwrap().is_empty());
         assert!(parse_device_ids(&Value::Null).unwrap().is_empty());
         assert!(parse_device_ids(&json!("b48a0a1cd978/../x")).is_err());
@@ -449,13 +619,21 @@ mod tests {
 
     #[test]
     fn test_ids_are_required() {
-        let creds = json!({ "server": "shelly-103-eu.shelly.cloud", "auth_key": "k", "device_ids": " " });
-        assert!(matches!(Api::new(&creds), Err(ProviderError::AuthenticationFailed(_))));
+        let creds =
+            json!({ "server": "shelly-103-eu.shelly.cloud", "auth_key": "k", "device_ids": " " });
+        assert!(matches!(
+            Api::new(&creds),
+            Err(ProviderError::AuthenticationFailed(_))
+        ));
     }
 
     #[test]
     fn test_channel_ids() {
-        let ch = Channel { id: "b48a0a1cd978".into(), channel: 1, kind: Kind::Switch };
+        let ch = Channel {
+            id: "b48a0a1cd978".into(),
+            channel: 1,
+            kind: Kind::Switch,
+        };
         assert_eq!(ch.external_id(), "b48a0a1cd978_1");
         assert_eq!(Channel::parse("b48a0a1cd978_1"), Some(ch));
         let light = Channel::parse("light:b48a0a1cd978_0").unwrap();
@@ -483,7 +661,10 @@ mod tests {
         assert_eq!(channels.len(), 1);
         assert_eq!(channels[0].0.external_id(), "b48a0a1cd978_0");
         assert_eq!(channels[0].1, "Termo");
-        assert_eq!(channel_status(&device, &channels[0].0), Some((true, Some(1534.2))));
+        assert_eq!(
+            channel_status(&device, &channels[0].0),
+            Some((true, Some(1534.2)))
+        );
     }
 
     #[test]
@@ -495,7 +676,13 @@ mod tests {
         });
         let channels = device_channels(&device);
         let names: Vec<_> = channels.iter().map(|(_, n)| n.as_str()).collect();
-        assert_eq!(names, ["S3SW-002P16EU a0b1c2d3e4f5 · Rentadora", "S3SW-002P16EU a0b1c2d3e4f5 · 2"]);
+        assert_eq!(
+            names,
+            [
+                "S3SW-002P16EU a0b1c2d3e4f5 · Rentadora",
+                "S3SW-002P16EU a0b1c2d3e4f5 · 2"
+            ]
+        );
         assert_eq!(channel_status(&device, &channels[1].0), Some((false, None)));
     }
 
@@ -508,7 +695,10 @@ mod tests {
         });
         let channels = device_channels(&plug);
         assert_eq!(channels[0].1, "Assecadora");
-        assert_eq!(channel_status(&plug, &channels[0].0), Some((true, Some(820.5))));
+        assert_eq!(
+            channel_status(&plug, &channels[0].0),
+            Some((true, Some(820.5)))
+        );
 
         let shelly1 = json!({
             "id": "c45bbe6b1a2f", "code": "SHSW-1", "gen": "G1",
@@ -516,12 +706,19 @@ mod tests {
         });
         let channels = device_channels(&shelly1);
         assert_eq!(channels[0].1, "SHSW-1 c45bbe6b1a2f");
-        assert_eq!(channel_status(&shelly1, &channels[0].0), Some((false, None)));
+        assert_eq!(
+            channel_status(&shelly1, &channels[0].0),
+            Some((false, None))
+        );
     }
 
     #[test]
     fn test_missing_channel_is_none() {
-        let ch = Channel { id: "b48a0a1cd978".into(), channel: 3, kind: Kind::Switch };
+        let ch = Channel {
+            id: "b48a0a1cd978".into(),
+            channel: 3,
+            kind: Kind::Switch,
+        };
         assert_eq!(channel_status(&gen2_plug(), &ch), None);
         assert!(device_channels(&json!({"id": "nothex!", "status": {}})).is_empty());
     }
@@ -552,8 +749,14 @@ mod tests {
         let devices = shelly.list_devices(&creds).await.unwrap();
         assert!(!devices.is_empty());
         for d in &devices {
-            let state = shelly.get_device_state(&creds, &d.external_id).await.unwrap();
-            println!("{} {} on={} watts={:?}", d.external_id, d.name, state.is_on, state.power_consumption_watts);
+            let state = shelly
+                .get_device_state(&creds, &d.external_id)
+                .await
+                .unwrap();
+            println!(
+                "{} {} on={} watts={:?}",
+                d.external_id, d.name, state.is_on, state.power_consumption_watts
+            );
         }
         let bad = json!({ "server": creds["server"], "auth_key": "wrong", "device_ids": creds["device_ids"] });
         assert!(shelly.login(&bad).await.is_err());

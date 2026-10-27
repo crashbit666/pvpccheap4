@@ -97,7 +97,11 @@ impl MerossProvider {
                 .filter(|(key, (_, used))| **key != account && now - *used > IDLE_CONNECTION)
                 .map(|(key, _)| key.clone())
                 .collect();
-            let idle: Vec<_> = idle.iter().filter_map(|key| connections.remove(key)).map(|(c, _)| c).collect();
+            let idle: Vec<_> = idle
+                .iter()
+                .filter_map(|key| connections.remove(key))
+                .map(|(c, _)| c)
+                .collect();
             let cached = connections.get_mut(&account).map(|(client, used)| {
                 *used = now;
                 client.clone()
@@ -209,7 +213,8 @@ impl MerossProvider {
 
         debug!("Attempting Meross login to: {}", base_url);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Content-Type", "application/json")
             .header("vender", "Meross")
@@ -237,21 +242,28 @@ impl MerossProvider {
 
         // The body carries the session token and MQTT key: never log it
         let meross_response: MerossResponse<MerossLoginData> = serde_json::from_str(&response_text)
-            .map_err(|e| ProviderError::Unknown(format!("Failed to parse login response: {}", e)))?;
-        debug!("Meross login response: apiStatus={}", meross_response.api_status);
+            .map_err(|e| {
+                ProviderError::Unknown(format!("Failed to parse login response: {}", e))
+            })?;
+        debug!(
+            "Meross login response: apiStatus={}",
+            meross_response.api_status
+        );
 
         // Meross uses api_status 0 for success
         if meross_response.api_status != 0 {
-            let error_msg = meross_response.info.unwrap_or_else(|| "Unknown error".to_string());
+            let error_msg = meross_response
+                .info
+                .unwrap_or_else(|| "Unknown error".to_string());
             return Err(ProviderError::AuthenticationFailed(format!(
                 "API error {}: {}",
                 meross_response.api_status, error_msg
             )));
         }
 
-        meross_response.data.ok_or_else(|| {
-            ProviderError::AuthenticationFailed("No data in response".to_string())
-        })
+        meross_response
+            .data
+            .ok_or_else(|| ProviderError::AuthenticationFailed("No data in response".to_string()))
     }
 
     /// Get device list from Meross API
@@ -266,7 +278,8 @@ impl MerossProvider {
         let params: serde_json::Map<String, Value> = serde_json::Map::new();
         let request = Self::build_request(&params);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Basic {}", token))
@@ -295,11 +308,18 @@ impl MerossProvider {
 
         debug!("Meross devList response: {}", response_text);
 
-        let meross_response: MerossResponse<Vec<MerossDeviceData>> = serde_json::from_str(&response_text)
-            .map_err(|e| ProviderError::Unknown(format!("Failed to parse response: {}. Body: {}", e, response_text)))?;
+        let meross_response: MerossResponse<Vec<MerossDeviceData>> =
+            serde_json::from_str(&response_text).map_err(|e| {
+                ProviderError::Unknown(format!(
+                    "Failed to parse response: {}. Body: {}",
+                    e, response_text
+                ))
+            })?;
 
         if meross_response.api_status != 0 {
-            let error_msg = meross_response.info.unwrap_or_else(|| "Unknown error".to_string());
+            let error_msg = meross_response
+                .info
+                .unwrap_or_else(|| "Unknown error".to_string());
             return Err(ProviderError::AuthenticationFailed(format!(
                 "API error {}: {}",
                 meross_response.api_status, error_msg
@@ -408,7 +428,10 @@ impl SmartHomeProvider for MerossProvider {
         // If so, return them directly without re-authenticating
         if credentials.get("token").and_then(|v| v.as_str()).is_some()
             && credentials.get("key").and_then(|v| v.as_str()).is_some()
-            && credentials.get("user_id").and_then(|v| v.as_str()).is_some()
+            && credentials
+                .get("user_id")
+                .and_then(|v| v.as_str())
+                .is_some()
         {
             debug!("Meross: Using existing session credentials");
             return Ok(credentials.clone());
@@ -424,13 +447,13 @@ impl SmartHomeProvider for MerossProvider {
         self.do_fresh_login(credentials).await
     }
 
-    async fn list_devices(&self, credentials: &Value) -> Result<Vec<DiscoveredDevice>, ProviderError> {
-        let token = credentials
-            .get("token")
-            .and_then(|v| v.as_str())
-            .ok_or(ProviderError::AuthenticationFailed(
-                "No token provided".to_string(),
-            ))?;
+    async fn list_devices(
+        &self,
+        credentials: &Value,
+    ) -> Result<Vec<DiscoveredDevice>, ProviderError> {
+        let token = credentials.get("token").and_then(|v| v.as_str()).ok_or(
+            ProviderError::AuthenticationFailed("No token provided".to_string()),
+        )?;
 
         let api_url = Self::get_api_url(credentials);
 
@@ -468,12 +491,9 @@ impl SmartHomeProvider for MerossProvider {
         external_id: &str,
     ) -> Result<DeviceState, ProviderError> {
         // Validate we have required credentials
-        credentials
-            .get("token")
-            .and_then(|v| v.as_str())
-            .ok_or(ProviderError::AuthenticationFailed(
-                "No token provided".to_string(),
-            ))?;
+        credentials.get("token").and_then(|v| v.as_str()).ok_or(
+            ProviderError::AuthenticationFailed("No token provided".to_string()),
+        )?;
 
         match self.mqtt(credentials).await {
             Ok(mqtt_client) => mqtt_client.get_state(external_id).await,
@@ -485,11 +505,22 @@ impl SmartHomeProvider for MerossProvider {
         }
     }
 
-    async fn supports_power_reading(&self, credentials: &Value, external_id: &str) -> Result<bool, ProviderError> {
-        self.mqtt(credentials).await?.supports_electricity(external_id).await
+    async fn supports_power_reading(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<bool, ProviderError> {
+        self.mqtt(credentials)
+            .await?
+            .supports_electricity(external_id)
+            .await
     }
 
-    async fn read_power(&self, credentials: &Value, external_id: &str) -> Result<f32, ProviderError> {
+    async fn read_power(
+        &self,
+        credentials: &Value,
+        external_id: &str,
+    ) -> Result<f32, ProviderError> {
         self.mqtt(credentials).await?.get_power(external_id).await
     }
 
@@ -501,12 +532,9 @@ impl SmartHomeProvider for MerossProvider {
         info!("Meross turn_on called for device: {}", external_id);
 
         // Validate we have required credentials
-        credentials
-            .get("token")
-            .and_then(|v| v.as_str())
-            .ok_or(ProviderError::AuthenticationFailed(
-                "No token provided".to_string(),
-            ))?;
+        credentials.get("token").and_then(|v| v.as_str()).ok_or(
+            ProviderError::AuthenticationFailed("No token provided".to_string()),
+        )?;
 
         match self.mqtt(credentials).await {
             Ok(mqtt_client) => {
@@ -534,12 +562,9 @@ impl SmartHomeProvider for MerossProvider {
         info!("Meross turn_off called for device: {}", external_id);
 
         // Validate we have required credentials
-        credentials
-            .get("token")
-            .and_then(|v| v.as_str())
-            .ok_or(ProviderError::AuthenticationFailed(
-                "No token provided".to_string(),
-            ))?;
+        credentials.get("token").and_then(|v| v.as_str()).ok_or(
+            ProviderError::AuthenticationFailed("No token provided".to_string()),
+        )?;
 
         match self.mqtt(credentials).await {
             Ok(mqtt_client) => {
@@ -572,12 +597,24 @@ impl SmartHomeProvider for MerossProvider {
 /// Identifies the account's MQTT session: a new key (credentials refreshed)
 /// gets a new connection
 fn connection_key(credentials: &Value) -> Result<String, ProviderError> {
-    let field = |name: &str| credentials.get(name).and_then(Value::as_str).unwrap_or_default();
+    let field = |name: &str| {
+        credentials
+            .get(name)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+    };
     if field("user_id").is_empty() || field("key").is_empty() {
-        return Err(ProviderError::AuthenticationFailed("Missing MQTT credentials".to_string()));
+        return Err(ProviderError::AuthenticationFailed(
+            "Missing MQTT credentials".to_string(),
+        ));
     }
     let key_hash = md5::compute(field("key").as_bytes());
-    Ok(format!("{}@{}#{:x}", field("user_id"), field("mqtt_domain"), key_hash))
+    Ok(format!(
+        "{}@{}#{:x}",
+        field("user_id"),
+        field("mqtt_domain"),
+        key_hash
+    ))
 }
 
 #[cfg(test)]
@@ -703,7 +740,10 @@ mod tests {
         let result = provider.login(&credentials).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ProviderError::InvalidCredentials));
+        assert!(matches!(
+            result.unwrap_err(),
+            ProviderError::InvalidCredentials
+        ));
     }
 
     #[actix_rt::test]
@@ -716,7 +756,10 @@ mod tests {
         let result = provider.login(&credentials).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ProviderError::InvalidCredentials));
+        assert!(matches!(
+            result.unwrap_err(),
+            ProviderError::InvalidCredentials
+        ));
     }
 
     #[actix_rt::test]
@@ -727,7 +770,10 @@ mod tests {
         let result = provider.list_devices(&credentials).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ProviderError::AuthenticationFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ProviderError::AuthenticationFailed(_)
+        ));
     }
 
     #[actix_rt::test]
@@ -738,7 +784,10 @@ mod tests {
         let result = provider.turn_on(&credentials, "device_123").await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ProviderError::AuthenticationFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ProviderError::AuthenticationFailed(_)
+        ));
     }
 
     #[actix_rt::test]
@@ -749,7 +798,10 @@ mod tests {
         let result = provider.turn_off(&credentials, "device_123").await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ProviderError::AuthenticationFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ProviderError::AuthenticationFailed(_)
+        ));
     }
 
     #[actix_rt::test]
@@ -760,7 +812,10 @@ mod tests {
         let result = provider.get_device_state(&credentials, "device_123").await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ProviderError::AuthenticationFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ProviderError::AuthenticationFailed(_)
+        ));
     }
 
     #[actix_rt::test]
@@ -775,7 +830,10 @@ mod tests {
 
         // Should return Err because MQTT credentials (user_id, key) are missing
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ProviderError::AuthenticationFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ProviderError::AuthenticationFailed(_)
+        ));
     }
 
     #[actix_rt::test]
@@ -790,7 +848,10 @@ mod tests {
 
         // Should return Err because MQTT credentials (user_id, key) are missing
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ProviderError::AuthenticationFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ProviderError::AuthenticationFailed(_)
+        ));
     }
 
     #[actix_rt::test]

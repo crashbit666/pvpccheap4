@@ -45,7 +45,11 @@ impl Lang {
     }
 
     pub fn of(req: &HttpRequest) -> Lang {
-        Lang::from_header(req.headers().get("accept-language").and_then(|h| h.to_str().ok()))
+        Lang::from_header(
+            req.headers()
+                .get("accept-language")
+                .and_then(|h| h.to_str().ok()),
+        )
     }
 
     pub fn code(self) -> &'static str {

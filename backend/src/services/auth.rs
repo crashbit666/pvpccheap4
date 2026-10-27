@@ -8,8 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use actix_web::{FromRequest, HttpRequest, dev::Payload, error::ErrorUnauthorized, web};
 use diesel::prelude::*;
-use std::{future::Future, pin::Pin};
 use jsonwebtoken::{DecodingKey, Validation, decode};
+use std::{future::Future, pin::Pin};
 
 use crate::{db::DbPool, schema::users};
 
@@ -18,7 +18,8 @@ use crate::{db::DbPool, schema::users};
 const MIN_JWT_SECRET_LEN: usize = 32;
 
 /// Values that must never be used as a signing key (old fallback, .env.example placeholder).
-const FORBIDDEN_JWT_SECRETS: [&str; 2] = ["secret", "your-super-secret-jwt-key-change-in-production"];
+const FORBIDDEN_JWT_SECRETS: [&str; 2] =
+    ["secret", "your-super-secret-jwt-key-change-in-production"];
 
 /// Checks JWT_SECRET at startup so a misconfigured server refuses to run
 /// instead of signing tokens with a guessable key.
@@ -86,10 +87,17 @@ impl FromRequest for Claims {
             // A password change bumps the user's token_version and logs out
             // every other session (unit tests have no pool)
             let Some(pool) = pool else { return Ok(claims) };
-            let user_id: i32 = claims.sub.parse().map_err(|_| ErrorUnauthorized("Invalid Token"))?;
+            let user_id: i32 = claims
+                .sub
+                .parse()
+                .map_err(|_| ErrorUnauthorized("Invalid Token"))?;
             let current = web::block(move || -> Option<i32> {
                 let mut conn = pool.get().ok()?;
-                users::table.find(user_id).select(users::token_version).first(&mut conn).ok()
+                users::table
+                    .find(user_id)
+                    .select(users::token_version)
+                    .first(&mut conn)
+                    .ok()
             })
             .await
             .map_err(|_| ErrorUnauthorized("Invalid Token"))?;

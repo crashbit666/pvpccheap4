@@ -1,6 +1,9 @@
 use crate::{
-    db::DbPool, integrations::{ProviderError, ProviderRegistry}, models::UserIntegration,
-    schema::{devices, user_integrations}, services::{auth::Claims, credentials, provider_health},
+    db::DbPool,
+    integrations::{ProviderError, ProviderRegistry},
+    models::UserIntegration,
+    schema::{devices, user_integrations},
+    services::{auth::Claims, credentials, provider_health},
 };
 use actix_web::{HttpResponse, Responder, delete, get, post, web};
 use diesel::prelude::*;
@@ -27,7 +30,9 @@ pub async fn add_integration(
     let registry = ProviderRegistry::new();
     let provider = match registry.get(&item.provider) {
         Some(p) => p,
-        None => return HttpResponse::BadRequest().body(format!("Unknown provider: {}", item.provider)),
+        None => {
+            return HttpResponse::BadRequest().body(format!("Unknown provider: {}", item.provider));
+        }
     };
 
     // Perform login to get session credentials
@@ -37,25 +42,35 @@ pub async fn add_integration(
         Err(e @ (ProviderError::ConnectionError(_) | ProviderError::Timeout)) => {
             return HttpResponse::BadGateway().body(format!("Cannot reach the provider: {}", e));
         }
-        Err(e) => return HttpResponse::Unauthorized().body(format!("Authentication failed: {}", e)),
+        Err(e) => {
+            return HttpResponse::Unauthorized().body(format!("Authentication failed: {}", e));
+        }
     };
 
     // Merge original credentials (email/password) with session credentials (token/key)
     // This ensures we can refresh the token later
     let mut final_credentials = session_credentials.clone();
-    if let (Some(obj), Some(orig)) = (final_credentials.as_object_mut(), item.credentials.as_object()) {
+    if let (Some(obj), Some(orig)) = (
+        final_credentials.as_object_mut(),
+        item.credentials.as_object(),
+    ) {
         // Copy email and password from original request if not present
         if !obj.contains_key("email")
-            && let Some(email) = orig.get("email") {
-                obj.insert("email".to_string(), email.clone());
-            }
+            && let Some(email) = orig.get("email")
+        {
+            obj.insert("email".to_string(), email.clone());
+        }
         if !obj.contains_key("password")
-            && let Some(password) = orig.get("password") {
-                obj.insert("password".to_string(), password.clone());
-            }
+            && let Some(password) = orig.get("password")
+        {
+            obj.insert("password".to_string(), password.clone());
+        }
     }
 
-    info!("Integration login successful for provider: {}", item.provider);
+    info!(
+        "Integration login successful for provider: {}",
+        item.provider
+    );
 
     // Adding the same provider again (e.g. after changing its password)
     // updates the existing integration, so its devices and rules are kept
@@ -127,7 +142,10 @@ pub async fn integrations_status(pool: web::Data<DbPool>, claims: Claims) -> imp
         .iter()
         .filter(|p| used.iter().any(|u| u == *p))
         .filter_map(|p| provider_health::status(&mut conn, p, now).ok())
-        .map(|s| provider_health::ProviderStatus { failing_since: s.failing_since.map(|t| zone.to_local(t)), ..s })
+        .map(|s| provider_health::ProviderStatus {
+            failing_since: s.failing_since.map(|t| zone.to_local(t)),
+            ..s
+        })
         .collect();
     HttpResponse::Ok().json(statuses)
 }
@@ -272,10 +290,7 @@ mod tests {
         let providers = vec!["meross", "tuya", "home_assistant", "shelly"];
 
         for provider in providers {
-            let json = format!(
-                r#"{{"provider": "{}", "credentials": {{}}}}"#,
-                provider
-            );
+            let json = format!(r#"{{"provider": "{}", "credentials": {{}}}}"#, provider);
             let request: AddIntegrationRequest = serde_json::from_str(&json).unwrap();
             assert_eq!(request.provider, provider);
         }

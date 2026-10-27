@@ -104,19 +104,13 @@ impl MerossMqttClient {
 
     /// Create from credentials JSON
     pub fn from_credentials(credentials: &Value) -> Result<Self, ProviderError> {
-        let user_id = credentials
-            .get("user_id")
-            .and_then(|v| v.as_str())
-            .ok_or(ProviderError::AuthenticationFailed(
-                "Missing user_id in credentials".to_string(),
-            ))?;
+        let user_id = credentials.get("user_id").and_then(|v| v.as_str()).ok_or(
+            ProviderError::AuthenticationFailed("Missing user_id in credentials".to_string()),
+        )?;
 
-        let key = credentials
-            .get("key")
-            .and_then(|v| v.as_str())
-            .ok_or(ProviderError::AuthenticationFailed(
-                "Missing key in credentials".to_string(),
-            ))?;
+        let key = credentials.get("key").and_then(|v| v.as_str()).ok_or(
+            ProviderError::AuthenticationFailed("Missing key in credentials".to_string()),
+        )?;
 
         // mqtt_domain from API is usually like "mqtt-eu-5.meross.com"
         // The MQTT broker runs on port 2001 with TLS
@@ -207,7 +201,11 @@ impl MerossMqttClient {
         let mqtt_password = Self::generate_mqtt_password(&self.user_id, &self.key);
 
         info!("Meross MQTT connecting to {}:{} (TLS TCP)", host, port);
-        debug!("Meross MQTT auth: user_id={}, password_hash={}", self.user_id, &mqtt_password[..8]);
+        debug!(
+            "Meross MQTT auth: user_id={}, password_hash={}",
+            self.user_id,
+            &mqtt_password[..8]
+        );
 
         let config = MqttConfig {
             broker_host: host,
@@ -311,7 +309,11 @@ impl MerossMqttClient {
     }
 
     /// Turn device on
-    pub async fn turn_on(&self, device_uuid: &str, channel: i32) -> Result<DeviceActionResult, ProviderError> {
+    pub async fn turn_on(
+        &self,
+        device_uuid: &str,
+        channel: i32,
+    ) -> Result<DeviceActionResult, ProviderError> {
         let payload = serde_json::json!({
             "togglex": {
                 "channel": channel,
@@ -345,7 +347,11 @@ impl MerossMqttClient {
     }
 
     /// Turn device off
-    pub async fn turn_off(&self, device_uuid: &str, channel: i32) -> Result<DeviceActionResult, ProviderError> {
+    pub async fn turn_off(
+        &self,
+        device_uuid: &str,
+        channel: i32,
+    ) -> Result<DeviceActionResult, ProviderError> {
         let payload = serde_json::json!({
             "togglex": {
                 "channel": channel,
@@ -417,7 +423,12 @@ impl MerossMqttClient {
     /// Whether the device lists the electricity namespace among its abilities
     pub async fn supports_electricity(&self, device_uuid: &str) -> Result<bool, ProviderError> {
         let response = self
-            .send_command(device_uuid, "Appliance.System.Ability", "GET", serde_json::json!({}))
+            .send_command(
+                device_uuid,
+                "Appliance.System.Ability",
+                "GET",
+                serde_json::json!({}),
+            )
             .await?;
         Ok(has_electricity_ability(&response))
     }
@@ -432,8 +443,9 @@ impl MerossMqttClient {
                 serde_json::json!({ "electricity": { "channel": 0 } }),
             )
             .await?;
-        parse_power_watts(&response)
-            .ok_or_else(|| ProviderError::Unknown(format!("Unexpected electricity payload: {}", response)))
+        parse_power_watts(&response).ok_or_else(|| {
+            ProviderError::Unknown(format!("Unexpected electricity payload: {}", response))
+        })
     }
 
     /// True while the broker connection is up
