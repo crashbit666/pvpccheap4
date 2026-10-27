@@ -55,16 +55,7 @@ pub async fn list_alerts(
     let settled = now - Duration::minutes(RETRY_GRACE_MINUTES);
 
     // Every execution of the user's rules since then, oldest first
-    let rows: Vec<(
-        i32,
-        i32,
-        String,
-        String,
-        String,
-        bool,
-        NaiveDateTime,
-        Option<String>,
-    )> = match rule_executions::table
+    let rows: Vec<ExecutionRow> = match rule_executions::table
         .inner_join(automation_rules::table.inner_join(devices::table))
         .filter(automation_rules::user_id.eq(user_id))
         .filter(rule_executions::executed_at.gt(since))
@@ -95,21 +86,22 @@ pub async fn list_alerts(
     HttpResponse::Ok().json(alerts)
 }
 
+/// An execution: id, rule id, rule name, device name, action, success, time
+/// and error
+type ExecutionRow = (
+    i32,
+    i32,
+    String,
+    String,
+    String,
+    bool,
+    NaiveDateTime,
+    Option<String>,
+);
+
 /// The last failure of each rule that no later success fixed and that is
 /// older than `settled`. `rows` must be sorted by time.
-fn unresolved_failures(
-    rows: Vec<(
-        i32,
-        i32,
-        String,
-        String,
-        String,
-        bool,
-        NaiveDateTime,
-        Option<String>,
-    )>,
-    settled: NaiveDateTime,
-) -> Vec<Alert> {
+fn unresolved_failures(rows: Vec<ExecutionRow>, settled: NaiveDateTime) -> Vec<Alert> {
     let mut pending: std::collections::BTreeMap<i32, Alert> = Default::default();
     for (id, rule_id, rule_name, device_name, action, success, at, error) in rows {
         if success {

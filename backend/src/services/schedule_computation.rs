@@ -702,7 +702,9 @@ mod tests {
             .unwrap()
     }
 
-    fn groups(r: AutomationRule) -> Vec<(Vec<(NaiveDateTime, NaiveDateTime)>, Option<usize>)> {
+    type Window = (NaiveDateTime, NaiveDateTime);
+
+    fn groups(r: AutomationRule) -> Vec<(Vec<Window>, Option<usize>)> {
         let date = NaiveDate::from_ymd_opt(2026, 10, 19).unwrap();
         instance_groups(&r, date, peninsula())
             .into_iter()

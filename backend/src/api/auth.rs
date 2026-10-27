@@ -322,7 +322,7 @@ pub async fn change_email(
         };
         let user = match authenticated_user(&mut conn, &claims, &item.password) {
             Ok(u) => u,
-            Err(response) => return response,
+            Err(response) => return *response,
         };
         if email_taken(&mut conn, email, Some(user.id)) {
             return HttpResponse::Conflict().body("Email already in use");
@@ -521,18 +521,18 @@ fn authenticated_user(
     conn: &mut PgConnection,
     claims: &Claims,
     password: &str,
-) -> Result<User, HttpResponse> {
+) -> Result<User, Box<HttpResponse>> {
     let user_id: i32 = claims
         .sub
         .parse()
-        .map_err(|_| HttpResponse::BadRequest().body("Invalid user ID"))?;
+        .map_err(|_| Box::new(HttpResponse::BadRequest().body("Invalid user ID")))?;
     let user = users::table
         .find(user_id)
         .first::<User>(conn)
-        .map_err(|_| HttpResponse::NotFound().body("User not found"))?;
+        .map_err(|_| Box::new(HttpResponse::NotFound().body("User not found")))?;
     match auth::verify_password(password, &user.password_hash) {
         Ok(true) => Ok(user),
-        _ => Err(HttpResponse::Forbidden().body("Wrong password")),
+        _ => Err(Box::new(HttpResponse::Forbidden().body("Wrong password"))),
     }
 }
 
@@ -559,7 +559,7 @@ pub async fn change_password(
     };
     let user = match authenticated_user(&mut conn, &claims, &item.current_password) {
         Ok(u) => u,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let Ok(hashed) = auth::hash_password(&item.new_password) else {
         return HttpResponse::InternalServerError().body("Error hashing password");
@@ -601,7 +601,7 @@ pub async fn delete_account(
     };
     let user = match authenticated_user(&mut conn, &claims, &item.password) {
         Ok(u) => u,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
 
     let device_ids: Vec<i32> = devices::table
