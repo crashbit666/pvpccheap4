@@ -22,6 +22,15 @@ http://{$DOMAIN} {
 		Access-Control-Allow-Origin *
 		Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
 		Access-Control-Allow-Headers "Authorization, Content-Type"
+		# L'app entra amb un token, no amb galetes (i amb origen * no valdria)
+		-Access-Control-Allow-Credentials
+	}
+
+	# Seguretat: el Caddy d'entrada no posa capçaleres, cada servei les seves
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		-Server
 	}
 
 	log {
